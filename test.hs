@@ -1,12 +1,24 @@
-import Text.XML.Expat.Raw
+import qualified Text.XML.Expat.Raw as Raw
+import Text.XML.Expat.Stream
 
-startElement name attrs = do
-  print name
-  print attrs
+doc = "<foo baz='bah'><bar/><text>some &amp; text</text></foo>"
 
-main = do
-  parser <- parserCreate Nothing
-  --setHandlers parser (handlers {startElementHandler=Just startElement})
-  setStartElementHandler parser startElement
-  parse parser "<foo baz='bah'><bar/></foo>" True
+
+main_raw = do
+  parser <- Raw.parserCreate Nothing
+  Raw.setStartElementHandler parser startElement
+  Raw.parse parser doc True
+  Raw.parserFree parser
   putStrLn "ok"
+  where
+  startElement name attrs = putStrLn $ show name ++ " " ++ show attrs
+
+main_stream = do
+  let handlers = defaultHandlers {startElementHandler=Just startElement}
+  case parse Nothing handlers doc [] of
+    Left ()    -> putStrLn "parse error"
+    Right tags -> print tags
+  where
+  startElement tag attrs st = st ++ [tag]
+
+main = main_raw
