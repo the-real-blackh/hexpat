@@ -1,4 +1,4 @@
-import Raw
+import Text.XML.Expat.Raw
 
 startElement name attrs = do
   print name

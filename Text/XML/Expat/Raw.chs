@@ -1,4 +1,4 @@
-module Raw (
+module Text.XML.Expat.Raw (
   Parser, parserCreate, parserFree, parse,
   StartElementHandler, EndElementHandler, CharacterDataHandler,
   setStartElementHandler, setEndElementHandler, setCharacterDataHandler
