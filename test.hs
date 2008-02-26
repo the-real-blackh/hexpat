@@ -5,7 +5,7 @@ startElement name attrs = do
   print attrs
 
 main = do
-  parser <- parserCreate "UTF-8"
+  parser <- parserCreate Nothing
   --setHandlers parser (handlers {startElementHandler=Just startElement})
   setStartElementHandler parser startElement
   parse parser "<foo baz='bah'><bar/></foo>" True

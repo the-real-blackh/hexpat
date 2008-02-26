@@ -28,8 +28,11 @@ asParser :: Ptr () -> Parser
 asParser ptr = Parser ptr
 unParser :: Parser -> Ptr ()
 unParser (Parser p) = p
--- |Create a parser.  The parameter is the default character encoding, and can
--- be one of
+withOptCString :: Maybe String -> (CString -> IO a) -> IO a
+withOptCString Nothing    f = f nullPtr
+withOptCString (Just str) f = withCString str f
+-- |Create a 'Parser'.  The optional parameter is the default character
+-- encoding, and can be one of
 --
 -- - \"US-ASCII\"
 --
@@ -38,9 +41,9 @@ unParser (Parser p) = p
 -- - \"UTF-16\"
 --
 -- - \"ISO-8859-1\"
-{#fun unsafe XML_ParserCreate as parserCreate {`String'} -> `Parser' asParser#}
+{#fun unsafe XML_ParserCreate as parserCreate {withOptCString* `Maybe String'} -> `Parser' asParser#}
 
--- |Free a Parser.
+-- |Free a 'Parser'.
 {#fun unsafe XML_ParserFree as parserFree {unParser `Parser'} -> `()'#}
 
 unStatus :: CInt -> Bool
