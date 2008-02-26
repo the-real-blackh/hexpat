@@ -1,12 +1,14 @@
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
 
--- |This module wraps the Expat API directly.  If you use this interface,
--- you must e.g. free your 'Parser' manually.
+-- |This module wraps the Expat API directly, with IO.
 
-module Text.XML.Expat.Raw (
+module Text.XML.Expat.IO (
   -- ** Parser Setup
-  Parser, parserCreate, parserFree, parse,
+  Parser, newParser,
+
+  -- ** Parsing
+  parse,
 
   -- ** Parser Callbacks
   StartElementHandler, EndElementHandler, CharacterDataHandler,
@@ -23,14 +25,20 @@ import C2HS
 {#context lib = "expat" prefix = "XML"#}
 
 -- |Opaque parser type.
-newtype Parser = Parser {#type Parser#}
-asParser :: Ptr () -> Parser
-asParser ptr = Parser ptr
-unParser :: Parser -> Ptr ()
-unParser (Parser p) = p
+type ParserPtr = Ptr ()
+newtype Parser = Parser (ForeignPtr ())
+
+withParser :: Parser -> (ParserPtr -> IO a) -> IO a
+withParser (Parser fp) = withForeignPtr fp
+
 withOptCString :: Maybe String -> (CString -> IO a) -> IO a
 withOptCString Nothing    f = f nullPtr
 withOptCString (Just str) f = withCString str f
+
+{#fun unsafe XML_ParserCreate as parserCreate
+    {withOptCString* `Maybe String'} -> `ParserPtr' id#}
+foreign import ccall "&XML_ParserFree" parserFree :: FunPtr (ParserPtr -> IO ())
+
 -- |Create a 'Parser'.  The optional parameter is the default character
 -- encoding, and can be one of
 --
@@ -41,10 +49,11 @@ withOptCString (Just str) f = withCString str f
 -- - \"UTF-16\"
 --
 -- - \"ISO-8859-1\"
-{#fun unsafe XML_ParserCreate as parserCreate {withOptCString* `Maybe String'} -> `Parser' asParser#}
-
--- |Free a 'Parser'.
-{#fun unsafe XML_ParserFree as parserFree {unParser `Parser'} -> `()'#}
+newParser :: Maybe String -> IO Parser
+newParser enc = do
+  ptr <- parserCreate enc
+  fptr <- newForeignPtr parserFree ptr
+  return $ Parser fptr
 
 unStatus :: CInt -> Bool
 unStatus 0 = False
@@ -53,7 +62,7 @@ unStatus 1 = True
 -- is indicated by passing True for the final parameter.  @parse@ returns
 -- False on a parse error.
 {#fun XML_Parse as parse
-    {unParser `Parser', `String' &, `Bool'} -> `Bool' unStatus#}
+    {withParser* `Parser', `String' &, `Bool'} -> `Bool' unStatus#}
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs.
@@ -80,7 +89,8 @@ wrapStartElementHandler handler = mkCStartElementHandler h where
     handler name (pairwise attrlist)
 -- |Attach a StartElementHandler to a Parser.
 setStartElementHandler :: Parser -> StartElementHandler -> IO ()
-setStartElementHandler (Parser p) handler = do
+setStartElementHandler parser handler = do
+  withParser parser $ \p -> do
   handler' <- wrapStartElementHandler handler
   {#call unsafe XML_SetStartElementHandler as ^#} p handler'
 
@@ -97,7 +107,8 @@ wrapEndElementHandler handler = mkCEndElementHandler h where
     handler name
 -- |Attach an EndElementHandler to a Parser.
 setEndElementHandler :: Parser -> EndElementHandler -> IO ()
-setEndElementHandler (Parser p) handler = do
+setEndElementHandler parser handler = do
+  withParser parser $ \p -> do
   handler' <- wrapEndElementHandler handler
   {#call unsafe XML_SetEndElementHandler as ^#} p handler'
 
@@ -113,7 +124,8 @@ wrapCharacterDataHandler handler = mkCCharacterDataHandler h where
     handler data_
 -- |Attach an CharacterDataHandler to a Parser.
 setCharacterDataHandler :: Parser -> CharacterDataHandler -> IO ()
-setCharacterDataHandler (Parser p) handler = do
+setCharacterDataHandler parser handler = do
+  withParser parser $ \p -> do
   handler' <- wrapCharacterDataHandler handler
   {#call unsafe XML_SetCharacterDataHandler as ^#} p handler'
 

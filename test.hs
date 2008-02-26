@@ -1,14 +1,13 @@
-import qualified Text.XML.Expat.Raw as Raw
+import qualified Text.XML.Expat.IO as EIO
 import Text.XML.Expat.Stream
 
 doc = "<foo baz='bah'><bar/><text>some &amp; text</text></foo>"
 
 
-main_raw = do
-  parser <- Raw.parserCreate Nothing
-  Raw.setStartElementHandler parser startElement
-  Raw.parse parser doc True
-  Raw.parserFree parser
+main_eio = do
+  parser <- EIO.newParser Nothing
+  EIO.setStartElementHandler parser startElement
+  EIO.parse parser doc True
   putStrLn "ok"
   where
   startElement name attrs = putStrLn $ show name ++ " " ++ show attrs
@@ -21,4 +20,4 @@ main_stream = do
   where
   startElement tag attrs st = st ++ [tag]
 
-main = main_raw
+main = main_eio

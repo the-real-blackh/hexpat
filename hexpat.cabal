@@ -12,7 +12,7 @@ Homepage: http://neugierig.org/software/darcs/browse/?r=hexpat;a=summary
 
 Library
   Build-Depends: base, haskell98
-  Exposed-Modules: Text.XML.Expat.Raw, Text.XML.Expat.Stream
+  Exposed-Modules: Text.XML.Expat.IO, Text.XML.Expat.Stream
   Extensions: ForeignFunctionInterface
   Extra-Libraries: expat
 
