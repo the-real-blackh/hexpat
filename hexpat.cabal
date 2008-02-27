@@ -9,6 +9,7 @@ Author: Evan Martin
 Maintainer: martine@danga.com
 Copyright: (c) 2008 Evan Martin <martine@danga.com>
 Homepage: http://neugierig.org/software/darcs/browse/?r=hexpat;a=summary
+Extra-Source-Files: C2HS.hs test.hs
 
 Library
   Build-Depends: base, haskell98
