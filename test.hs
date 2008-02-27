@@ -1,5 +1,4 @@
 import qualified Text.XML.Expat.IO as EIO
-import Text.XML.Expat.Stream
 import qualified Text.XML.Expat.Tree as ETree
 import Data.Tree
 
@@ -10,14 +9,6 @@ main_eio doc = do
   putStrLn "ok"
   where
   startElement name attrs = putStrLn $ show name ++ " " ++ show attrs
-
-main_stream doc = do
-  let handlers = defaultHandlers {startElementHandler=Just startElement}
-  case parse Nothing handlers doc [] of
-    Left ()    -> putStrLn "parse error"
-    Right tags -> print tags
-  where
-  startElement tag attrs st = st ++ [tag]
 
 main_tree doc = do
   let etree = ETree.parse Nothing doc
