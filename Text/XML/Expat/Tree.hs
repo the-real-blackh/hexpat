@@ -11,7 +11,6 @@ module Text.XML.Expat.Tree (
 ) where
 
 import Text.XML.Expat.IO as EIO
-import qualified Data.Tree
 import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
 
