@@ -8,7 +8,7 @@ module Text.XML.Expat.IO (
   Parser, newParser,
 
   -- ** Parsing
-  parse,
+  parse, Encoding(..),
 
   -- ** Parser Callbacks
   StartElementHandler, EndElementHandler, CharacterDataHandler,
@@ -31,25 +31,25 @@ newtype Parser = Parser (ForeignPtr ())
 withParser :: Parser -> (ParserPtr -> IO a) -> IO a
 withParser (Parser fp) = withForeignPtr fp
 
-withOptCString :: Maybe String -> (CString -> IO a) -> IO a
-withOptCString Nothing    f = f nullPtr
-withOptCString (Just str) f = withCString str f
+-- |Encoding types available for the document encoding.
+data Encoding = ASCII | UTF8 | UTF16 | ISO88591
+encodingToString :: Encoding -> String
+encodingToString ASCII    = "US-ASCII"
+encodingToString UTF8     = "UTF-8"
+encodingToString UTF16    = "UTF-16"
+encodingToString ISO88591 = "ISO-8859-1"
+
+withOptEncoding :: Maybe Encoding -> (CString -> IO a) -> IO a
+withOptEncoding Nothing    f = f nullPtr
+withOptEncoding (Just enc) f = withCString (encodingToString enc) f
 
 {#fun unsafe XML_ParserCreate as parserCreate
-    {withOptCString* `Maybe String'} -> `ParserPtr' id#}
+    {withOptEncoding* `Maybe Encoding'} -> `ParserPtr' id#}
 foreign import ccall "&XML_ParserFree" parserFree :: FunPtr (ParserPtr -> IO ())
 
--- |Create a 'Parser'.  The optional parameter is the default character
--- encoding, and can be one of
---
--- - \"US-ASCII\"
---
--- - \"UTF-8\"
---
--- - \"UTF-16\"
---
--- - \"ISO-8859-1\"
-newParser :: Maybe String -> IO Parser
+-- |Create a 'Parser'.  The encoding parameter, if provided, overrides the
+-- document's encoding declaration.
+newParser :: Maybe Encoding -> IO Parser
 newParser enc = do
   ptr <- parserCreate enc
   fptr <- newForeignPtr parserFree ptr

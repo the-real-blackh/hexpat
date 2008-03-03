@@ -8,7 +8,8 @@
 -- document is parsed.)
 
 module Text.XML.Expat.Tree (
-  Text.XML.Expat.Tree.parse, Node(..)
+  Text.XML.Expat.Tree.parse, Node(..),
+  EIO.Encoding(..)
 ) where
 
 import Text.XML.Expat.IO as EIO
@@ -24,9 +25,10 @@ data Node = Element { eName :: String, eAttrs :: [(String,String)],
 modifyChildren :: ([Node] -> [Node]) -> Node -> Node
 modifyChildren f node = node { eChildren = f (eChildren node) }
 
--- |@parse enc doc@ parses XML content @doc@ with optional encoding @enc@,
--- and returns the root 'Node' of the document if there were no parsing errors.
-parse :: Maybe String -> String -> Maybe Node
+-- |@parse enc doc@ parses XML content @doc@ with optional encoding override
+-- @enc@ and returns the root 'Node' of the document if there were no parsing
+-- errors.
+parse :: Maybe EIO.Encoding -> String -> Maybe Node
 parse enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- EIO.newParser enc
