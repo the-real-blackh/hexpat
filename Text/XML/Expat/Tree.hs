@@ -2,9 +2,10 @@
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
 
 -- |The Expat.Tree module provides a simplified interface to parsing, that
--- returns a tree of the XML structure.  (Note that this is not a lazy parse
--- of the document: as soon as the root node is accessed, the entire document
--- is parsed.)
+-- returns a tree of the XML structure.  It is written using the lower-level
+-- bindings in the "Text.XML.Expat.IO" module.  (Note that this is not a lazy
+-- parse of the document: as soon as the root node is accessed, the entire
+-- document is parsed.)
 
 module Text.XML.Expat.Tree (
   Text.XML.Expat.Tree.parse, Node(..)
