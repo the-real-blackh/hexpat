@@ -7,4 +7,4 @@ test-prof: test.hs Text/XML/Expat/IO.chs Text/XML/Expat/Tree.hs
 	ghc -prof -auto-all -lexpat -ffi --make -o test-prof test.hs
 
 clean:
-	rm -f test test-prof test.o
+	rm -f test prof *.hi *.o
