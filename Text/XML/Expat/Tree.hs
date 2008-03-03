@@ -12,7 +12,8 @@ module Text.XML.Expat.Tree (
   EIO.Encoding(..)
 ) where
 
-import Text.XML.Expat.IO as EIO
+import qualified Text.XML.Expat.IO as EIO
+import qualified Data.ByteString.Lazy as B
 import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -25,10 +26,10 @@ data Node = Element { eName :: String, eAttrs :: [(String,String)],
 modifyChildren :: ([Node] -> [Node]) -> Node -> Node
 modifyChildren f node = node { eChildren = f (eChildren node) }
 
--- |@parse enc doc@ parses XML content @doc@ with optional encoding override
--- @enc@ and returns the root 'Node' of the document if there were no parsing
--- errors.
-parse :: Maybe EIO.Encoding -> String -> Maybe Node
+-- |@parse enc doc@ parses /lazy/ bytestring XML content @doc@ with optional
+-- encoding override @enc@ and returns the root 'Node' of the document if there
+-- were no parsing errors.
+parse :: Maybe EIO.Encoding -> B.ByteString -> Maybe Node
 parse enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- EIO.newParser enc
@@ -38,7 +39,7 @@ parse enc doc = unsafePerformIO $ runParse where
     EIO.setStartElementHandler  parser (\n a -> modifyIORef stack (start n a))
     EIO.setEndElementHandler    parser (\n -> modifyIORef stack (end n))
     EIO.setCharacterDataHandler parser (\s -> modifyIORef stack (text s))
-    ok <- EIO.parse parser doc True
+    ok <- EIO.parse parser doc
     if ok
       then do
         [Element _ _ [root]] <- readIORef stack

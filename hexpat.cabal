@@ -10,7 +10,7 @@ Description:
   reason to use Expat is when speed is of concern.  From a benchmark
   that compares getting the length of the root node of a HaXml tree
   (presumably forcing parsing the entire file) against running an Expat
-  parser with a registered start node handler, Expat is about 10 times
+  parser with a registered start node handler, Expat is about 12 times
   faster.  This is not a fair benchmark; HaXml does a lot more than this
   Expat library.  But if Expat suffices, it is good for what it does.
 Category: XML
@@ -24,7 +24,7 @@ Extra-Source-Files: test.hs, perf.hs
 Build-Type: Simple
 
 Library
-  Build-Depends: base, haskell98
+  Build-Depends: base, haskell98, bytestring
   Exposed-Modules: Text.XML.Expat.IO, Text.XML.Expat.Tree
   Other-Modules: C2HS
   Extensions: ForeignFunctionInterface

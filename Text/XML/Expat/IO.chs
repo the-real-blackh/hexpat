@@ -1,7 +1,14 @@
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
 
--- |This module wraps the Expat API directly, with IO.
+-- |This module wraps the Expat API directly with IO operations
+-- everywhere.  Basic usage is:
+--
+-- (1) Make a new parser: 'newParser'.
+--
+-- (2) Set up callbacks on the parser: 'setStartElementHandler', etc.
+--
+-- (3) Feed data into the parser: 'parse' or 'parseChunk'.
 
 module Text.XML.Expat.IO (
   -- ** Parser Setup
@@ -12,10 +19,15 @@ module Text.XML.Expat.IO (
 
   -- ** Parser Callbacks
   StartElementHandler, EndElementHandler, CharacterDataHandler,
-  setStartElementHandler, setEndElementHandler, setCharacterDataHandler
+  setStartElementHandler, setEndElementHandler, setCharacterDataHandler,
+
+  -- ** Lower-level Parsing Interface
+  parseChunk
 ) where
 
 import C2HS
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 
 #include <expat.h>
 
@@ -55,14 +67,31 @@ newParser enc = do
   fptr <- newForeignPtr parserFree ptr
   return $ Parser fptr
 
+-- ByteString.useAsCStringLen is almost what we need, but C2HS wants a CInt
+-- instead of an Int.
+withBStringLen :: BS.ByteString -> ((CString, CInt) -> IO a) -> IO a
+withBStringLen bs f = do
+  BS.useAsCStringLen bs $ \(str, len) -> f (str, fromIntegral len)
+
 unStatus :: CInt -> Bool
 unStatus 0 = False
 unStatus 1 = True
--- |@parse data False@ feeds mode data into a 'Parser'.  The end of the data
--- is indicated by passing True for the final parameter.  @parse@ returns
--- False on a parse error.
-{#fun XML_Parse as parse
-    {withParser* `Parser', `String' &, `Bool'} -> `Bool' unStatus#}
+-- |@parseChunk data False@ feeds /strict/ ByteString data into a
+-- 'Parser'.  The end of the data is indicated by passing @True@ for the
+-- final parameter.  @parse@ returns @False@ on a parse error.
+{#fun XML_Parse as parseChunk
+    {withParser* `Parser', withBStringLen* `BS.ByteString' &, `Bool'}
+    -> `Bool' unStatus#}
+
+-- |@parse data@ feeds /lazy/ bytestring data into a parser and returns
+-- @True@ if there was no parse error.
+parse :: Parser -> BSL.ByteString -> IO Bool
+parse parser bs = feedChunk (BSL.toChunks bs) where
+  feedChunk []      = return True
+  feedChunk [chunk] = parseChunk parser chunk True
+  feedChunk (c:cs)  = do ok <- parseChunk parser c False
+                         if ok then feedChunk cs
+                               else return False
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs.

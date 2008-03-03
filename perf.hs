@@ -6,11 +6,13 @@
 -- However, if you just want to read all the XML tags in a file,
 -- this program demonstrates why Expat may be preferable.
 
-import Text.XML.HaXml as HaXml
-import Text.XML.Expat.IO as Expat
 import Control.Exception
+import qualified Data.ByteString.Lazy as BS
+import Data.Char (ord)
 import Data.IORef
 import Microbench
+import Text.XML.Expat.IO as Expat
+import Text.XML.HaXml as HaXml
 
 parse_haxml :: String -> IO ()
 parse_haxml input = do
@@ -19,12 +21,12 @@ parse_haxml input = do
   evaluate $ length content
   return ()
 
-parse_expat :: String -> IO ()
+parse_expat :: BS.ByteString -> IO ()
 parse_expat input = do
   parser <- Expat.newParser Nothing
   counter <- newIORef 0
   Expat.setStartElementHandler parser (elementHandler counter)
-  Expat.parse parser input True
+  Expat.parse parser input
   readIORef counter
   return ()
   where
@@ -32,8 +34,9 @@ parse_expat input = do
 
 main = do
   xml <- readFile "test.xml"
+  let xmlbs = BS.pack (map (fromIntegral.ord) xml)
   -- Force reading the entire file first.
-  putStrLn $ "input is " ++ show (length xml) ++ " bytes."
+  putStrLn $ "input is " ++ show (BS.length xmlbs) ++ " bytes."
   -- Start the races.
   microbench "HaXml" (parse_haxml xml)
-  microbench "hexpat" (parse_expat xml)
+  microbench "hexpat" (parse_expat xmlbs)
