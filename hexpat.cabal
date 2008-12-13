@@ -25,7 +25,7 @@ Build-Type: Simple
 
 Library
   Build-Depends: base, haskell98, bytestring
-  Exposed-Modules: Text.XML.Expat.IO, Text.XML.Expat.Tree
+  Exposed-Modules: Text.XML.Expat.IO, Text.XML.Expat.Tree, Text.XML.Expat.Format
   Other-Modules: C2HS
   Extensions: ForeignFunctionInterface
   Extra-Libraries: expat

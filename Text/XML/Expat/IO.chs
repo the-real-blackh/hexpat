@@ -22,7 +22,10 @@ module Text.XML.Expat.IO (
   setStartElementHandler, setEndElementHandler, setCharacterDataHandler,
 
   -- ** Lower-level Parsing Interface
-  parseChunk
+  parseChunk,
+
+  -- ** Helpers
+  encodingToString
 ) where
 
 import C2HS
