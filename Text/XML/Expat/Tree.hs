@@ -43,7 +43,7 @@ parse enc doc = unsafePerformIO $ runParse where
     if ok
       then do
         [Element _ _ [root]] <- readIORef stack
-        return $ Just $ modifyChildren reverse root
+        return $ Just root
       else return Nothing
   start name attrs stack = Element name attrs [] : stack
   text str (cur:rest) = modifyChildren (Text str:) cur : rest
