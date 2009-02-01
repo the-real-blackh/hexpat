@@ -28,9 +28,11 @@ module Text.XML.Expat.IO (
   encodingToString
 ) where
 
+import Control.Exception (bracket)
 import C2HS
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
+import Data.IORef
 
 #include <expat.h>
 
@@ -41,10 +43,14 @@ import qualified Data.ByteString.Lazy as BSL
 
 -- |Opaque parser type.
 type ParserPtr = Ptr ()
-newtype Parser = Parser (ForeignPtr ())
+data Parser = Parser
+    (ForeignPtr ())
+    (IORef CStartElementHandler) 
+    (IORef CEndElementHandler) 
+    (IORef CCharacterDataHandler) 
 
 withParser :: Parser -> (ParserPtr -> IO a) -> IO a
-withParser (Parser fp) = withForeignPtr fp
+withParser (Parser fp _ _ _) = withForeignPtr fp
 
 -- |Encoding types available for the document encoding.
 data Encoding = ASCII | UTF8 | UTF16 | ISO88591
@@ -68,7 +74,10 @@ newParser :: Maybe Encoding -> IO Parser
 newParser enc = do
   ptr <- parserCreate enc
   fptr <- newForeignPtr parserFree ptr
-  return $ Parser fptr
+  nullStartH <- newIORef nullCStartElementHandler
+  nullEndH <- newIORef nullCEndElementHandler
+  nullCharH <- newIORef nullCCharacterDataHandler
+  return $ Parser fptr nullStartH nullEndH nullCharH
 
 -- ByteString.useAsCStringLen is almost what we need, but C2HS wants a CInt
 -- instead of an Int.
@@ -82,7 +91,28 @@ unStatus 1 = True
 -- |@parseChunk data False@ feeds /strict/ ByteString data into a
 -- 'Parser'.  The end of the data is indicated by passing @True@ for the
 -- final parameter.  @parse@ returns @False@ on a parse error.
-{#fun XML_Parse as parseChunk
+parseChunk :: Parser
+              -> BS.ByteString
+              -> Bool
+              -> IO Bool
+parseChunk parser@(Parser fp startRef endRef charRef) xml final = do
+    bracket
+        (do
+            cStartH <- mkCStartElementHandler =<< readIORef startRef
+            cEndH   <- mkCEndElementHandler =<< readIORef endRef
+            cCharH  <- mkCCharacterDataHandler =<< readIORef charRef
+            withParser parser $ \p -> do
+                {#call unsafe XML_SetStartElementHandler as ^#}  p cStartH
+                {#call unsafe XML_SetEndElementHandler as ^#}    p cEndH
+                {#call unsafe XML_SetCharacterDataHandler as ^#} p cCharH
+            return (cStartH, cEndH, cCharH))
+        (\(cStartH, cEndH, cCharH) -> do
+            freeHaskellFunPtr cStartH
+            freeHaskellFunPtr cEndH
+            freeHaskellFunPtr cCharH)
+        (\_ -> doParseChunk parser xml final)
+
+{#fun XML_Parse as doParseChunk
     {withParser* `Parser', withBStringLen* `BS.ByteString' &, `Bool'}
     -> `Bool' unStatus#}
 
@@ -108,12 +138,13 @@ type EndElementHandler    = String -> IO ()
 type CharacterDataHandler = String -> IO ()
 
 type CStartElementHandler = Ptr () -> CString -> Ptr CString -> IO ()
+nullCStartElementHandler _ _ _ = return ()
+
 foreign import ccall "wrapper"
   mkCStartElementHandler :: CStartElementHandler
                          -> IO (FunPtr CStartElementHandler)
-wrapStartElementHandler :: StartElementHandler
-                        -> IO (FunPtr CStartElementHandler)
-wrapStartElementHandler handler = mkCStartElementHandler h where
+wrapStartElementHandler :: StartElementHandler -> CStartElementHandler
+wrapStartElementHandler handler = h where
   h ptr cname cattrs = do
     name <- peekCString cname
     cattrlist <- peekArray0 nullPtr cattrs
@@ -121,45 +152,45 @@ wrapStartElementHandler handler = mkCStartElementHandler h where
     handler name (pairwise attrlist)
 -- |Attach a StartElementHandler to a Parser.
 setStartElementHandler :: Parser -> StartElementHandler -> IO ()
-setStartElementHandler parser handler = do
+setStartElementHandler parser@(Parser _ startRef _ _) handler = do
   withParser parser $ \p -> do
-  handler' <- wrapStartElementHandler handler
-  {#call unsafe XML_SetStartElementHandler as ^#} p handler'
+  writeIORef startRef $ wrapStartElementHandler handler
 
 
 type CEndElementHandler = Ptr () -> CString -> IO ()
+nullCEndElementHandler _ _ = return ()
+
 foreign import ccall "wrapper"
   mkCEndElementHandler :: CEndElementHandler
                        -> IO (FunPtr CEndElementHandler)
-wrapEndElementHandler :: EndElementHandler
-                      -> IO (FunPtr CEndElementHandler)
-wrapEndElementHandler handler = mkCEndElementHandler h where
+wrapEndElementHandler :: EndElementHandler -> CEndElementHandler
+wrapEndElementHandler handler = h where
   h ptr cname = do
     name <- peekCString cname
     handler name
+
 -- |Attach an EndElementHandler to a Parser.
 setEndElementHandler :: Parser -> EndElementHandler -> IO ()
-setEndElementHandler parser handler = do
+setEndElementHandler parser@(Parser _ _ endRef _) handler = do
   withParser parser $ \p -> do
-  handler' <- wrapEndElementHandler handler
-  {#call unsafe XML_SetEndElementHandler as ^#} p handler'
+  writeIORef endRef $ wrapEndElementHandler handler
 
 type CCharacterDataHandler = Ptr () -> CString -> CInt -> IO ()
+nullCCharacterDataHandler _ _ _ = return ()
+
 foreign import ccall "wrapper"
   mkCCharacterDataHandler :: CCharacterDataHandler
                           -> IO (FunPtr CCharacterDataHandler)
-wrapCharacterDataHandler :: CharacterDataHandler
-                      -> IO (FunPtr CCharacterDataHandler)
-wrapCharacterDataHandler handler = mkCCharacterDataHandler h where
+wrapCharacterDataHandler :: CharacterDataHandler -> CCharacterDataHandler
+wrapCharacterDataHandler handler = h where
   h ptr cdata len = do
     data_ <- peekCStringLen (cdata, fromIntegral len)
     handler data_
 -- |Attach an CharacterDataHandler to a Parser.
 setCharacterDataHandler :: Parser -> CharacterDataHandler -> IO ()
-setCharacterDataHandler parser handler = do
+setCharacterDataHandler parser@(Parser _ _ _ charRef) handler = do
   withParser parser $ \p -> do
-  handler' <- wrapCharacterDataHandler handler
-  {#call unsafe XML_SetCharacterDataHandler as ^#} p handler'
+  writeIORef charRef $ wrapCharacterDataHandler handler
 
 pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
 pairwise []         = []
