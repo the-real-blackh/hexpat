@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.2
 Name: hexpat
-Version: 0.2
+Version: 0.3
 Synopsis: wrapper for expat, the fast XML parser
 Description:
   Expat (<http://expat.sourceforge.net/>) is a stream-oriented XML parser
@@ -16,12 +16,13 @@ Description:
 Category: XML
 License: BSD3
 License-File: LICENSE
-Author: Evan Martin
-Maintainer: martine@danga.com
-Copyright: (c) 2008 Evan Martin <martine@danga.com>
-Homepage: http://neugierig.org/software/darcs/browse/?r=hexpat;a=summary
-Extra-Source-Files: test.hs, perf.hs
+Author: Evan Martin, Stephen Blackheath
+Maintainer: http://blacksapphire.com/antispam/
+Copyright: (c) 2008 Evan Martin <martine@danga.com>, (c) 2008 Stephen Blackheath
+Homepage: http://code.haskell.org/hexpat/
+Extra-Source-Files: test.hs, perf.hs, test2.hs
 Build-Type: Simple
+Stability: beta
 
 Library
   Build-Depends: base, haskell98, bytestring
