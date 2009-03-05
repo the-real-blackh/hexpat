@@ -20,13 +20,17 @@ Author: Evan Martin, Stephen Blackheath
 Maintainer: http://blacksapphire.com/antispam/
 Copyright: (c) 2008 Evan Martin <martine@danga.com>, (c) 2008 Stephen Blackheath
 Homepage: http://code.haskell.org/hexpat/
-Extra-Source-Files: test.hs, perf.hs, test2.hs
+Extra-Source-Files: test.hs, perf.hs, test2.hs, test.xml
 Build-Type: Simple
 Stability: beta
 
 Library
-  Build-Depends: base, haskell98, bytestring
-  Exposed-Modules: Text.XML.Expat.IO, Text.XML.Expat.Tree, Text.XML.Expat.Format
+  Build-Depends: base, haskell98, bytestring, mtl >= 1.1.0.0, text >= 0.1
+  Exposed-Modules:
+    Text.XML.Expat.IO,
+    Text.XML.Expat.Tree,
+    Text.XML.Expat.Format,
+    Text.XML.Expat.Qualified
   Other-Modules: C2HS
   Extensions: ForeignFunctionInterface
   Extra-Libraries: expat

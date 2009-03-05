@@ -32,6 +32,7 @@ import Control.Exception (bracket)
 import C2HS
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Internal as BSI
 import Data.IORef
 
 #include <expat.h>
@@ -128,14 +129,14 @@ parse parser bs = feedChunk (BSL.toChunks bs) where
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs.
-type StartElementHandler  = String -> [(String,String)] -> IO ()
+type StartElementHandler  = BS.ByteString -> [(BS.ByteString,BS.ByteString)] -> IO ()
 -- |The type of the \"element ended\" callback.  The parameter is
 -- the element name.
-type EndElementHandler    = String -> IO ()
+type EndElementHandler    = BS.ByteString -> IO ()
 -- |The type of the \"character data\" callback.  The parameter is
 -- the character data processed.  This callback may be called more than once
 -- while processing a single conceptual block of text.
-type CharacterDataHandler = String -> IO ()
+type CharacterDataHandler = BS.ByteString -> IO ()
 
 type CStartElementHandler = Ptr () -> CString -> Ptr CString -> IO ()
 nullCStartElementHandler _ _ _ = return ()
@@ -146,16 +147,15 @@ foreign import ccall "wrapper"
 wrapStartElementHandler :: StartElementHandler -> CStartElementHandler
 wrapStartElementHandler handler = h where
   h ptr cname cattrs = do
-    name <- peekCString cname
+    name <- peekByteString cname
     cattrlist <- peekArray0 nullPtr cattrs
-    attrlist <- mapM peekCString cattrlist
+    attrlist <- mapM peekByteString cattrlist
     handler name (pairwise attrlist)
 -- |Attach a StartElementHandler to a Parser.
 setStartElementHandler :: Parser -> StartElementHandler -> IO ()
 setStartElementHandler parser@(Parser _ startRef _ _) handler = do
   withParser parser $ \p -> do
   writeIORef startRef $ wrapStartElementHandler handler
-
 
 type CEndElementHandler = Ptr () -> CString -> IO ()
 nullCEndElementHandler _ _ = return ()
@@ -166,7 +166,7 @@ foreign import ccall "wrapper"
 wrapEndElementHandler :: EndElementHandler -> CEndElementHandler
 wrapEndElementHandler handler = h where
   h ptr cname = do
-    name <- peekCString cname
+    name <- peekByteString cname
     handler name
 
 -- |Attach an EndElementHandler to a Parser.
@@ -184,8 +184,9 @@ foreign import ccall "wrapper"
 wrapCharacterDataHandler :: CharacterDataHandler -> CCharacterDataHandler
 wrapCharacterDataHandler handler = h where
   h ptr cdata len = do
-    data_ <- peekCStringLen (cdata, fromIntegral len)
+    data_ <- peekByteStringLen (cdata, fromIntegral len)
     handler data_
+
 -- |Attach an CharacterDataHandler to a Parser.
 setCharacterDataHandler :: Parser -> CharacterDataHandler -> IO ()
 setCharacterDataHandler parser@(Parser _ _ _ charRef) handler = do
@@ -194,3 +195,16 @@ setCharacterDataHandler parser@(Parser _ _ _ charRef) handler = do
 
 pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
 pairwise []         = []
+
+peekByteString :: CString -> IO BS.ByteString
+{-# INLINE peekByteString #-}
+peekByteString cstr = do
+    len <- BSI.c_strlen cstr
+    peekByteStringLen (castPtr cstr, len)
+
+peekByteStringLen :: (CString, CSize) -> IO BS.ByteString 
+{-# INLINE peekByteStringLen #-}
+peekByteStringLen (cstr, len) =
+    BSI.create (fromIntegral len) $ \ptr ->
+        BSI.memcpy ptr (castPtr cstr) len
+
