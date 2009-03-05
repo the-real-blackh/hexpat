@@ -25,5 +25,6 @@ test xml = do
           putStrLn "FAILED: parse failed"
 
 main = do
-  test "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test><test1 type=\"expression\">Cat &amp; mouse</test1><test2 type=\"communication\">Dog &amp; bone</test2></test>"
+  test "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test><test1 type=\"expression\">Cat &amp; mouse</test1><test2 type=\"communication\" language=\"Rhyming slang\">Dog &amp; bone</test2></test>"
+  test "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<second><test><test1 type=\"expression\">Cat &amp; mouse</test1><test2 type=\"communication\" language=\"Rhyming slang\">Dog &amp; bone</test2></test><test>Rose &amp; Crown</test></second>"
   test "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test>Cat &amp; mouse</test>"
