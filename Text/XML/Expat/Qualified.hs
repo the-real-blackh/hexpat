@@ -1,11 +1,11 @@
 module Text.XML.Expat.Qualified (
         QName(..),
-        parseQualifiedTreeString,
-        parseQualifiedTreeByteString,
-        parseQualifiedTreeText,
-        formatQualifiedTreeString,
-        formatQualifiedTreeByteString,
-        formatQualifiedTreeText
+        parseTreeQualifiedString,
+        parseTreeQualifiedByteString,
+        parseTreeQualifiedText,
+        formatTreeQualifiedString,
+        formatTreeQualifiedByteString,
+        formatTreeQualifiedText
     ) where
 
 import Text.XML.Expat.IO
@@ -28,10 +28,10 @@ data QName text =
     deriving (Eq,Show)
 
 -- | Parse to a tree of type Node String String
-parseQualifiedTreeString :: Maybe Encoding
+parseTreeQualifiedString :: Maybe Encoding
                         -> BSL.ByteString
                         -> Maybe (Node (QName String) String)
-parseQualifiedTreeString = parseTree (toQName . unpack, unpack)
+parseTreeQualifiedString = parseTree (toQName . unpack, unpack)
   where
     unpack = map w2c . BS.unpack
     toQName ident =
@@ -40,10 +40,10 @@ parseQualifiedTreeString = parseTree (toQName . unpack, unpack)
             otherwise           -> QName Nothing ident
 
 -- | Parse to a tree of type Node ByteString ByteString
-parseQualifiedTreeByteString :: Maybe Encoding
+parseTreeQualifiedByteString :: Maybe Encoding
                             -> BSL.ByteString
                             -> Maybe (Node (QName BS.ByteString) BS.ByteString)
-parseQualifiedTreeByteString = parseTree (toQName, id)
+parseTreeQualifiedByteString = parseTree (toQName, id)
   where
     toQName ident =
         case BS.break (== c2w ':') ident of
@@ -52,10 +52,10 @@ parseQualifiedTreeByteString = parseTree (toQName, id)
             otherwise           -> QName Nothing ident
 
 -- | Parse to a tree of type Node Text Text
-parseQualifiedTreeText :: Maybe Encoding
+parseTreeQualifiedText :: Maybe Encoding
                       -> BSL.ByteString
                       -> Maybe (Node (QName T.Text) T.Text)
-parseQualifiedTreeText = parseTree (toQName . TE.decodeUtf8, TE.decodeUtf8)
+parseTreeQualifiedText = parseTree (toQName . TE.decodeUtf8, TE.decodeUtf8)
   where
     toQName ident =
         case T.break (== ':') ident of
@@ -66,15 +66,15 @@ parseQualifiedTreeText = parseTree (toQName . TE.decodeUtf8, TE.decodeUtf8)
 packL :: String -> BSL.ByteString
 packL = BSL.pack . map c2w
 
-formatQualifiedTreeString :: Maybe Encoding -> Node (QName String) String -> BSL.ByteString
-formatQualifiedTreeString mEnc node =
+formatTreeQualifiedString :: Maybe Encoding -> Node (QName String) String -> BSL.ByteString
+formatTreeQualifiedString mEnc node =
     execWriter $ formatTree (packL . fromQName) packL mEnc node
   where
     fromQName (QName (Just prefix) local) = prefix ++ ":" ++ local
     fromQName (QName Nothing local)       = local
 
-formatQualifiedTreeByteString :: Maybe Encoding -> Node (QName BS.ByteString) BS.ByteString -> BSL.ByteString
-formatQualifiedTreeByteString mEnc node =
+formatTreeQualifiedByteString :: Maybe Encoding -> Node (QName BS.ByteString) BS.ByteString -> BSL.ByteString
+formatTreeQualifiedByteString mEnc node =
     execWriter $ formatTree (lazify . fromQName) lazify mEnc node
   where
     fromQName (QName (Just prefix) local) = prefix `BS.append` colon `BS.append` local
@@ -84,8 +84,8 @@ formatQualifiedTreeByteString mEnc node =
 {-# INLINE lazify #-}
 lazify bs = BSL.fromChunks [bs]
 
-formatQualifiedTreeText :: Maybe Encoding -> Node (QName T.Text) T.Text -> BSL.ByteString
-formatQualifiedTreeText mEnc node =
+formatTreeQualifiedText :: Maybe Encoding -> Node (QName T.Text) T.Text -> BSL.ByteString
+formatTreeQualifiedText mEnc node =
     execWriter $ formatTree (encode . fromQName) encode mEnc node
   where
     encode = lazify . TE.encodeUtf8

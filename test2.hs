@@ -71,11 +71,11 @@ main = do
     putStrLn "Text/Lazy"
     test (enjust parseTreeTextLazy) formatTreeText docs
     putStrLn "String/Qualified"
-    test parseQualifiedTreeString formatQualifiedTreeString docs
+    test parseTreeQualifiedString formatTreeQualifiedString docs
     putStrLn "ByteString/Qualified"
-    test parseQualifiedTreeByteString formatQualifiedTreeByteString docs
+    test parseTreeQualifiedByteString formatTreeQualifiedByteString docs
     putStrLn "Text/Qualified"
-    test parseQualifiedTreeText formatQualifiedTreeText docs
+    test parseTreeQualifiedText formatTreeQualifiedText docs
   where
     enjust f mEnc bs = Just $ f mEnc bs
 
