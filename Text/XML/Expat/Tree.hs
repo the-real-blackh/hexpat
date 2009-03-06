@@ -9,13 +9,14 @@
 -- document is parsed.)
 
 module Text.XML.Expat.Tree (
-  Text.XML.Expat.Tree.parseTree,
-  Text.XML.Expat.Tree.parseTreeString,
-  Text.XML.Expat.Tree.parseTreeByteString,
-  Text.XML.Expat.Tree.parseTreeText,
-  Text.XML.Expat.Tree.parseTreeStringLazy,
-  Text.XML.Expat.Tree.parseTreeByteStringLazy,
-  Text.XML.Expat.Tree.parseTreeTextLazy,
+  parseTree,
+  parseTreeString,
+  parseTreeByteString,
+  parseTreeText,
+  parseTreeLazy,
+  parseTreeStringLazy,
+  parseTreeByteStringLazy,
+  parseTreeTextLazy,
   Node(..)
 ) where
 

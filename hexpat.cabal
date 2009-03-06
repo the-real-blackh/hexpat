@@ -25,7 +25,13 @@ Build-Type: Simple
 Stability: beta
 
 Library
-  Build-Depends: base, haskell98, bytestring, mtl >= 1.1.0.0, text >= 0.1
+  Build-Depends:
+    base,
+    haskell98,
+    bytestring,
+    mtl >= 1.1.0.0,
+    text >= 0.1,
+    binary >= 0.4
   Exposed-Modules:
     Text.XML.Expat.IO,
     Text.XML.Expat.Tree,

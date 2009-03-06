@@ -76,6 +76,12 @@ main = do
     test parseTreeQualifiedByteString formatTreeQualifiedByteString docs
     putStrLn "Text/Qualified"
     test parseTreeQualifiedText formatTreeQualifiedText docs
+    putStrLn "String/Qualified/Lazy"
+    test (enjust parseTreeQualifiedStringLazy) formatTreeQualifiedString docs
+    putStrLn "ByteString/Qualified/Lazy"
+    test (enjust parseTreeQualifiedByteStringLazy) formatTreeQualifiedByteString docs
+    putStrLn "Text/Qualified/Lazy"
+    test (enjust parseTreeQualifiedTextLazy) formatTreeQualifiedText docs
   where
     enjust f mEnc bs = Just $ f mEnc bs
 
