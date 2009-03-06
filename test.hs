@@ -16,7 +16,7 @@ main_eio doc = do
   startElement name attrs = putStrLn $ show name ++ " " ++ show attrs
 
 main_tree doc = do
-  let etree = ETree.parseDocString Nothing doc
+  let etree = ETree.parseTreeString Nothing doc
   --let dtree = toDTree etree
   --putStrLn (drawTree dtree)
   etree `seq` putStrLn "ok"

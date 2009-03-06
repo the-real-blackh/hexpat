@@ -30,7 +30,8 @@ Library
     Text.XML.Expat.IO,
     Text.XML.Expat.Tree,
     Text.XML.Expat.Format,
-    Text.XML.Expat.Qualified
+    Text.XML.Expat.Qualified,
+    Text.XML.Expat.SAX
   Other-Modules: C2HS
   Extensions: ForeignFunctionInterface
   Extra-Libraries: expat

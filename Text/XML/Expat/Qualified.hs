@@ -1,11 +1,11 @@
 module Text.XML.Expat.Qualified (
         QName(..),
-        parseQualifiedDocString,
-        parseQualifiedDocByteString,
-        parseQualifiedDocText,
-        formatQualifiedDocString,
-        formatQualifiedDocByteString,
-        formatQualifiedDocText
+        parseQualifiedTreeString,
+        parseQualifiedTreeByteString,
+        parseQualifiedTreeText,
+        formatQualifiedTreeString,
+        formatQualifiedTreeByteString,
+        formatQualifiedTreeText
     ) where
 
 import Text.XML.Expat.IO
@@ -28,10 +28,10 @@ data QName text =
     deriving (Eq,Show)
 
 -- | Parse to a tree of type Node String String
-parseQualifiedDocString :: Maybe Encoding
+parseQualifiedTreeString :: Maybe Encoding
                         -> BSL.ByteString
                         -> Maybe (Node (QName String) String)
-parseQualifiedDocString = parseDoc (toQName . unpack) unpack
+parseQualifiedTreeString = parseTree (toQName . unpack, unpack)
   where
     unpack = map w2c . BS.unpack
     toQName ident =
@@ -40,10 +40,10 @@ parseQualifiedDocString = parseDoc (toQName . unpack) unpack
             otherwise           -> QName Nothing ident
 
 -- | Parse to a tree of type Node ByteString ByteString
-parseQualifiedDocByteString :: Maybe Encoding
+parseQualifiedTreeByteString :: Maybe Encoding
                             -> BSL.ByteString
                             -> Maybe (Node (QName BS.ByteString) BS.ByteString)
-parseQualifiedDocByteString = parseDoc toQName id
+parseQualifiedTreeByteString = parseTree (toQName, id)
   where
     toQName ident =
         case BS.break (== c2w ':') ident of
@@ -52,10 +52,10 @@ parseQualifiedDocByteString = parseDoc toQName id
             otherwise           -> QName Nothing ident
 
 -- | Parse to a tree of type Node Text Text
-parseQualifiedDocText :: Maybe Encoding
+parseQualifiedTreeText :: Maybe Encoding
                       -> BSL.ByteString
                       -> Maybe (Node (QName T.Text) T.Text)
-parseQualifiedDocText = parseDoc (toQName . TE.decodeUtf8) TE.decodeUtf8
+parseQualifiedTreeText = parseTree (toQName . TE.decodeUtf8, TE.decodeUtf8)
   where
     toQName ident =
         case T.break (== ':') ident of
@@ -66,16 +66,16 @@ parseQualifiedDocText = parseDoc (toQName . TE.decodeUtf8) TE.decodeUtf8
 packL :: String -> BSL.ByteString
 packL = BSL.pack . map c2w
 
-formatQualifiedDocString :: Maybe Encoding -> Node (QName String) String -> BSL.ByteString
-formatQualifiedDocString mEnc node =
-    execWriter $ formatDoc (packL . fromQName) packL mEnc node
+formatQualifiedTreeString :: Maybe Encoding -> Node (QName String) String -> BSL.ByteString
+formatQualifiedTreeString mEnc node =
+    execWriter $ formatTree (packL . fromQName) packL mEnc node
   where
     fromQName (QName (Just prefix) local) = prefix ++ ":" ++ local
     fromQName (QName Nothing local)       = local
 
-formatQualifiedDocByteString :: Maybe Encoding -> Node (QName BS.ByteString) BS.ByteString -> BSL.ByteString
-formatQualifiedDocByteString mEnc node =
-    execWriter $ formatDoc (lazify . fromQName) lazify mEnc node
+formatQualifiedTreeByteString :: Maybe Encoding -> Node (QName BS.ByteString) BS.ByteString -> BSL.ByteString
+formatQualifiedTreeByteString mEnc node =
+    execWriter $ formatTree (lazify . fromQName) lazify mEnc node
   where
     fromQName (QName (Just prefix) local) = prefix `BS.append` colon `BS.append` local
     fromQName (QName Nothing local)       = local
@@ -84,9 +84,9 @@ formatQualifiedDocByteString mEnc node =
 {-# INLINE lazify #-}
 lazify bs = BSL.fromChunks [bs]
 
-formatQualifiedDocText :: Maybe Encoding -> Node (QName T.Text) T.Text -> BSL.ByteString
-formatQualifiedDocText mEnc node =
-    execWriter $ formatDoc (encode . fromQName) encode mEnc node
+formatQualifiedTreeText :: Maybe Encoding -> Node (QName T.Text) T.Text -> BSL.ByteString
+formatQualifiedTreeText mEnc node =
+    execWriter $ formatTree (encode . fromQName) encode mEnc node
   where
     encode = lazify . TE.encodeUtf8
     fromQName (QName (Just prefix) local) = prefix `T.append` colon `T.append` local

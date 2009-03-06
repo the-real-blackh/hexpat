@@ -1,10 +1,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Text.XML.Expat.Format (
-        formatDoc,
-        formatDocString,
-        formatDocByteString,
-        formatDocText,
+        formatTree,
+        formatTreeString,
+        formatTreeByteString,
+        formatTreeText,
         formatNode
     ) where
 
@@ -18,13 +18,13 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 
 -- | Format document with <?xml.. header.
-formatDoc :: MonadWriter BSL.ByteString w =>
+formatTree :: MonadWriter BSL.ByteString w =>
              (tag -> BSL.ByteString)  -- ^ Function to format a tag or attribute name
           -> (text -> BSL.ByteString) -- ^ Function to format XML text 
           -> Maybe Encoding
           -> Node tag text
           -> w ()
-formatDoc fmtTag fmtText mEnc node = do
+formatTree fmtTag fmtText mEnc node = do
     tell $ packL "<?xml version=\"1.0\""
     case mEnc of
         Just enc -> do
@@ -38,20 +38,20 @@ formatDoc fmtTag fmtText mEnc node = do
     putEnc (Just enc) = (" encoding=\""++) . (encodingToString enc++) . ("\""++)
     putEnc Nothing = id
 
-formatDocString :: Maybe Encoding -> Node String String -> BSL.ByteString
-formatDocString mEnc node =
-    execWriter $ formatDoc packL packL mEnc node
+formatTreeString :: Maybe Encoding -> Node String String -> BSL.ByteString
+formatTreeString mEnc node =
+    execWriter $ formatTree packL packL mEnc node
 
-formatDocByteString :: Maybe Encoding -> Node BS.ByteString BS.ByteString -> BSL.ByteString
-formatDocByteString mEnc node =
-    execWriter $ formatDoc lazify lazify mEnc node
+formatTreeByteString :: Maybe Encoding -> Node BS.ByteString BS.ByteString -> BSL.ByteString
+formatTreeByteString mEnc node =
+    execWriter $ formatTree lazify lazify mEnc node
 
 {-# INLINE lazify #-}
 lazify bs = BSL.fromChunks [bs]
 
-formatDocText :: Maybe Encoding -> Node T.Text T.Text -> BSL.ByteString
-formatDocText mEnc node =
-    execWriter $ formatDoc encode encode mEnc node
+formatTreeText :: Maybe Encoding -> Node T.Text T.Text -> BSL.ByteString
+formatTreeText mEnc node =
+    execWriter $ formatTree encode encode mEnc node
   where
     encode = lazify . TE.encodeUtf8
 

@@ -59,15 +59,23 @@ main = do
     let docs = simpleDocs ++ [testDoc']
 
     putStrLn "String"
-    test parseDocString formatDocString docs
+    test parseTreeString formatTreeString docs
     putStrLn "ByteString"
-    test parseDocByteString formatDocByteString docs
+    test parseTreeByteString formatTreeByteString docs
     putStrLn "Text"
-    test parseDocText formatDocText docs
+    test parseTreeText formatTreeText docs
+    putStrLn "String/Lazy"
+    test (enjust parseTreeStringLazy) formatTreeString docs
+    putStrLn "ByteString/Lazy"
+    test (enjust parseTreeByteStringLazy) formatTreeByteString docs
+    putStrLn "Text/Lazy"
+    test (enjust parseTreeTextLazy) formatTreeText docs
     putStrLn "String/Qualified"
-    test parseQualifiedDocString formatQualifiedDocString docs
+    test parseQualifiedTreeString formatQualifiedTreeString docs
     putStrLn "ByteString/Qualified"
-    test parseQualifiedDocByteString formatQualifiedDocByteString docs
+    test parseQualifiedTreeByteString formatQualifiedTreeByteString docs
     putStrLn "Text/Qualified"
-    test parseQualifiedDocText formatQualifiedDocText docs
+    test parseQualifiedTreeText formatQualifiedTreeText docs
+  where
+    enjust f mEnc bs = Just $ f mEnc bs
 
