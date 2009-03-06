@@ -93,10 +93,14 @@ unStatus 1 = True
 -- 'Parser'.  The end of the data is indicated by passing @True@ for the
 -- final parameter.  @parse@ returns @False@ on a parse error.
 parseChunk :: Parser
-              -> BS.ByteString
-              -> Bool
-              -> IO Bool
-parseChunk parser@(Parser fp startRef endRef charRef) xml final = do
+           -> BS.ByteString
+           -> Bool
+           -> IO Bool
+parseChunk parser xml final = do
+    withHandlers parser $ doParseChunk parser xml final
+
+withHandlers :: Parser -> IO a -> IO a
+withHandlers parser@(Parser fp startRef endRef charRef) code = do
     bracket
         (do
             cStartH <- mkCStartElementHandler =<< readIORef startRef
@@ -111,7 +115,7 @@ parseChunk parser@(Parser fp startRef endRef charRef) xml final = do
             freeHaskellFunPtr cStartH
             freeHaskellFunPtr cEndH
             freeHaskellFunPtr cCharH)
-        (\_ -> doParseChunk parser xml final)
+        (\_ -> code)
 
 {#fun XML_Parse as doParseChunk
     {withParser* `Parser', withBStringLen* `BS.ByteString' &, `Bool'}
@@ -120,12 +124,13 @@ parseChunk parser@(Parser fp startRef endRef charRef) xml final = do
 -- |@parse data@ feeds /lazy/ bytestring data into a parser and returns
 -- @True@ if there was no parse error.
 parse :: Parser -> BSL.ByteString -> IO Bool
-parse parser bs = feedChunk (BSL.toChunks bs) where
-  feedChunk []      = return True
-  feedChunk [chunk] = parseChunk parser chunk True
-  feedChunk (c:cs)  = do ok <- parseChunk parser c False
-                         if ok then feedChunk cs
-                               else return False
+parse parser bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
+  where
+    feedChunk []      = return True
+    feedChunk [chunk] = parseChunk parser chunk True
+    feedChunk (c:cs)  = do ok <- doParseChunk parser c False
+                           if ok then feedChunk cs
+                                 else return False
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs.
