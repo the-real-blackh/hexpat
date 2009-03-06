@@ -9,19 +9,17 @@
 -- document is parsed.)
 
 module Text.XML.Expat.Tree (
+  Node(..),
   parseTree,
-  parseTreeString,
-  parseTreeByteString,
-  parseTreeText,
   parseTreeLazy,
-  parseTreeStringLazy,
-  parseTreeByteStringLazy,
-  parseTreeTextLazy,
-  Node(..)
+  parseSAX,
+  TreeFlavour(..),
+  stringFlavour,
+  byteStringFlavour,
+  textFlavour
 ) where
 
 import Text.XML.Expat.IO
-import Text.XML.Expat.SAX
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.IORef
@@ -29,6 +27,30 @@ import System.IO.Unsafe (unsafePerformIO)
 import Data.ByteString.Internal (c2w, w2c)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Codec.Binary.UTF8.String as U8
+import Data.Binary.Put
+import Control.Concurrent
+import Control.Concurrent.MVar
+import System.IO.Unsafe
+
+
+data TreeFlavour tag text = TreeFlavour
+        (B.ByteString -> tag)
+        (B.ByteString -> text)
+        (tag -> Put)
+        (text -> B.ByteString)
+
+stringFlavour :: TreeFlavour String String
+stringFlavour = TreeFlavour unpack unpack (mapM_ (putWord8 . c2w)) pack
+  where
+    unpack = U8.decodeString . map w2c . B.unpack
+    pack = B.pack . map c2w . U8.encodeString
+
+byteStringFlavour :: TreeFlavour B.ByteString B.ByteString
+byteStringFlavour = TreeFlavour id id putByteString id
+
+textFlavour :: TreeFlavour T.Text T.Text
+textFlavour = TreeFlavour TE.decodeUtf8 TE.decodeUtf8 (putByteString . TE.encodeUtf8) TE.encodeUtf8
 
 -- |Tree representation. Everything is strict except for eChildren.
 data Node tag text =
@@ -49,11 +71,11 @@ modifyChildren f node = node { eChildren = f (eChildren node) }
 -- encoding override @enc@ and returns the root 'Node' of the document if there
 -- were no parsing errors.
 parseTree :: Eq tag =>
-             (B.ByteString -> tag, B.ByteString -> text)  -- ^ make tag, make text
+             TreeFlavour tag text
           -> Maybe Encoding
           -> L.ByteString
           -> Maybe (Node tag text)
-parseTree (mkTag, mkText) enc doc = unsafePerformIO $ runParse where
+parseTree (TreeFlavour mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
     -- We maintain the invariant that the stack always has one element,
@@ -78,34 +100,54 @@ parseTree (mkTag, mkText) enc doc = unsafePerformIO $ runParse where
     let node = modifyChildren reverse cur in
     modifyChildren (node:) parent : rest
 
--- | Parse to a tree of type Node String String, strictly
-parseTreeString :: Maybe Encoding
-                -> L.ByteString
-                -> Maybe (Node String String)
-parseTreeString = parseTree (unpack, unpack)
+data SAXEvent tag text =
+    StartDocument |
+    StartElement tag [(tag, text)] |
+    EndElement tag |
+    CharacterData text |
+    EndDocument |
+    FailDocument
+    deriving (Eq, Show)
+
+parseSAX :: TreeFlavour tag text
+         -> Maybe Encoding
+         -> L.ByteString
+         -> [SAXEvent tag text]
+parseSAX (TreeFlavour mkTag mkText _ _) enc doc = unsafePerformIO $ do
+    events <- newEmptyMVar
+    forkIO $ runParser events
+
+    let readEvents = do
+            event <- takeMVar events
+            rem <- case event of
+                EndDocument -> return []
+                FailDocument -> return []
+                otherwise ->   unsafeInterleaveIO readEvents
+            return (event:rem)
+    readEvents
   where
-    unpack = map w2c . B.unpack
-
--- | Parse to a tree of type Node ByteString ByteString, strictly
-parseTreeByteString :: Maybe Encoding
-                    -> L.ByteString
-                    -> Maybe (Node B.ByteString B.ByteString)
-parseTreeByteString = parseTree (id, id)
-
--- | Parse to a tree of type Node Text Text, strictly
-parseTreeText :: Maybe Encoding
-              -> L.ByteString
-              -> Maybe (Node T.Text T.Text)
-parseTreeText = parseTree (TE.decodeUtf8, TE.decodeUtf8)
+    runParser events = do
+        putMVar events StartDocument
+        parser <- newParser enc
+        setStartElementHandler  parser $ \n a ->
+            putMVar events $ StartElement (mkTag n) (map (\(n,v) -> (mkTag n, mkText v)) a)
+        setEndElementHandler    parser $ \n ->
+            putMVar events $ EndElement (mkTag n)
+        setCharacterDataHandler parser $ \s ->
+            putMVar events $ CharacterData (mkText s)
+        ok <- parse parser doc
+        if ok
+          then putMVar events EndDocument
+          else putMVar events FailDocument
 
 -- |@parse enc doc@ parses /lazy/ bytestring XML content @doc@ with optional
 -- encoding override @enc@ and returns the root 'Node' of the document if there
 -- were no parsing errors.
-parseTreeLazy :: (B.ByteString -> tag, B.ByteString -> text)  -- ^ make tag, make text
+parseTreeLazy :: TreeFlavour tag text
               -> Maybe Encoding
               -> L.ByteString
               -> Node tag text
-parseTreeLazy recipe mEnc bs = head . fst . ptl $ parseSAX recipe mEnc bs
+parseTreeLazy flavour mEnc bs = head . fst . ptl $ parseSAX flavour mEnc bs
   where
     ptl (StartDocument:rem) = ptl rem
     ptl (StartElement name attrs:rem) =
@@ -115,24 +157,4 @@ parseTreeLazy recipe mEnc bs = head . fst . ptl $ parseSAX recipe mEnc bs
     ptl (EndElement name:rem) = ([], rem)
     ptl (CharacterData txt:rem) = let (out, rem') = ptl rem in (Text txt:out, rem')
     ptl otherwise = ([], [])
-
--- | Parse to a tree of type Node String String, lazily
-parseTreeStringLazy :: Maybe Encoding
-                    -> L.ByteString
-                    -> Node String String
-parseTreeStringLazy = parseTreeLazy (unpack, unpack)
-  where
-    unpack = map w2c . B.unpack
-
--- | Parse to a tree of type Node ByteString ByteString, lazily
-parseTreeByteStringLazy :: Maybe Encoding
-                        -> L.ByteString
-                        -> Node B.ByteString B.ByteString
-parseTreeByteStringLazy = parseTreeLazy (id, id)
-
--- | Parse to a tree of type Node Text Text, lazily
-parseTreeTextLazy :: Maybe Encoding
-                  -> L.ByteString
-                  -> Node T.Text T.Text
-parseTreeTextLazy = parseTreeLazy (TE.decodeUtf8, TE.decodeUtf8)
 

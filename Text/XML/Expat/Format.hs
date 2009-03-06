@@ -3,9 +3,6 @@
 module Text.XML.Expat.Format (
         formatTree,
         putTree,
-        formatTreeString,
-        formatTreeByteString,
-        formatTreeText,
         formatNode
     ) where
 
@@ -20,17 +17,17 @@ import Data.Binary.Put
 import Control.Monad
 
 -- | Format document with <?xml.. header.
-formatTree :: (tag -> Put, text -> B.ByteString) -- ^ Format tag and text
+formatTree :: TreeFlavour tag text
            -> Maybe Encoding
            -> Node tag text
            -> L.ByteString
-formatTree puts mEnc node = runPut $ putTree puts mEnc node
+formatTree flavour mEnc node = runPut $ putTree flavour mEnc node
 
-putTree :: (tag -> Put, text -> B.ByteString) -- ^ Format tag and text
+putTree :: TreeFlavour tag text
         -> Maybe Encoding
         -> Node tag text
         -> Put
-putTree puts mEnc node = do
+putTree flavour mEnc node = do
     putByteString $ pack "<?xml version=\"1.0\""
     case mEnc of
         Just enc -> do
@@ -39,22 +36,13 @@ putTree puts mEnc node = do
             putByteString $ pack "\""
         Nothing -> return ()
     putByteString $ pack "?>\n"
-    formatNode puts node
-
-formatTreeString :: Maybe Encoding -> Node String String -> L.ByteString
-formatTreeString mEnc node = formatTree (mapM_ (putWord8 . c2w), pack) mEnc node
-
-formatTreeByteString :: Maybe Encoding -> Node B.ByteString B.ByteString -> L.ByteString
-formatTreeByteString mEnc node = formatTree (putByteString, id) mEnc node
-
-formatTreeText :: Maybe Encoding -> Node T.Text T.Text -> L.ByteString
-formatTreeText mEnc node = formatTree (putByteString . TE.encodeUtf8, TE.encodeUtf8) mEnc node
+    formatNode flavour node
 
 -- | Format XML node with no XML header.
-formatNode :: (tag -> Put, text -> B.ByteString) -- ^ Format tag and text
+formatNode :: TreeFlavour tag text
            -> Node tag text
            -> Put
-formatNode puts@(putTag, fmtText) (Element name attrs children) = do
+formatNode flavour@(TreeFlavour _ _ putTag fmtText) (Element name attrs children) = do
     putWord8 $ c2w '<'
     let putThisTag = putTag name
     putThisTag
@@ -69,11 +57,11 @@ formatNode puts@(putTag, fmtText) (Element name attrs children) = do
             putByteString $ pack "/>"
         else do
             putWord8 $ c2w '>'
-            forM_ children $ formatNode puts
+            forM_ children $ formatNode flavour
             putByteString $ pack "</"
             putThisTag
             putWord8 $ c2w '>'
-formatNode (putTag, fmtText) (Text txt) =
+formatNode (TreeFlavour _ _ putTag fmtText) (Text txt) =
     putXMLText $ fmtText txt
 
 pack :: String -> B.ByteString

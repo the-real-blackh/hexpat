@@ -21,5 +21,5 @@ toBL = L.fromChunks . chunkify
 infiniteBL = toBL infiniteDoc
 
 main = do
-    print $ parseTreeStringLazy Nothing infiniteBL
+    print $ parseTreeLazy stringFlavour Nothing infiniteBL
 
