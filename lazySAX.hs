@@ -20,5 +20,5 @@ toBL = L.fromChunks . chunkify
 infiniteBL = toBL infiniteDoc
 
 main = do
-    mapM_ print $ parseEvents (id,id) Nothing infiniteBL
+    mapM_ print $ parseSAX (id,id) Nothing infiniteBL
 
