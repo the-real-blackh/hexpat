@@ -12,6 +12,7 @@ module Text.XML.Expat.Tree (
   Node(..),
   parseTree,
   parseTreeLazy,
+  SAXEvent(..),
   parseSAX,
   TreeFlavour(..),
   stringFlavour,
