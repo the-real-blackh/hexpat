@@ -1,4 +1,4 @@
-all: tests lazySAX lazyTree
+all: tests lazySAX lazyTree benchmark
 
 tests: tests.hs
 	ghc -O2 -lexpat --make -o tests tests.hs
@@ -12,5 +12,8 @@ lazySAX: lazySAX.hs
 lazyTree: lazyTree.hs
 	ghc -O2 -lexpat --make -o lazyTree lazyTree.hs
 
+benchmark: benchmark.hs
+	ghc -O2 -lexpat --make -o benchmark benchmark.hs
+
 clean:
-	rm -f tests perf lazySAX lazyTree *.hi *.o
+	rm -f tests perf lazySAX lazyTree benchmark *.hi *.o

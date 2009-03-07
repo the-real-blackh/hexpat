@@ -33,6 +33,7 @@ module Text.XML.Expat.IO (
 ) where
 
 import Control.Exception (bracket)
+import Control.Parallel.Strategies
 import C2HS
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
@@ -127,6 +128,9 @@ withHandlers parser@(Parser fp startRef endRef charRef) code = do
 
 -- | Parse error, consisting of message text, line number, and column number
 data XMLParseError = XMLParseError String Integer Integer deriving (Eq, Show)
+
+instance NFData XMLParseError where
+    rnf (XMLParseError msg lin col) = rnf (msg, lin, col)
 
 -- |@parse data@ feeds /lazy/ bytestring data into a parser and returns
 -- @True@ if there was no parse error.

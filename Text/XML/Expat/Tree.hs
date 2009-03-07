@@ -148,7 +148,7 @@ parseSAX :: TreeFlavor tag text -- ^ Flavor, which determines the string type to
          -> [SAXEvent tag text]
 parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     events <- newEmptyMVar
-    forkIO $ runParser events
+    parserThread <- forkIO $ runParser events
 
     let readEvents = do
             mEvent <- takeMVar events
