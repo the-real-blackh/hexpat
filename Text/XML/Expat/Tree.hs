@@ -139,6 +139,12 @@ data SAXEvent tag text =
     CharacterData text |
     FailDocument XMLParseError
     deriving (Eq, Show)
+    
+instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
+    rnf (StartElement tag atts) = rnf (tag, atts)
+    rnf (EndElement tag) = rnf tag
+    rnf (CharacterData text) = rnf text
+    rnf (FailDocument err) = rnf err
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list.
