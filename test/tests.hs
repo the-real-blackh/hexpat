@@ -19,7 +19,7 @@ fromByteString :: BSL.ByteString -> String
 fromByteString = map w2c . BSL.unpack
 
 testDoc :: (Show tag, Show text) =>
-           (Maybe Encoding -> BSL.ByteString -> Either String (Node tag text))
+           (Maybe Encoding -> BSL.ByteString -> Either XMLParseError (Node tag text))
         -> (Maybe Encoding -> Node tag text -> BSL.ByteString)
         -> String
         -> Int
@@ -33,7 +33,7 @@ testDoc parse fmt descr0 idx xml = do
           let out = fromByteString $ fmt (Just UTF8) tree
           assertEqual descr xml out
       Left error -> do
-          hPutStrLn stderr $ "parse failed: "++error
+          hPutStrLn stderr $ "parse failed: "++show error
           assertFailure descr
 
 simpleDocs = [
@@ -46,33 +46,39 @@ simpleDocs = [
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test>Cat &amp; mouse</test>"
   ]
 
-righten f mEnc bs = Right $ f mEnc bs
+eitherify f mEnc bs = do
+    case f mEnc bs of
+        (_, Just err)  -> Left err
+        (doc, Nothing) -> Right doc
 
 test_error1 :: IO ()
 test_error1 = do
     let eDoc = parseTree' stringFlavor Nothing (toByteString "<hello></goodbye>")
-    assertEqual "error1" (Left "mismatched tag") eDoc
+    assertEqual "error1" (Left $ XMLParseError "mismatched tag" 1 9) eDoc
 
 test_error2 :: IO ()
 test_error2 = do
-    mError <- (do
-            let doc = parseTree stringFlavor Nothing (toByteString "<hello></goodbye>")
-            print doc
-            rnf doc `seq` return Nothing
-        )
-        `E.catch` (\exc ->
-            return $ Just $ show (exc::SomeException))
-    assertEqual "error2" (Just "hexpat parse failed: mismatched tag") mError
+    assertEqual "error2" (
+            Element {eName = "hello", eAttrs = [], eChildren = []},
+            Just (XMLParseError "mismatched tag" 1 9)
+        ) $ parseTree stringFlavor Nothing
+              (toByteString "<hello></goodbye>")
 
 test_error3 :: IO ()
-test_error3 = do
-    let doc = parseTreeNoError stringFlavor Nothing (toByteString "<open><test1>Hello</test1><hello></goodbye>")
+test_error3 =
     assertEqual "error3" (
             Element {eName = "open", eAttrs = [], eChildren = [
                 Element {eName = "test1", eAttrs = [], eChildren = [Text "Hello"]},
                 Element {eName = "hello", eAttrs = [], eChildren = []}
-            ]}
-        ) doc
+            ]},
+            Just (XMLParseError "mismatched tag" 1 35)
+        ) $ parseTree stringFlavor Nothing
+              (toByteString "<open><test1>Hello</test1><hello></goodbye>")
+
+test_error4 :: IO ()
+test_error4 = do
+    let eDoc = parseTree' stringFlavor Nothing (toByteString "!")
+    assertEqual "error1" (Left $ XMLParseError "not well-formed (invalid token)" 1 0) eDoc
 
 main = do
     testXML <- readFile "test.xml"
@@ -86,17 +92,18 @@ main = do
         TestCase $ t ("String", parseTree' stringFlavor, formatTree stringFlavor),
         TestCase $ t ("ByteString", parseTree' byteStringFlavor, formatTree byteStringFlavor),
         TestCase $ t ("Text", parseTree' textFlavor, formatTree textFlavor),
-        TestCase $ t ("String/Lazy", righten $ parseTree stringFlavor, formatTree stringFlavor),
-        TestCase $ t ("ByteString/Lazy", righten $ parseTree byteStringFlavor, formatTree byteStringFlavor),
-        TestCase $ t ("Text/Lazy", righten $ parseTree textFlavor, formatTree textFlavor),
+        TestCase $ t ("String/Lazy", eitherify $ parseTree stringFlavor, formatTree stringFlavor),
+        TestCase $ t ("ByteString/Lazy", eitherify $ parseTree byteStringFlavor, formatTree byteStringFlavor),
+        TestCase $ t ("Text/Lazy", eitherify $ parseTree textFlavor, formatTree textFlavor),
         TestCase $ t ("String/Qualified", parseTree' qualifiedStringFlavor, formatTree qualifiedStringFlavor),
         TestCase $ t ("ByteString/Qualified", parseTree' qualifiedByteStringFlavor, formatTree qualifiedByteStringFlavor),
         TestCase $ t ("Text/Qualified", parseTree' qualifiedTextFlavor, formatTree qualifiedTextFlavor),
-        TestCase $ t ("String/Qualified/Lazy", righten $ parseTree qualifiedStringFlavor, formatTree qualifiedStringFlavor),
-        TestCase $ t ("ByteString/Qualified/Lazy", righten $ parseTree qualifiedByteStringFlavor, formatTree qualifiedByteStringFlavor),
-        TestCase $ t ("Text/Qualified/Lazy", righten $ parseTree qualifiedTextFlavor, formatTree qualifiedTextFlavor),
+        TestCase $ t ("String/Qualified/Lazy", eitherify $ parseTree qualifiedStringFlavor, formatTree qualifiedStringFlavor),
+        TestCase $ t ("ByteString/Qualified/Lazy", eitherify $ parseTree qualifiedByteStringFlavor, formatTree qualifiedByteStringFlavor),
+        TestCase $ t ("Text/Qualified/Lazy", eitherify $ parseTree qualifiedTextFlavor, formatTree qualifiedTextFlavor),
         TestCase $ test_error1,
         TestCase $ test_error2,
-        TestCase $ test_error3
+        TestCase $ test_error3,
+        TestCase $ test_error4
       ]
 

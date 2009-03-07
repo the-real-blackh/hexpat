@@ -12,8 +12,8 @@ module Text.XML.Expat.Tree (
   Node(..),
   Encoding(..),
   parseTree,
-  parseTreeNoError,
   parseTree',
+  XMLParseError(..),
   SAXEvent(..),
   parseSAX,
   TreeFlavor(..),
@@ -90,13 +90,13 @@ parseTree' :: Eq tag =>
               TreeFlavor tag text
            -> Maybe Encoding  -- ^ Optional encoding override
            -> L.ByteString
-           -> Either String (Node tag text)
+           -> Either XMLParseError (Node tag text)
 parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
     -- We maintain the invariant that the stack always has one element,
     -- whose only child at the end of parsing is the root of the actual tree.
-    emptyString <- withCString "" $ mkTag 
+    emptyString <- withCString "" mkTag 
     stack <- newIORef [Element emptyString [] []]
     setStartElementHandler  parser $ \cName cAttrs -> do
         name <- mkTag cName
@@ -127,12 +127,10 @@ parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse wh
     modifyChildren (node:) parent : rest
 
 data SAXEvent tag text =
-    StartDocument |
     StartElement tag [(tag, text)] |
     EndElement tag |
     CharacterData text |
-    EndDocument |
-    FailDocument String
+    FailDocument XMLParseError
     deriving (Eq, Show)
 
 -- | Lazily parse XML to SAX events.
@@ -145,16 +143,18 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     forkIO $ runParser events
 
     let readEvents = do
-            event <- takeMVar events
-            rem <- case event of
-                EndDocument -> return [event]
-                FailDocument err -> return [event]
-                otherwise -> unsafeInterleaveIO readEvents
-            return (event:rem)
+            mEvent <- takeMVar events
+            case mEvent of
+                Just event@(FailDocument err) ->
+                    return [event]
+                Just event -> do
+                    rem <- unsafeInterleaveIO readEvents
+                    return (event:rem)
+                Nothing ->
+                    return []
     readEvents
   where
     runParser events = do
-        putMVar events StartDocument
         parser <- newParser enc
         setStartElementHandler parser $ \cName cAttrs -> do
             name <- mkTag cName
@@ -163,47 +163,41 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
                 len <- c_strlen cAttrValue
                 attrValue <- mkText (cAttrValue, fromIntegral len)
                 return (attrName, attrValue)
-            putMVar events $ StartElement name attrs
+            putMVar events $ Just $ StartElement name attrs
         setEndElementHandler parser $ \cName -> do
             name <- mkTag cName
-            putMVar events $ EndElement name
+            putMVar events $ Just $ EndElement name
         setCharacterDataHandler parser $ \cText -> do
             txt <- mkText cText
-            putMVar events $ CharacterData txt
+            putMVar events $ Just $ CharacterData txt
         mError <- parse parser doc
         case mError of
-            Nothing -> putMVar events EndDocument
-            Just err -> putMVar events (FailDocument err)
+            Nothing -> putMVar events Nothing
+            Just err -> putMVar events (Just $ FailDocument err)
 
--- | Lazily parse XML to tree. Parse errors are raised using Haskell error.
+-- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
+-- will force the entire parse.  Therefore, to ensure lazy operation, don't
+-- check the error status until you have processed the tree.
 parseTree :: TreeFlavor tag text
           -> Maybe Encoding  -- ^ Optional encoding override
           -> L.ByteString
-          -> Node tag text
-parseTree = doParseTree $ \err -> error $ "hexpat parse failed: "++err
-
--- | Lazily parse XML to tree. Parse errors are ignored, except that the
--- returned tree contains text only up to the point where the error occurred.
-parseTreeNoError :: TreeFlavor tag text
-                 -> Maybe Encoding  -- ^ Optional encoding override
-                 -> L.ByteString
-                 -> Node tag text
-parseTreeNoError = doParseTree $ const ([], [])
-
-doParseTree :: (String -> ([Node tag text], [SAXEvent tag text]))
-            -> TreeFlavor tag text
-            -> Maybe Encoding  -- ^ Optional encoding override
-            -> L.ByteString
-            -> Node tag text
-doParseTree handleError flavour mEnc bs = head . fst . ptl $ parseSAX flavour mEnc bs
+          -> (Node tag text, Maybe XMLParseError)
+parseTree flavor@(TreeFlavor mkTag _ _ _) mEnc bs =
+    let events = parseSAX flavor mEnc bs
+        (nodes, mError, _) = ptl events
+    in  (safeHead nodes, mError)
   where
-    ptl (StartDocument:rem) = ptl rem
+    safeHead (a:_) = a
+    safeHead [] = Element (unsafePerformIO $ withCString "" mkTag) [] []
     ptl (StartElement name attrs:rem) =
-        let (children, rem') = ptl rem
-            (out, rem'') = ptl rem'
-        in  (Element name attrs children:out, rem'')
-    ptl (EndElement name:rem) = ([], rem)
-    ptl (CharacterData txt:rem) = let (out, rem') = ptl rem in (Text txt:out, rem')
-    ptl (FailDocument err:_) = handleError err
-    ptl otherwise = ([], [])
+        let (children, err1, rem') = ptl rem
+            elt = Element name attrs children
+            (out, err2, rem'') = ptl rem'
+        in  (elt:out, err1 `mplus` err2, rem'')
+    ptl (EndElement name:rem) = ([], Nothing, rem)
+    ptl (CharacterData txt:rem) =
+        let (out, err, rem') = ptl rem
+        in  (Text txt:out, err, rem')
+    ptl (FailDocument err:_) = ([], Just err, [])
+    ptl [] = ([], Nothing, [])
 

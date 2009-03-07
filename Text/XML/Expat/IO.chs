@@ -15,7 +15,7 @@ module Text.XML.Expat.IO (
   Parser, newParser,
 
   -- ** Parsing
-  parse, Encoding(..),
+  parse, Encoding(..), XMLParseError(..),
 
   -- ** Parser Callbacks
   StartElementHandler, EndElementHandler, CharacterDataHandler,
@@ -123,9 +123,12 @@ withHandlers parser@(Parser fp startRef endRef charRef) code = do
     {withParser* `Parser', withBStringLen* `BS.ByteString' &, `Bool'}
     -> `Bool' unStatus#}
 
+-- | Parse error text, line number, and column number
+data XMLParseError = XMLParseError String Integer Integer deriving (Eq, Show)
+
 -- |@parse data@ feeds /lazy/ bytestring data into a parser and returns
 -- @True@ if there was no parse error.
-parse :: Parser -> BSL.ByteString -> IO (Maybe String)
+parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
 parse parser bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
   where
     feedChunk []      = return Nothing
@@ -135,7 +138,10 @@ parse parser bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
                                      code <- xmlGetErrorCode p
                                      cerr <- xmlErrorString code
                                      err <- peekCString cerr
-                                     return $ Just err
+                                     line <- xmlGetCurrentLineNumber p
+                                     col <- xmlGetCurrentColumnNumber p
+                                     return $ Just $ XMLParseError err
+                                         (fromIntegral line) (fromIntegral col)
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs.
@@ -153,7 +159,10 @@ nullCStartElementHandler _ _ _ = return ()
 
 foreign import ccall unsafe "expat.h XML_GetErrorCode" xmlGetErrorCode
     :: ParserPtr -> IO CInt
-
+foreign import ccall unsafe "expat.h XML_GetCurrentLineNumber" xmlGetCurrentLineNumber
+    :: ParserPtr -> IO CUInt  -- to do: Get 64-bit value if supported (how?)
+foreign import ccall unsafe "expat.h XML_GetCurrentColumnNumber" xmlGetCurrentColumnNumber
+    :: ParserPtr -> IO CUInt  -- to do: Get 64-bit value if supported (how?)
 foreign import ccall unsafe "expat.h XML_ErrorString" xmlErrorString
     :: CInt -> IO CString
 

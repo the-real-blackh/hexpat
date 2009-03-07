@@ -20,7 +20,7 @@ Author: Evan Martin, Stephen Blackheath
 Maintainer: http://blacksapphire.com/antispam/
 Copyright: (c) 2008 Evan Martin <martine@danga.com>, (c) 2008 Stephen Blackheath
 Homepage: http://code.haskell.org/hexpat/
-Extra-Source-Files: test.hs, perf.hs, test2.hs, test.xml
+Extra-Source-Files: test/tests.hs, test/perf.hs, test/test.xml
 Build-Type: Simple
 Stability: beta
 
@@ -33,7 +33,7 @@ Library
     text >= 0.1,
     binary >= 0.4,
     utf8-string >= 0.3.3,
-    parallel >= 1.1.0.0
+    parallel
   Exposed-Modules:
     Text.XML.Expat.Tree,
     Text.XML.Expat.Format,
