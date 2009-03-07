@@ -12,6 +12,7 @@ module Text.XML.Expat.Tree (
   Node(..),
   Encoding(..),
   parseTree,
+  parseTreeNoError,
   parseTree',
   SAXEvent(..),
   parseSAX,
@@ -34,6 +35,7 @@ import Data.Binary.Put
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.MVar
+import Control.Parallel.Strategies
 import Control.Monad
 import System.IO.Unsafe
 import Foreign.C.String
@@ -72,7 +74,11 @@ data Node tag text =
         eChildren :: [Node tag text]
     } |
     Text !text
-    deriving Show
+    deriving (Eq, Show)
+
+instance (NFData tag, NFData text) => NFData (Node tag text) where
+    rnf (Element nam att chi) = rnf (nam, att, chi)
+    rnf (Text txt) = rnf txt
 
 modifyChildren :: ([Node tag text] -> [Node tag text])
                -> Node tag text
@@ -81,10 +87,10 @@ modifyChildren f node = node { eChildren = f (eChildren node) }
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parseTree' :: Eq tag =>
-             TreeFlavor tag text
-          -> Maybe Encoding  -- ^ Optional encoding override
-          -> L.ByteString
-          -> Either String (Node tag text)
+              TreeFlavor tag text
+           -> Maybe Encoding  -- ^ Optional encoding override
+           -> L.ByteString
+           -> Either String (Node tag text)
 parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
@@ -169,12 +175,27 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
             Nothing -> putMVar events EndDocument
             Just err -> putMVar events (FailDocument err)
 
--- | Lazily parse XML to tree. 
+-- | Lazily parse XML to tree. Parse errors are raised using Haskell error.
 parseTree :: TreeFlavor tag text
           -> Maybe Encoding  -- ^ Optional encoding override
           -> L.ByteString
           -> Node tag text
-parseTree flavour mEnc bs = head . fst . ptl $ parseSAX flavour mEnc bs
+parseTree = doParseTree $ \err -> error $ "hexpat parse failed: "++err
+
+-- | Lazily parse XML to tree. Parse errors are ignored, except that the
+-- returned tree contains text only up to the point where the error occurred.
+parseTreeNoError :: TreeFlavor tag text
+                 -> Maybe Encoding  -- ^ Optional encoding override
+                 -> L.ByteString
+                 -> Node tag text
+parseTreeNoError = doParseTree $ const ([], [])
+
+doParseTree :: (String -> ([Node tag text], [SAXEvent tag text]))
+            -> TreeFlavor tag text
+            -> Maybe Encoding  -- ^ Optional encoding override
+            -> L.ByteString
+            -> Node tag text
+doParseTree handleError flavour mEnc bs = head . fst . ptl $ parseSAX flavour mEnc bs
   where
     ptl (StartDocument:rem) = ptl rem
     ptl (StartElement name attrs:rem) =
@@ -183,5 +204,6 @@ parseTree flavour mEnc bs = head . fst . ptl $ parseSAX flavour mEnc bs
         in  (Element name attrs children:out, rem'')
     ptl (EndElement name:rem) = ([], rem)
     ptl (CharacterData txt:rem) = let (out, rem') = ptl rem in (Text txt:out, rem')
+    ptl (FailDocument err:_) = handleError err
     ptl otherwise = ([], [])
 

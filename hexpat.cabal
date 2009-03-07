@@ -32,7 +32,8 @@ Library
     mtl >= 1.1.0.0,
     text >= 0.1,
     binary >= 0.4,
-    utf8-string >= 0.3.3
+    utf8-string >= 0.3.3,
+    parallel >= 1.1.0.0
   Exposed-Modules:
     Text.XML.Expat.Tree,
     Text.XML.Expat.Format,

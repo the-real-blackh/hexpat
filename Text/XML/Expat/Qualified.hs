@@ -15,6 +15,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Control.Applicative
 import Control.Monad.Writer
+import Control.Parallel.Strategies
 import Data.Monoid
 import Data.Binary.Put
 import qualified Codec.Binary.UTF8.String as U8
@@ -28,6 +29,8 @@ data QName text =
     }
     deriving (Eq,Show)
 
+instance NFData text => NFData (QName text) where
+    rnf (QName pre loc) = rnf (pre, loc)
 
 qualifiedStringFlavor :: TreeFlavor (QName String) String
 qualifiedStringFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQName pack
