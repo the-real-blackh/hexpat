@@ -98,6 +98,12 @@ parseTree' :: Eq tag =>
            -> Maybe Encoding      -- ^ Optional encoding override
            -> L.ByteString        -- ^ Input text (a lazy ByteString)
            -> Either XMLParseError (Node tag text)
+{-# SPECIALIZE parseTree' :: TreeFlavor String String -> Maybe Encoding
+               -> L.ByteString -> Either XMLParseError (Node String String) #-}
+{-# SPECIALIZE parseTree' :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
+               -> L.ByteString -> Either XMLParseError (Node B.ByteString B.ByteString) #-}
+{-# SPECIALIZE parseTree' :: TreeFlavor T.Text T.Text -> Maybe Encoding
+               -> L.ByteString -> Either XMLParseError (Node T.Text T.Text) #-}
 parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
@@ -152,6 +158,12 @@ parseSAX :: TreeFlavor tag text -- ^ Flavor, which determines the string type to
          -> Maybe Encoding      -- ^ Optional encoding override
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
+{-# SPECIALIZE parseSAX :: TreeFlavor String String -> Maybe Encoding
+         -> L.ByteString -> [SAXEvent String String] #-}
+{-# SPECIALIZE parseSAX :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
+         -> L.ByteString -> [SAXEvent B.ByteString B.ByteString] #-}
+{-# SPECIALIZE parseSAX :: TreeFlavor T.Text T.Text -> Maybe Encoding
+         -> L.ByteString -> [SAXEvent T.Text T.Text] #-}
 parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     events <- newEmptyMVar
     parserThread <- forkIO $ runParser events
@@ -196,6 +208,12 @@ parseTree :: TreeFlavor tag text -- ^ Flavor, which determines the string type t
           -> Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> (Node tag text, Maybe XMLParseError)
+{-# SPECIALIZE parseTree :: TreeFlavor String String -> Maybe Encoding
+          -> L.ByteString -> (Node String String, Maybe XMLParseError) #-}
+{-# SPECIALIZE parseTree :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
+          -> L.ByteString -> (Node B.ByteString B.ByteString, Maybe XMLParseError) #-}
+{-# SPECIALIZE parseTree :: TreeFlavor T.Text T.Text -> Maybe Encoding
+          -> L.ByteString -> (Node T.Text T.Text, Maybe XMLParseError) #-}
 parseTree flavor@(TreeFlavor mkTag _ _ _) mEnc bs =
     let events = parseSAX flavor mEnc bs
         (nodes, mError, _) = ptl events
