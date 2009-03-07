@@ -1,10 +1,7 @@
-all: test test2 lazySAX lazyTree
+all: tests lazySAX lazyTree
 
-test: test.hs 
-	ghc -O2 -lexpat --make -o test test.hs
-
-test2: test2.hs
-	ghc -O2 -lexpat --make -o test2 test2.hs
+tests: tests.hs
+	ghc -O2 -lexpat --make -o tests tests.hs
 
 perf: test.hs
 	ghc -O2 -lexpat --make -o perf perf.hs

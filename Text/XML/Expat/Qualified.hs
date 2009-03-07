@@ -13,10 +13,12 @@ import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Internal (c2w, w2c)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import Control.Applicative
 import Control.Monad.Writer
 import Data.Monoid
 import Data.Binary.Put
 import qualified Codec.Binary.UTF8.String as U8
+import Foreign.C.String
 
 
 data QName text =
@@ -28,13 +30,14 @@ data QName text =
 
 
 qualifiedStringFlavor :: TreeFlavor (QName String) String
-qualifiedStringFlavor = TreeFlavor (toQName . unpack) unpack fromQName pack
+qualifiedStringFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQName pack
   where
+    unpack    cstr = U8.decodeString <$> peekCString cstr
+    unpackLen cstr = U8.decodeString <$> peekCStringLen cstr
     toQName ident =
         case break (== ':') ident of
             (prefix, ':':local) -> QName (Just prefix) local
             otherwise           -> QName Nothing ident
-    unpack = U8.decodeString . map w2c . B.unpack
     pack = B.pack . map c2w . U8.encodeString
     fromQName (QName (Just prefix) local) = do
         mapM_ (putWord8 . c2w) prefix
@@ -43,8 +46,10 @@ qualifiedStringFlavor = TreeFlavor (toQName . unpack) unpack fromQName pack
     fromQName (QName Nothing local) = mapM_ (putWord8 . c2w) local
 
 qualifiedByteStringFlavor :: TreeFlavor (QName B.ByteString) B.ByteString
-qualifiedByteStringFlavor = TreeFlavor toQName id fromQName id
+qualifiedByteStringFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQName id
   where
+    unpack    cstr = peekByteString cstr
+    unpackLen cstr = peekByteStringLen cstr
     toQName ident =
         case B.break (== c2w ':') ident of
             (prefix, _local) | not (B.null _local) && B.head _local == c2w ':' ->
@@ -58,8 +63,10 @@ qualifiedByteStringFlavor = TreeFlavor toQName id fromQName id
     colon = B.singleton (c2w ':')
 
 qualifiedTextFlavor :: TreeFlavor (QName T.Text) T.Text
-qualifiedTextFlavor = TreeFlavor (toQName . TE.decodeUtf8) TE.decodeUtf8 fromQName TE.encodeUtf8
+qualifiedTextFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQName TE.encodeUtf8
   where
+    unpack    cstr = TE.decodeUtf8 <$> peekByteString cstr
+    unpackLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
     toQName ident =
         case T.break (== ':') ident of
             (prefix, _local) | not (T.null _local) && T.head _local == ':' ->

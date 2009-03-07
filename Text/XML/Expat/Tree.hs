@@ -10,8 +10,9 @@
 
 module Text.XML.Expat.Tree (
   Node(..),
+  Encoding(..),
   parseTree,
-  parseTreeLazy,
+  parseTree',
   SAXEvent(..),
   parseSAX,
   TreeFlavor(..),
@@ -25,33 +26,43 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
-import Data.ByteString.Internal (c2w, w2c)
+import Data.ByteString.Internal (c2w, w2c, c_strlen)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Codec.Binary.UTF8.String as U8
 import Data.Binary.Put
+import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.MVar
+import Control.Monad
 import System.IO.Unsafe
+import Foreign.C.String
 
 
 data TreeFlavor tag text = TreeFlavor
-        (B.ByteString -> tag)
-        (B.ByteString -> text)
+        (CString -> IO tag)
+        (CStringLen -> IO text)
         (tag -> Put)
         (text -> B.ByteString)
 
 stringFlavor :: TreeFlavor String String
-stringFlavor = TreeFlavor unpack unpack (mapM_ (putWord8 . c2w)) pack
+stringFlavor = TreeFlavor unpack unpackLen (mapM_ (putWord8 . c2w)) pack
   where
-    unpack = U8.decodeString . map w2c . B.unpack
+    unpack    cstr = U8.decodeString <$> peekCString cstr
+    unpackLen cstr = U8.decodeString <$> peekCStringLen cstr
     pack = B.pack . map c2w . U8.encodeString
 
 byteStringFlavor :: TreeFlavor B.ByteString B.ByteString
-byteStringFlavor = TreeFlavor id id putByteString id
+byteStringFlavor = TreeFlavor unpack unpackLen putByteString id
+  where
+    unpack    cstr = peekByteString cstr
+    unpackLen cstr = peekByteStringLen cstr
 
 textFlavor :: TreeFlavor T.Text T.Text
-textFlavor = TreeFlavor TE.decodeUtf8 TE.decodeUtf8 (putByteString . TE.encodeUtf8) TE.encodeUtf8
+textFlavor = TreeFlavor unpack unpackLen (putByteString . TE.encodeUtf8) TE.encodeUtf8
+  where
+    unpack    cstr = TE.decodeUtf8 <$> peekByteString cstr
+    unpackLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
 
 -- |Tree representation. Everything is strict except for eChildren.
 data Node tag text =
@@ -68,32 +79,40 @@ modifyChildren :: ([Node tag text] -> [Node tag text])
                -> Node tag text
 modifyChildren f node = node { eChildren = f (eChildren node) }
 
--- |@parse enc doc@ parses /lazy/ bytestring XML content @doc@ with optional
--- encoding override @enc@ and returns the root 'Node' of the document if there
--- were no parsing errors.
-parseTree :: Eq tag =>
+-- | Strictly parse XML to tree. Returns error message or valid parsed tree.
+parseTree' :: Eq tag =>
              TreeFlavor tag text
-          -> Maybe Encoding
+          -> Maybe Encoding  -- ^ Optional encoding override
           -> L.ByteString
-          -> Maybe (Node tag text)
-parseTree (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
+          -> Either String (Node tag text)
+parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
     -- We maintain the invariant that the stack always has one element,
     -- whose only child at the end of parsing is the root of the actual tree.
-    stack <- newIORef [Element (mkTag $ B.pack []) [] []]
-    setStartElementHandler  parser $ \n a ->
-        modifyIORef stack (start (mkTag n) (map (\(n,v) -> (mkTag n, mkText v)) a))
-    setEndElementHandler    parser (\n ->
-        modifyIORef stack (end (mkTag n)))
-    setCharacterDataHandler parser (\s ->
-        modifyIORef stack (text (mkText s)))
-    ok <- parse parser doc
-    if ok
-      then do
-        [Element _ _ [root]] <- readIORef stack
-        return $ Just root
-      else return Nothing
+    emptyString <- withCString "" $ mkTag 
+    stack <- newIORef [Element emptyString [] []]
+    setStartElementHandler  parser $ \cName cAttrs -> do
+        name <- mkTag cName
+        attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
+            attrName <- mkTag cAttrName
+            len <- c_strlen cAttrValue
+            attrValue <- mkText (cAttrValue, fromIntegral len)
+            return (attrName, attrValue)
+        modifyIORef stack (start name attrs)
+    setEndElementHandler parser $ \cName -> do
+        name <- mkTag cName
+        modifyIORef stack (end name)
+    setCharacterDataHandler parser $ \cText -> do
+        txt <- mkText cText
+        modifyIORef stack (text txt)
+    mError <- parse parser doc
+    case mError of
+        Just error -> return $ Left error
+        Nothing -> do
+            [Element _ _ [root]] <- readIORef stack
+            return $ Right root
+            
   start name attrs stack = Element name attrs [] : stack
   text str (cur:rest) = modifyChildren (Text str:) cur : rest
   end name (cur:parent:rest) =
@@ -107,11 +126,12 @@ data SAXEvent tag text =
     EndElement tag |
     CharacterData text |
     EndDocument |
-    FailDocument
+    FailDocument String
     deriving (Eq, Show)
 
+-- | Lazily parse XML to SAX events.
 parseSAX :: TreeFlavor tag text
-         -> Maybe Encoding
+         -> Maybe Encoding  -- ^ Optional encoding override
          -> L.ByteString
          -> [SAXEvent tag text]
 parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
@@ -121,34 +141,40 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     let readEvents = do
             event <- takeMVar events
             rem <- case event of
-                EndDocument -> return []
-                FailDocument -> return []
-                otherwise ->   unsafeInterleaveIO readEvents
+                EndDocument -> return [event]
+                FailDocument err -> return [event]
+                otherwise -> unsafeInterleaveIO readEvents
             return (event:rem)
     readEvents
   where
     runParser events = do
         putMVar events StartDocument
         parser <- newParser enc
-        setStartElementHandler  parser $ \n a ->
-            putMVar events $ StartElement (mkTag n) (map (\(n,v) -> (mkTag n, mkText v)) a)
-        setEndElementHandler    parser $ \n ->
-            putMVar events $ EndElement (mkTag n)
-        setCharacterDataHandler parser $ \s ->
-            putMVar events $ CharacterData (mkText s)
-        ok <- parse parser doc
-        if ok
-          then putMVar events EndDocument
-          else putMVar events FailDocument
+        setStartElementHandler parser $ \cName cAttrs -> do
+            name <- mkTag cName
+            attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
+                attrName <- mkTag cAttrName
+                len <- c_strlen cAttrValue
+                attrValue <- mkText (cAttrValue, fromIntegral len)
+                return (attrName, attrValue)
+            putMVar events $ StartElement name attrs
+        setEndElementHandler parser $ \cName -> do
+            name <- mkTag cName
+            putMVar events $ EndElement name
+        setCharacterDataHandler parser $ \cText -> do
+            txt <- mkText cText
+            putMVar events $ CharacterData txt
+        mError <- parse parser doc
+        case mError of
+            Nothing -> putMVar events EndDocument
+            Just err -> putMVar events (FailDocument err)
 
--- |@parse enc doc@ parses /lazy/ bytestring XML content @doc@ with optional
--- encoding override @enc@ and returns the root 'Node' of the document if there
--- were no parsing errors.
-parseTreeLazy :: TreeFlavor tag text
-              -> Maybe Encoding
-              -> L.ByteString
-              -> Node tag text
-parseTreeLazy flavour mEnc bs = head . fst . ptl $ parseSAX flavour mEnc bs
+-- | Lazily parse XML to tree. 
+parseTree :: TreeFlavor tag text
+          -> Maybe Encoding  -- ^ Optional encoding override
+          -> L.ByteString
+          -> Node tag text
+parseTree flavour mEnc bs = head . fst . ptl $ parseSAX flavour mEnc bs
   where
     ptl (StartDocument:rem) = ptl rem
     ptl (StartElement name attrs:rem) =

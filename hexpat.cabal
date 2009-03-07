@@ -34,11 +34,12 @@ Library
     binary >= 0.4,
     utf8-string >= 0.3.3
   Exposed-Modules:
-    Text.XML.Expat.IO,
     Text.XML.Expat.Tree,
     Text.XML.Expat.Format,
     Text.XML.Expat.Qualified
-  Other-Modules: C2HS
+  Other-Modules:
+    C2HS,
+    Text.XML.Expat.IO
   Extensions: ForeignFunctionInterface
   Extra-Libraries: expat
 

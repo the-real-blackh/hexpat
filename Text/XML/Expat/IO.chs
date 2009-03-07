@@ -25,7 +25,9 @@ module Text.XML.Expat.IO (
   parseChunk,
 
   -- ** Helpers
-  encodingToString
+  encodingToString,
+  peekByteString,
+  peekByteStringLen
 ) where
 
 import Control.Exception (bracket)
@@ -123,28 +125,37 @@ withHandlers parser@(Parser fp startRef endRef charRef) code = do
 
 -- |@parse data@ feeds /lazy/ bytestring data into a parser and returns
 -- @True@ if there was no parse error.
-parse :: Parser -> BSL.ByteString -> IO Bool
+parse :: Parser -> BSL.ByteString -> IO (Maybe String)
 parse parser bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
   where
-    feedChunk []      = return True
-    feedChunk [chunk] = parseChunk parser chunk True
-    feedChunk (c:cs)  = do ok <- doParseChunk parser c False
+    feedChunk []      = return Nothing
+    feedChunk (c:cs)  = do ok <- doParseChunk parser c (null cs)
                            if ok then feedChunk cs
-                                 else return False
+                                 else withParser parser $ \p -> do
+                                     code <- xmlGetErrorCode p
+                                     cerr <- xmlErrorString code
+                                     err <- peekCString cerr
+                                     return $ Just err
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs.
-type StartElementHandler  = BS.ByteString -> [(BS.ByteString,BS.ByteString)] -> IO ()
+type StartElementHandler  = CString -> [(CString, CString)] -> IO ()
 -- |The type of the \"element ended\" callback.  The parameter is
 -- the element name.
-type EndElementHandler    = BS.ByteString -> IO ()
+type EndElementHandler    = CString -> IO ()
 -- |The type of the \"character data\" callback.  The parameter is
 -- the character data processed.  This callback may be called more than once
 -- while processing a single conceptual block of text.
-type CharacterDataHandler = BS.ByteString -> IO ()
+type CharacterDataHandler = CStringLen -> IO ()
 
 type CStartElementHandler = Ptr () -> CString -> Ptr CString -> IO ()
 nullCStartElementHandler _ _ _ = return ()
+
+foreign import ccall unsafe "expat.h XML_GetErrorCode" xmlGetErrorCode
+    :: ParserPtr -> IO CInt
+
+foreign import ccall unsafe "expat.h XML_ErrorString" xmlErrorString
+    :: CInt -> IO CString
 
 foreign import ccall "wrapper"
   mkCStartElementHandler :: CStartElementHandler
@@ -152,10 +163,8 @@ foreign import ccall "wrapper"
 wrapStartElementHandler :: StartElementHandler -> CStartElementHandler
 wrapStartElementHandler handler = h where
   h ptr cname cattrs = do
-    name <- peekByteString cname
     cattrlist <- peekArray0 nullPtr cattrs
-    attrlist <- mapM peekByteString cattrlist
-    handler name (pairwise attrlist)
+    handler cname (pairwise cattrlist)
 -- |Attach a StartElementHandler to a Parser.
 setStartElementHandler :: Parser -> StartElementHandler -> IO ()
 setStartElementHandler parser@(Parser _ startRef _ _) handler = do
@@ -170,9 +179,7 @@ foreign import ccall "wrapper"
                        -> IO (FunPtr CEndElementHandler)
 wrapEndElementHandler :: EndElementHandler -> CEndElementHandler
 wrapEndElementHandler handler = h where
-  h ptr cname = do
-    name <- peekByteString cname
-    handler name
+  h ptr cname = handler cname
 
 -- |Attach an EndElementHandler to a Parser.
 setEndElementHandler :: Parser -> EndElementHandler -> IO ()
@@ -188,11 +195,9 @@ foreign import ccall "wrapper"
                           -> IO (FunPtr CCharacterDataHandler)
 wrapCharacterDataHandler :: CharacterDataHandler -> CCharacterDataHandler
 wrapCharacterDataHandler handler = h where
-  h ptr cdata len = do
-    data_ <- peekByteStringLen (cdata, fromIntegral len)
-    handler data_
+  h ptr cdata len = handler (cdata, fromIntegral len)
 
--- |Attach an CharacterDataHandler to a Parser.
+-- | Attach an CharacterDataHandler to a Parser.
 setCharacterDataHandler :: Parser -> CharacterDataHandler -> IO ()
 setCharacterDataHandler parser@(Parser _ _ _ charRef) handler = do
   withParser parser $ \p -> do
@@ -205,11 +210,11 @@ peekByteString :: CString -> IO BS.ByteString
 {-# INLINE peekByteString #-}
 peekByteString cstr = do
     len <- BSI.c_strlen cstr
-    peekByteStringLen (castPtr cstr, len)
+    peekByteStringLen (castPtr cstr, fromIntegral len)
 
-peekByteStringLen :: (CString, CSize) -> IO BS.ByteString 
+peekByteStringLen :: CStringLen -> IO BS.ByteString 
 {-# INLINE peekByteStringLen #-}
 peekByteStringLen (cstr, len) =
     BSI.create (fromIntegral len) $ \ptr ->
-        BSI.memcpy ptr (castPtr cstr) len
+        BSI.memcpy ptr (castPtr cstr) (fromIntegral len)
 
