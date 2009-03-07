@@ -1,8 +1,8 @@
 module Text.XML.Expat.Qualified (
         QName(..),
-        qualifiedStringFlavour,
-        qualifiedByteStringFlavour,
-        qualifiedTextFlavour
+        qualifiedStringFlavor,
+        qualifiedByteStringFlavor,
+        qualifiedTextFlavor
     ) where
 
 import Text.XML.Expat.IO
@@ -27,8 +27,8 @@ data QName text =
     deriving (Eq,Show)
 
 
-qualifiedStringFlavour :: TreeFlavour (QName String) String
-qualifiedStringFlavour = TreeFlavour (toQName . unpack) unpack fromQName pack
+qualifiedStringFlavor :: TreeFlavor (QName String) String
+qualifiedStringFlavor = TreeFlavor (toQName . unpack) unpack fromQName pack
   where
     toQName ident =
         case break (== ':') ident of
@@ -42,8 +42,8 @@ qualifiedStringFlavour = TreeFlavour (toQName . unpack) unpack fromQName pack
         mapM_ (putWord8 . c2w) local
     fromQName (QName Nothing local) = mapM_ (putWord8 . c2w) local
 
-qualifiedByteStringFlavour :: TreeFlavour (QName B.ByteString) B.ByteString
-qualifiedByteStringFlavour = TreeFlavour toQName id fromQName id
+qualifiedByteStringFlavor :: TreeFlavor (QName B.ByteString) B.ByteString
+qualifiedByteStringFlavor = TreeFlavor toQName id fromQName id
   where
     toQName ident =
         case B.break (== c2w ':') ident of
@@ -57,8 +57,8 @@ qualifiedByteStringFlavour = TreeFlavour toQName id fromQName id
     fromQName (QName Nothing local) = putByteString local
     colon = B.singleton (c2w ':')
 
-qualifiedTextFlavour :: TreeFlavour (QName T.Text) T.Text
-qualifiedTextFlavour = TreeFlavour (toQName . TE.decodeUtf8) TE.decodeUtf8 fromQName TE.encodeUtf8
+qualifiedTextFlavor :: TreeFlavor (QName T.Text) T.Text
+qualifiedTextFlavor = TreeFlavor (toQName . TE.decodeUtf8) TE.decodeUtf8 fromQName TE.encodeUtf8
   where
     toQName ident =
         case T.break (== ':') ident of

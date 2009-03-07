@@ -59,29 +59,29 @@ main = do
     let docs = simpleDocs ++ [testDoc']
 
     putStrLn "String"
-    test (parseTree stringFlavour) (formatTree stringFlavour) docs
+    test (parseTree stringFlavor) (formatTree stringFlavor) docs
     putStrLn "ByteString"
-    test (parseTree byteStringFlavour) (formatTree byteStringFlavour) docs
+    test (parseTree byteStringFlavor) (formatTree byteStringFlavor) docs
     putStrLn "Text"
-    test (parseTree textFlavour) (formatTree textFlavour) docs
+    test (parseTree textFlavor) (formatTree textFlavor) docs
     putStrLn "String/Lazy"
-    test (enjust $ parseTreeLazy stringFlavour) (formatTree stringFlavour) docs
+    test (enjust $ parseTreeLazy stringFlavor) (formatTree stringFlavor) docs
     putStrLn "ByteString/Lazy"
-    test (enjust $ parseTreeLazy byteStringFlavour) (formatTree byteStringFlavour) docs
+    test (enjust $ parseTreeLazy byteStringFlavor) (formatTree byteStringFlavor) docs
     putStrLn "Text/Lazy"
-    test (enjust $ parseTreeLazy textFlavour) (formatTree textFlavour) docs
+    test (enjust $ parseTreeLazy textFlavor) (formatTree textFlavor) docs
     putStrLn "String/Qualified"
-    test (parseTree qualifiedStringFlavour) (formatTree qualifiedStringFlavour) docs
+    test (parseTree qualifiedStringFlavor) (formatTree qualifiedStringFlavor) docs
     putStrLn "ByteString/Qualified"
-    test (parseTree qualifiedByteStringFlavour) (formatTree qualifiedByteStringFlavour) docs
+    test (parseTree qualifiedByteStringFlavor) (formatTree qualifiedByteStringFlavor) docs
     putStrLn "Text/Qualified"
-    test (parseTree qualifiedTextFlavour) (formatTree qualifiedTextFlavour) docs
+    test (parseTree qualifiedTextFlavor) (formatTree qualifiedTextFlavor) docs
     putStrLn "String/Qualified/Lazy"
-    test (enjust $ parseTreeLazy qualifiedStringFlavour) (formatTree qualifiedStringFlavour) docs
+    test (enjust $ parseTreeLazy qualifiedStringFlavor) (formatTree qualifiedStringFlavor) docs
     putStrLn "ByteString/Qualified/Lazy"
-    test (enjust $ parseTreeLazy qualifiedByteStringFlavour) (formatTree qualifiedByteStringFlavour) docs
+    test (enjust $ parseTreeLazy qualifiedByteStringFlavor) (formatTree qualifiedByteStringFlavor) docs
     putStrLn "Text/Qualified/Lazy"
-    test (enjust $ parseTreeLazy qualifiedTextFlavour) (formatTree qualifiedTextFlavour) docs
+    test (enjust $ parseTreeLazy qualifiedTextFlavor) (formatTree qualifiedTextFlavor) docs
   where
     enjust f mEnc bs = Just $ f mEnc bs
 

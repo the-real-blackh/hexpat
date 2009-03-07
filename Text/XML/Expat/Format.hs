@@ -17,13 +17,13 @@ import Data.Binary.Put
 import Control.Monad
 
 -- | Format document with <?xml.. header.
-formatTree :: TreeFlavour tag text
+formatTree :: TreeFlavor tag text
            -> Maybe Encoding
            -> Node tag text
            -> L.ByteString
 formatTree flavour mEnc node = runPut $ putTree flavour mEnc node
 
-putTree :: TreeFlavour tag text
+putTree :: TreeFlavor tag text
         -> Maybe Encoding
         -> Node tag text
         -> Put
@@ -39,10 +39,10 @@ putTree flavour mEnc node = do
     formatNode flavour node
 
 -- | Format XML node with no XML header.
-formatNode :: TreeFlavour tag text
+formatNode :: TreeFlavor tag text
            -> Node tag text
            -> Put
-formatNode flavour@(TreeFlavour _ _ putTag fmtText) (Element name attrs children) = do
+formatNode flavour@(TreeFlavor _ _ putTag fmtText) (Element name attrs children) = do
     putWord8 $ c2w '<'
     let putThisTag = putTag name
     putThisTag
@@ -61,7 +61,7 @@ formatNode flavour@(TreeFlavour _ _ putTag fmtText) (Element name attrs children
             putByteString $ pack "</"
             putThisTag
             putWord8 $ c2w '>'
-formatNode (TreeFlavour _ _ putTag fmtText) (Text txt) =
+formatNode (TreeFlavor _ _ putTag fmtText) (Text txt) =
     putXMLText $ fmtText txt
 
 pack :: String -> B.ByteString

@@ -1,6 +1,5 @@
 module Main where
 
-import Text.XML.Expat.SAX
 import Text.XML.Expat.Tree
 import qualified Data.ByteString as B
 import Data.ByteString.Internal (c2w, w2c)
@@ -21,5 +20,5 @@ toBL = L.fromChunks . chunkify
 infiniteBL = toBL infiniteDoc
 
 main = do
-    print $ parseTreeLazy stringFlavour Nothing infiniteBL
+    print $ parseTreeLazy stringFlavor Nothing infiniteBL
 

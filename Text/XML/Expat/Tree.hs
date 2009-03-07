@@ -14,10 +14,10 @@ module Text.XML.Expat.Tree (
   parseTreeLazy,
   SAXEvent(..),
   parseSAX,
-  TreeFlavour(..),
-  stringFlavour,
-  byteStringFlavour,
-  textFlavour
+  TreeFlavor(..),
+  stringFlavor,
+  byteStringFlavor,
+  textFlavor
 ) where
 
 import Text.XML.Expat.IO
@@ -35,23 +35,23 @@ import Control.Concurrent.MVar
 import System.IO.Unsafe
 
 
-data TreeFlavour tag text = TreeFlavour
+data TreeFlavor tag text = TreeFlavor
         (B.ByteString -> tag)
         (B.ByteString -> text)
         (tag -> Put)
         (text -> B.ByteString)
 
-stringFlavour :: TreeFlavour String String
-stringFlavour = TreeFlavour unpack unpack (mapM_ (putWord8 . c2w)) pack
+stringFlavor :: TreeFlavor String String
+stringFlavor = TreeFlavor unpack unpack (mapM_ (putWord8 . c2w)) pack
   where
     unpack = U8.decodeString . map w2c . B.unpack
     pack = B.pack . map c2w . U8.encodeString
 
-byteStringFlavour :: TreeFlavour B.ByteString B.ByteString
-byteStringFlavour = TreeFlavour id id putByteString id
+byteStringFlavor :: TreeFlavor B.ByteString B.ByteString
+byteStringFlavor = TreeFlavor id id putByteString id
 
-textFlavour :: TreeFlavour T.Text T.Text
-textFlavour = TreeFlavour TE.decodeUtf8 TE.decodeUtf8 (putByteString . TE.encodeUtf8) TE.encodeUtf8
+textFlavor :: TreeFlavor T.Text T.Text
+textFlavor = TreeFlavor TE.decodeUtf8 TE.decodeUtf8 (putByteString . TE.encodeUtf8) TE.encodeUtf8
 
 -- |Tree representation. Everything is strict except for eChildren.
 data Node tag text =
@@ -72,11 +72,11 @@ modifyChildren f node = node { eChildren = f (eChildren node) }
 -- encoding override @enc@ and returns the root 'Node' of the document if there
 -- were no parsing errors.
 parseTree :: Eq tag =>
-             TreeFlavour tag text
+             TreeFlavor tag text
           -> Maybe Encoding
           -> L.ByteString
           -> Maybe (Node tag text)
-parseTree (TreeFlavour mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
+parseTree (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
     -- We maintain the invariant that the stack always has one element,
@@ -110,11 +110,11 @@ data SAXEvent tag text =
     FailDocument
     deriving (Eq, Show)
 
-parseSAX :: TreeFlavour tag text
+parseSAX :: TreeFlavor tag text
          -> Maybe Encoding
          -> L.ByteString
          -> [SAXEvent tag text]
-parseSAX (TreeFlavour mkTag mkText _ _) enc doc = unsafePerformIO $ do
+parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     events <- newEmptyMVar
     forkIO $ runParser events
 
@@ -144,7 +144,7 @@ parseSAX (TreeFlavour mkTag mkText _ _) enc doc = unsafePerformIO $ do
 -- |@parse enc doc@ parses /lazy/ bytestring XML content @doc@ with optional
 -- encoding override @enc@ and returns the root 'Node' of the document if there
 -- were no parsing errors.
-parseTreeLazy :: TreeFlavour tag text
+parseTreeLazy :: TreeFlavor tag text
               -> Maybe Encoding
               -> L.ByteString
               -> Node tag text
