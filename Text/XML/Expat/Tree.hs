@@ -2,20 +2,24 @@
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
 -- Copyright (C) 2009 Stephen Blackheath <http://blacksapphire.com/antispam>
 
--- |The Expat.Tree module provides a simplified interface to parsing, that
--- returns a tree of the XML structure.  It is written using the lower-level
--- bindings in the "Text.XML.Expat.IO" module.  (Note that this is not a lazy
--- parse of the document: as soon as the root node is accessed, the entire
--- document is parsed.)
+-- | This module provides functions to parse an XML document to a tree structure,
+-- either strictly or lazily, as well as a lazy SAX-style interface.
+--
+-- Extensible \"flavors\" give you the ability to use any string type. Three
+-- are provided here: String, ByteString and Text.
 
 module Text.XML.Expat.Tree (
+  -- * Tree structure
   Node(..),
-  Encoding(..),
+  -- * Parse to tree
   parseTree,
   parseTree',
+  Encoding(..),
   XMLParseError(..),
-  SAXEvent(..),
+  -- * SAX-style parse
   parseSAX,
+  SAXEvent(..),
+  -- * Flavors
   TreeFlavor(..),
   stringFlavor,
   byteStringFlavor,
@@ -47,6 +51,7 @@ data TreeFlavor tag text = TreeFlavor
         (tag -> Put)
         (text -> B.ByteString)
 
+-- | Flavor for String data type.
 stringFlavor :: TreeFlavor String String
 stringFlavor = TreeFlavor unpack unpackLen (mapM_ (putWord8 . c2w)) pack
   where
@@ -54,19 +59,21 @@ stringFlavor = TreeFlavor unpack unpackLen (mapM_ (putWord8 . c2w)) pack
     unpackLen cstr = U8.decodeString <$> peekCStringLen cstr
     pack = B.pack . map c2w . U8.encodeString
 
+-- | Flavor for ByteString data type, containing UTF-8 encoded Unicode.
 byteStringFlavor :: TreeFlavor B.ByteString B.ByteString
 byteStringFlavor = TreeFlavor unpack unpackLen putByteString id
   where
     unpack    cstr = peekByteString cstr
     unpackLen cstr = peekByteStringLen cstr
 
+-- | Flavor for Text data type.
 textFlavor :: TreeFlavor T.Text T.Text
 textFlavor = TreeFlavor unpack unpackLen (putByteString . TE.encodeUtf8) TE.encodeUtf8
   where
     unpack    cstr = TE.decodeUtf8 <$> peekByteString cstr
     unpackLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
 
--- |Tree representation. Everything is strict except for eChildren.
+-- | The tree representation of the XML document.
 data Node tag text =
     Element {
         eName     :: !tag,
@@ -87,9 +94,9 @@ modifyChildren f node = node { eChildren = f (eChildren node) }
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parseTree' :: Eq tag =>
-              TreeFlavor tag text
-           -> Maybe Encoding  -- ^ Optional encoding override
-           -> L.ByteString
+              TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
+           -> Maybe Encoding      -- ^ Optional encoding override
+           -> L.ByteString        -- ^ Input text (a lazy ByteString)
            -> Either XMLParseError (Node tag text)
 parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
@@ -133,10 +140,11 @@ data SAXEvent tag text =
     FailDocument XMLParseError
     deriving (Eq, Show)
 
--- | Lazily parse XML to SAX events.
-parseSAX :: TreeFlavor tag text
-         -> Maybe Encoding  -- ^ Optional encoding override
-         -> L.ByteString
+-- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
+-- the last element of the output list.
+parseSAX :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
+         -> Maybe Encoding      -- ^ Optional encoding override
+         -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
 parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     events <- newEmptyMVar
@@ -178,9 +186,9 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
-parseTree :: TreeFlavor tag text
-          -> Maybe Encoding  -- ^ Optional encoding override
-          -> L.ByteString
+parseTree :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the tree
+          -> Maybe Encoding      -- ^ Optional encoding override
+          -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> (Node tag text, Maybe XMLParseError)
 parseTree flavor@(TreeFlavor mkTag _ _ _) mEnc bs =
     let events = parseSAX flavor mEnc bs

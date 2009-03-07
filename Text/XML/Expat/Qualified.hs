@@ -1,3 +1,15 @@
+-- hexpat, a Haskell wrapper for expat
+-- Copyright (C) 2008 Evan Martin <martine@danga.com>
+-- Copyright (C) 2009 Stephen Blackheath <http://blacksapphire.com/antispam>
+
+-- | With the default flavors for 'Text.XML.Expat.Tree.parseTree' and
+-- 'Text.XML.Expat.Format.formatTree', qualified tag and attribute names such as
+-- \<abc:hello\> are represented just as a string containing a colon, e.g.
+-- \"abc:hello\".
+--
+-- This module provides flavors that handle these more intelligently, splitting
+-- all tag and attribute names into their Prefix and LocalPart components.
+
 module Text.XML.Expat.Qualified (
         QName(..),
         qualifiedStringFlavor,
@@ -32,6 +44,7 @@ data QName text =
 instance NFData text => NFData (QName text) where
     rnf (QName pre loc) = rnf (pre, loc)
 
+-- | Flavor for qualified tags, using String data type.
 qualifiedStringFlavor :: TreeFlavor (QName String) String
 qualifiedStringFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQName pack
   where
@@ -48,6 +61,7 @@ qualifiedStringFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQN
         mapM_ (putWord8 . c2w) local
     fromQName (QName Nothing local) = mapM_ (putWord8 . c2w) local
 
+-- | Flavor for qualified tags, using ByteString data type, containing UTF-8 encoded Unicode.
 qualifiedByteStringFlavor :: TreeFlavor (QName B.ByteString) B.ByteString
 qualifiedByteStringFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQName id
   where
@@ -65,6 +79,7 @@ qualifiedByteStringFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fr
     fromQName (QName Nothing local) = putByteString local
     colon = B.singleton (c2w ':')
 
+-- | Flavor for qualified tags, using Text data type.
 qualifiedTextFlavor :: TreeFlavor (QName T.Text) T.Text
 qualifiedTextFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQName TE.encodeUtf8
   where

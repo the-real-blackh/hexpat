@@ -1,8 +1,10 @@
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
+-- Copyright (C) 2009 Stephen Blackheath <http://blacksapphire.com/antispam>
 
--- |This module wraps the Expat API directly with IO operations
--- everywhere.  Basic usage is:
+-- | A very low-level interface to Expat. Unless you need extreme speed, this
+-- should normally be avoided in favour of the interface provided by "Text-XML-Expat-Tree".
+-- Basic usage is:
 --
 -- (1) Make a new parser: 'newParser'.
 --
@@ -123,7 +125,7 @@ withHandlers parser@(Parser fp startRef endRef charRef) code = do
     {withParser* `Parser', withBStringLen* `BS.ByteString' &, `Bool'}
     -> `Bool' unStatus#}
 
--- | Parse error text, line number, and column number
+-- | Parse error, consisting of message text, line number, and column number
 data XMLParseError = XMLParseError String Integer Integer deriving (Eq, Show)
 
 -- |@parse data@ feeds /lazy/ bytestring data into a parser and returns

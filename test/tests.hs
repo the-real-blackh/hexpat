@@ -20,7 +20,7 @@ fromByteString = map w2c . BSL.unpack
 
 testDoc :: (Show tag, Show text) =>
            (Maybe Encoding -> BSL.ByteString -> Either XMLParseError (Node tag text))
-        -> (Maybe Encoding -> Node tag text -> BSL.ByteString)
+        -> (Node tag text -> BSL.ByteString)
         -> String
         -> Int
         -> String
@@ -30,7 +30,7 @@ testDoc parse fmt descr0 idx xml = do
       descr = descr0++" #"++show idx
   case eTree of
       Right tree -> do
-          let out = fromByteString $ fmt (Just UTF8) tree
+          let out = fromByteString $ fmt tree
           assertEqual descr xml out
       Left error -> do
           hPutStrLn stderr $ "parse failed: "++show error

@@ -4,21 +4,21 @@ Version: 0.4
 Synopsis: wrapper for expat, the fast XML parser
 Description:
   Expat (<http://expat.sourceforge.net/>) is a stream-oriented XML parser
-  written in C.  It is known for being simple and fast.
+  written in C.
   .
-  There are already nice XML libraries in the Text.XML hierarchy.  The
-  reason to use Expat is when speed is of concern.  From a benchmark
-  that compares getting the length of the root node of a HaXml tree
-  (presumably forcing parsing the entire file) against running an Expat
-  parser with a registered start node handler, Expat is about 12 times
-  faster.  This is not a fair benchmark; HaXml does a lot more than this
-  Expat library.  But if Expat suffices, it is good for what it does.
+  This package provides a Haskell binding for Expat, with a choice of tree or
+  SAX-style representation, and it includes an XML formatter.  It is extensible
+  to any string type, with String, ByteString and Text provided out of the box.
+  .
+  The emphasis is on speed and simplicity.
 Category: XML
 License: BSD3
 License-File: LICENSE
 Author: Evan Martin, Stephen Blackheath
 Maintainer: http://blacksapphire.com/antispam/
-Copyright: (c) 2008 Evan Martin <martine@danga.com>, (c) 2008 Stephen Blackheath
+Copyright:
+  (c) 2008 Evan Martin <martine@danga.com>,
+  (c) 2009 Stephen Blackheath <http://blacksapphire.com/antispam/>
 Homepage: http://code.haskell.org/hexpat/
 Extra-Source-Files: test/tests.hs, test/perf.hs, test/test.xml
 Build-Type: Simple
@@ -37,10 +37,10 @@ Library
   Exposed-Modules:
     Text.XML.Expat.Tree,
     Text.XML.Expat.Format,
-    Text.XML.Expat.Qualified
-  Other-Modules:
-    C2HS,
+    Text.XML.Expat.Qualified,
     Text.XML.Expat.IO
+  Other-Modules:
+    C2HS
   Extensions: ForeignFunctionInterface
   Extra-Libraries: expat
 

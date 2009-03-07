@@ -13,4 +13,4 @@ lazyTree: lazyTree.hs
 	ghc -O2 -lexpat --make -o lazyTree lazyTree.hs
 
 clean:
-	rm -f test test2 perf lazySAX lazyTree *.hi *.o Text/XML/Expat/*.o
+	rm -f tests perf lazySAX lazyTree *.hi *.o
