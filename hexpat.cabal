@@ -12,7 +12,7 @@ Description:
   .
   The emphasis is on speed and simplicity.
   .
-  Benchmark results against HaXml for parsing a 4K xml file with non-threading runtime:
+  Benchmark results on ghc 6.10.1 against HaXml for parsing a 4K xml file with non-threading runtime:
   HAXML: 2688 us, HEXPAT: low-level parse-no tree: 250 us, lazy-String: 1262 us,
   lazy-Text: 785 us, strict-String: 1297 us, strict-Text: 852 us
   .
