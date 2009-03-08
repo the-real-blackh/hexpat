@@ -17,7 +17,7 @@ module Text.XML.Expat.IO (
   Parser, newParser,
 
   -- ** Parsing
-  parse, Encoding(..), XMLParseError(..),
+  parse, parse_, Encoding(..), XMLParseError(..),
 
   -- ** Parser Callbacks
   StartElementHandler, EndElementHandler, CharacterDataHandler,
@@ -150,11 +150,19 @@ instance NFData XMLParseError where
 -- |@parse data@ feeds /lazy/ bytestring data into a parser. It returns Nothing
 -- on success, or Just the parse error.
 parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
-parse parser@(Parser _ _ _ _) bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
+parse = parse_ (\_ -> return ())
+
+-- |A version of parse that executes a specified computation after each lazy
+-- ByteString block is processed.
+parse_ :: (Bool -> IO ())  -- ^ Computation to process after each block, passed success status
+       -> Parser
+       -> BSL.ByteString -> IO (Maybe XMLParseError)
+parse_ postProcess parser@(Parser _ _ _ _) bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
   where
     feedChunk []      = return Nothing
     feedChunk (c:cs)  = do
         ok <- doParseChunk parser c (null cs)
+        postProcess ok
         if ok
             then feedChunk cs
             else Just `fmap` getError parser

@@ -171,38 +171,35 @@ parseSAX :: TreeFlavor tag text -- ^ Flavor, which determines the string type to
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
 parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
-    events <- newEmptyMVar
+    eventsVar <- newEmptyMVar
     runningH <- newIORef True
-    -- We must use an OS thread, because otherwise multiple Expat instances
-    -- are running inside each other's callbacks and GHC deadlocks trying to
-    -- untangle it all.  At least, this is what I think is happening.
+    -- When we're multi-threading, we must use an OS thread, because otherwise
+    -- multiple Expat instances are running inside each other's callbacks and
+    -- GHC deadlocks trying to untangle it all.  At least, this is what I think
+    -- is happening.
     let fork = if rtsSupportsBoundThreads then forkOS else forkIO
-    fork $ runParser runningH events
+    fork $ runParser runningH eventsVar
 
     keepalive <- newEmptyMVar
     addMVarFinalizer keepalive $ do
-        --putStrLn $ show parser ++ " - finalize"
         writeIORef runningH False  -- request the 'runParser thread to terminate
-        tryTakeMVar events         -- unblock the 'runParser' thread
+        tryTakeMVar eventsVar      -- unblock the 'runParser' thread
         return ()
 
     let readEvents = unsafeInterleaveIO $ do
-            --putStrLn $ show parser ++ " - block"
-            mEvent <- takeMVar events
-            --putStrLn $ show parser ++ " - unblock"
-            tryTakeMVar keepalive  -- touch the 'keepalive' reference
-            case mEvent of
-                Just event@(FailDocument err) ->
-                    return [event]
-                Just event -> do
-                    rem <- readEvents
-                    return (event:rem)
-                Nothing -> do
+            events <- takeMVar eventsVar
+            if null events
+                then do
+                    tryTakeMVar keepalive  -- touch the 'keepalive' reference
                     return []
+                else do
+                    rem <- readEvents
+                    return $ events ++ rem
     readEvents
   where
-    runParser runningH events = do
+    runParser runningH eventsVar = do
         parser <- newParser enc
+        queueRef <- newIORef []
         setStartElementHandler parser $ \cName cAttrs -> do
             name <- mkTag cName
             attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
@@ -210,29 +207,28 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
                 len <- c_strlen cAttrValue
                 attrValue <- mkText (cAttrValue, fromIntegral len)
                 return (attrName, attrValue)
-            running <- readIORef runningH
-            when running $
-                putMVar events $ Just $ StartElement name attrs
+            modifyIORef queueRef (StartElement name attrs:)
             readIORef runningH
         setEndElementHandler parser $ \cName -> do
             name <- mkTag cName
-            running <- readIORef runningH
-            when running $
-                putMVar events $ Just $ EndElement name
+            modifyIORef queueRef (EndElement name:)
             readIORef runningH
         setCharacterDataHandler parser $ \cText -> do
             txt <- mkText cText
-            running <- readIORef runningH
-            when running $
-                putMVar events $ Just $ CharacterData txt
+            modifyIORef queueRef (CharacterData txt:)
             readIORef runningH
-        mError <- parse parser doc
+        let pushOut = \_ -> do
+                queue <- readIORef queueRef
+                writeIORef queueRef []
+                running <- readIORef runningH
+                when running $
+                    putMVar eventsVar (reverse queue)
+        mError <- parse_ pushOut parser doc
         running <- readIORef runningH
         when running $ do
             case mError of
-                Nothing -> putMVar events Nothing
-                Just err -> putMVar events (Just $ FailDocument err)
-        --putStrLn $ show parser ++ " - exit"
+                Nothing -> putMVar eventsVar []
+                Just err -> putMVar eventsVar [FailDocument err]
 
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't

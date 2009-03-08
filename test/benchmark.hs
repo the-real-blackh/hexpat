@@ -1,6 +1,7 @@
 import Text.XML.Expat.Tree
 import Text.XML.Expat.Format
 import Text.XML.Expat.Qualified
+import Text.XML.Expat.IO
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Internal (c2w, w2c)
@@ -23,8 +24,15 @@ instance NFData B.ByteString where
 instance NFData T.Text where
     rnf bs = ()
 
+parseOnly :: L.ByteString -> IO ()
+parseOnly doc = do
+    parser <- newParser Nothing
+    parse parser doc
+    return ()
+
 tests :: [(String, L.ByteString -> IO ())]
 tests = [
+    ("low-level parse only, no tree", parseOnly),
     ("lazy parseTree stringFlavor", \doc -> rnf (parseTree stringFlavor Nothing doc) `seq` return ()),
     ("lazy parseTree byteStringFlavor", \doc -> rnf (parseTree byteStringFlavor Nothing doc) `seq` return ()),
     ("lazy parseTree textFlavor", \doc -> rnf (parseTree textFlavor Nothing doc) `seq` return ()),
