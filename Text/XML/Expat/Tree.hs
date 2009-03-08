@@ -176,7 +176,8 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     -- We must use an OS thread, because otherwise multiple Expat instances
     -- are running inside each other's callbacks and GHC deadlocks trying to
     -- untangle it all.  At least, this is what I think is happening.
-    forkOS $ runParser runningH events
+    let fork = if rtsSupportsBoundThreads then forkOS else forkIO
+    fork $ runParser runningH events
 
     keepalive <- newEmptyMVar
     addMVarFinalizer keepalive $ do
