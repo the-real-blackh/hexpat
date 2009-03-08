@@ -96,15 +96,28 @@ withBStringLen bs f = do
 unStatus :: CInt -> Bool
 unStatus 0 = False
 unStatus 1 = True
+
 -- |@parseChunk data False@ feeds /strict/ ByteString data into a
 -- 'Parser'.  The end of the data is indicated by passing @True@ for the
--- final parameter.  @parse@ returns @False@ on a parse error.
+-- final parameter.   It returns Nothing on success, or Just the parse error.
 parseChunk :: Parser
            -> BS.ByteString
            -> Bool
-           -> IO Bool
+           -> IO (Maybe XMLParseError)
 parseChunk parser xml final = do
-    withHandlers parser $ doParseChunk parser xml final
+    ok <- withHandlers parser $ doParseChunk parser xml final
+    if ok
+        then return Nothing
+        else Just `fmap` getError parser
+
+getError parser = withParser parser $ \p -> do
+                code <- xmlGetErrorCode p
+                cerr <- xmlErrorString code
+                err <- peekCString cerr
+                line <- xmlGetCurrentLineNumber p
+                col <- xmlGetCurrentColumnNumber p
+                return $ XMLParseError err
+                    (fromIntegral line) (fromIntegral col)
 
 withHandlers :: Parser -> IO a -> IO a
 withHandlers parser@(Parser fp startRef endRef charRef) code = do
@@ -134,8 +147,8 @@ data XMLParseError = XMLParseError String Integer Integer deriving (Eq, Show)
 instance NFData XMLParseError where
     rnf (XMLParseError msg lin col) = rnf (msg, lin, col)
 
--- |@parse data@ feeds /lazy/ bytestring data into a parser and returns
--- @True@ if there was no parse error.
+-- |@parse data@ feeds /lazy/ bytestring data into a parser. It returns Nothing
+-- on success, or Just the parse error.
 parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
 parse parser@(Parser _ _ _ _) bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
   where
@@ -144,14 +157,7 @@ parse parser@(Parser _ _ _ _) bs = withHandlers parser $ feedChunk (BSL.toChunks
         ok <- doParseChunk parser c (null cs)
         if ok
             then feedChunk cs
-            else withParser parser $ \p -> do
-                code <- xmlGetErrorCode p
-                cerr <- xmlErrorString code
-                err <- peekCString cerr
-                line <- xmlGetCurrentLineNumber p
-                col <- xmlGetCurrentColumnNumber p
-                return $ Just $ XMLParseError err
-                    (fromIntegral line) (fromIntegral col)
+            else Just `fmap` getError parser
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs. Return False to terminate the parse.
