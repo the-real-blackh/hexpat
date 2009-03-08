@@ -1,7 +1,11 @@
-{-# LANGUAGE FlexibleContexts #-}
+-- hexpat, a Haskell wrapper for expat
+-- Copyright (C) 2008 Evan Martin <martine@danga.com>
+-- Copyright (C) 2009 Stephen Blackheath <http://blacksapphire.com/antispam>
 
 -- | This module provides lazy functions to format a 'Tree'
 -- structure as UTF-8 encoded XML.
+
+{-# LANGUAGE FlexibleContexts #-}
 
 module Text.XML.Expat.Format (
         formatTree,

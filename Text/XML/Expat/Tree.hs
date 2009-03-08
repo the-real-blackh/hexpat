@@ -42,6 +42,7 @@ import Control.Concurrent.MVar
 import Control.Parallel.Strategies
 import Control.Monad
 import System.IO.Unsafe
+import System.Mem.Weak
 import Foreign.C.String
 
 
@@ -119,12 +120,15 @@ parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse wh
             attrValue <- mkText (cAttrValue, fromIntegral len)
             return (attrName, attrValue)
         modifyIORef stack (start name attrs)
+        return True
     setEndElementHandler parser $ \cName -> do
         name <- mkTag cName
         modifyIORef stack (end name)
+        return True
     setCharacterDataHandler parser $ \cText -> do
         txt <- mkText cText
         modifyIORef stack (text txt)
+        return True
     mError <- parse parser doc
     case mError of
         Just error -> return $ Left error
@@ -166,22 +170,40 @@ parseSAX :: TreeFlavor tag text -- ^ Flavor, which determines the string type to
          -> L.ByteString -> [SAXEvent T.Text T.Text] #-}
 parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     events <- newEmptyMVar
-    parserThread <- forkIO $ runParser events
+    runningH <- newIORef True
+    parser <- newParser enc
+    thunks <- newIORef 0
+    -- We must use an OS thread, because otherwise multiple Expat instances
+    -- are running inside each other's callbacks and GHC deadlocks trying to
+    -- untangle it all.  At least, this is what I think is happening.
+    parserThread <- forkOS $ runParser runningH events parser
 
     let readEvents = do
-            mEvent <- takeMVar events
-            case mEvent of
-                Just event@(FailDocument err) ->
-                    return [event]
-                Just event -> do
-                    rem <- unsafeInterleaveIO readEvents
-                    return (event:rem)
-                Nothing ->
-                    return []
-    readEvents
+            thunk <- unsafeInterleaveIO $ do
+                mEvent <- takeMVar events
+                case mEvent of
+                    Just event@(FailDocument err) ->
+                        return [event]
+                    Just event -> do
+                        rem <- readEvents
+                        return (event:rem)
+                    Nothing -> do
+                        return []
+            atomicModifyIORef thunks $ \a -> (a+1, ())
+            addFinalizer thunk $ do
+                -- Yes, this actually counts the outstanding thunks as they get
+                -- garbage collected, and terminates the XMLParser when the
+                -- count reaches zero.
+                ref <- atomicModifyIORef thunks $ \a -> (a-1, a-1)
+                when (ref == 0) $ do
+                    writeIORef runningH False  -- request the 'runParser thread to terminate
+                    tryTakeMVar events         -- unblock the 'runParser' thread
+                    return ()
+            return thunk
+    l <- readEvents
+    return l
   where
-    runParser events = do
-        parser <- newParser enc
+    runParser runningH events parser = do
         setStartElementHandler parser $ \cName cAttrs -> do
             name <- mkTag cName
             attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
@@ -189,17 +211,28 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
                 len <- c_strlen cAttrValue
                 attrValue <- mkText (cAttrValue, fromIntegral len)
                 return (attrName, attrValue)
-            putMVar events $ Just $ StartElement name attrs
+            running <- readIORef runningH
+            when running $
+                putMVar events $ Just $ StartElement name attrs
+            readIORef runningH
         setEndElementHandler parser $ \cName -> do
             name <- mkTag cName
-            putMVar events $ Just $ EndElement name
+            running <- readIORef runningH
+            when running $
+                putMVar events $ Just $ EndElement name
+            readIORef runningH
         setCharacterDataHandler parser $ \cText -> do
             txt <- mkText cText
-            putMVar events $ Just $ CharacterData txt
+            running <- readIORef runningH
+            when running $
+                putMVar events $ Just $ CharacterData txt
+            readIORef runningH
         mError <- parse parser doc
-        case mError of
-            Nothing -> putMVar events Nothing
-            Just err -> putMVar events (Just $ FailDocument err)
+        running <- readIORef runningH
+        when running $ do
+            case mError of
+                Nothing -> putMVar events Nothing
+                Just err -> putMVar events (Just $ FailDocument err)
 
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't

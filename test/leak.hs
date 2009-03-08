@@ -1,3 +1,8 @@
+-- Memory leak test
+--
+-- This test passes if you can leave it running for several minutes, and it
+-- does not leak memory or exhibit any other undesirable behaviour.
+
 module Main where
 
 import Text.XML.Expat.Tree
@@ -5,6 +10,7 @@ import qualified Data.ByteString as B
 import Data.ByteString.Internal (c2w, w2c)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Internal as I
+import Control.Concurrent
 import Control.Monad
 import Control.Parallel.Strategies
 import Foreign.ForeignPtr
@@ -38,13 +44,20 @@ myLCopy bs = do
     cs' <- mapM myCopy cs
     return $ L.fromChunks cs'
 
--- This must not leak memory
+{-
+allocateStuff :: IO ()
+allocateStuff = do
+    x <- forM [1..1000] $ \idx -> return  $ show idx
+    rnf x `seq` return ()
+    -}
+
+gocrazy descr = forever $ do
+    putStrLn descr
+    c <- myLCopy longBL
+    let sax = parseSAX byteStringFlavor Nothing c
+    rnf (take 20 sax) `seq` return ()
 
 main = do
-    forever $ do
-        putStrLn "loop"
-        c <- myLCopy longBL
-        let sax = parseSAX byteStringFlavor Nothing c
-        print $ take 10 sax
-        --rnf (take 10 sax) `seq` return ()
+    forkIO $ gocrazy "one"
+    gocrazy "two"
 
