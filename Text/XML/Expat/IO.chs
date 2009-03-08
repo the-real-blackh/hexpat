@@ -160,14 +160,17 @@ parse parser@(Parser _ _ _ _) bs = withHandlers parser $ feedChunk (BSL.toChunks
             else Just `fmap` getError parser
 
 -- |The type of the \"element started\" callback.  The first parameter is
--- the element name; the second are the (attribute, value) pairs. Return False to terminate the parse.
+-- the element name; the second are the (attribute, value) pairs. Return True
+-- to continue parsing as normal, or False to terminate the parse.
 type StartElementHandler  = CString -> [(CString, CString)] -> IO Bool
 -- |The type of the \"element ended\" callback.  The parameter is
--- the element name. Return False to terminate the parse.
+-- the element name. Return True to continue parsing as normal, or False to
+-- terminate the parse.
 type EndElementHandler    = CString -> IO Bool
 -- |The type of the \"character data\" callback.  The parameter is
 -- the character data processed.  This callback may be called more than once
--- while processing a single conceptual block of text. Return False to terminate the parse.
+-- while processing a single conceptual block of text. Return True to continue
+-- parsing as normal, or False to terminate the parse.
 type CharacterDataHandler = CStringLen -> IO Bool
 
 type CStartElementHandler = Ptr () -> CString -> Ptr CString -> IO ()
