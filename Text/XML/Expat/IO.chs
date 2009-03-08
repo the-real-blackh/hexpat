@@ -243,13 +243,11 @@ pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
 pairwise []         = []
 
 peekByteString :: CString -> IO BS.ByteString
-{-# INLINE peekByteString #-}
 peekByteString cstr = do
     len <- BSI.c_strlen cstr
     peekByteStringLen (castPtr cstr, fromIntegral len)
 
 peekByteStringLen :: CStringLen -> IO BS.ByteString 
-{-# INLINE peekByteStringLen #-}
 peekByteStringLen (cstr, len) =
     BSI.create (fromIntegral len) $ \ptr ->
         BSI.memcpy ptr (castPtr cstr) (fromIntegral len)
