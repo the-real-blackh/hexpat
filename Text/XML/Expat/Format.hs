@@ -42,9 +42,7 @@ putTree :: TreeFlavor tag text
         -> Put
 putTree flavour node = do
     putByteString $ pack "<?xml version=\"1.0\""
-    putByteString $ pack " encoding=\""
-    putByteString $ pack $ encodingToString UTF8
-    putByteString $ pack "\""
+    putByteString $ pack " encoding=\"UTF-8\""
     putByteString $ pack "?>\n"
     putNode flavour node
 
