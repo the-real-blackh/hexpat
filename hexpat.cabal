@@ -11,6 +11,15 @@ Description:
   to any string type, with String, ByteString and Text provided out of the box.
   .
   The emphasis is on speed and simplicity.
+  .
+  Benchmark results against HaXml for parsing a 4K xml file with non-threading runtime:
+  HAXML: 2688 us, HEXPAT: low-level parse-no tree: 250 us, lazy-String: 1262 us,
+  lazy-Text: 785 us, strict-String: 1297 us, strict-Text: 852 us
+  .
+  With -threaded note lazy performance is bad (better with larger block sizes):
+  HAXML: 2723 us, HEXPAT: low-level parse-no tree: 484 us,
+  lazy-String: 5130 us, lazy-Text: 3720 us, strict-String: 1601 us,
+  strict-Text: 1144 us
 Category: XML
 License: BSD3
 License-File: LICENSE
