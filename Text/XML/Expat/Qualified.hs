@@ -22,6 +22,7 @@ import Text.XML.Expat.Tree
 import Text.XML.Expat.Format
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Internal as I
 import Data.ByteString.Internal (c2w, w2c)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -32,6 +33,7 @@ import Data.Monoid
 import Data.Binary.Put
 import qualified Codec.Binary.UTF8.String as U8
 import Foreign.C.String
+import Foreign.Ptr
 
 
 data QName text =
@@ -96,5 +98,17 @@ qualifiedTextFlavor = TreeFlavor (\t -> toQName <$> unpack t) unpackLen fromQNam
         putByteString . TE.encodeUtf8 $ local
     fromQName (QName Nothing local) = putByteString . TE.encodeUtf8 $ local
     colon = T.singleton ':'
+
+peekByteString :: CString -> IO B.ByteString
+{-# INLINE peekByteString #-}
+peekByteString cstr = do
+    len <- I.c_strlen cstr
+    peekByteStringLen (castPtr cstr, fromIntegral len)
+
+peekByteStringLen :: CStringLen -> IO B.ByteString 
+{-# INLINE peekByteStringLen #-}
+peekByteStringLen (cstr, len) =
+    I.create (fromIntegral len) $ \ptr ->
+        I.memcpy ptr (castPtr cstr) (fromIntegral len)
 
 

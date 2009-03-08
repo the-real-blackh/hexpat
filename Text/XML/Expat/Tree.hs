@@ -29,6 +29,7 @@ module Text.XML.Expat.Tree (
 import Text.XML.Expat.IO
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Internal as I
 import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
 import Data.ByteString.Internal (c2w, w2c, c_strlen)
@@ -44,6 +45,7 @@ import Control.Monad
 import System.IO.Unsafe
 import System.Mem.Weak
 import Foreign.C.String
+import Foreign.Ptr
 
 
 data TreeFlavor tag text = TreeFlavor
@@ -74,6 +76,18 @@ textFlavor = TreeFlavor unpack unpackLen (putByteString . TE.encodeUtf8) TE.enco
     unpack    cstr = TE.decodeUtf8 <$> peekByteString cstr
     unpackLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
 
+peekByteString :: CString -> IO B.ByteString
+{-# INLINE peekByteString #-}
+peekByteString cstr = do
+    len <- I.c_strlen cstr
+    peekByteStringLen (castPtr cstr, fromIntegral len)
+
+peekByteStringLen :: CStringLen -> IO B.ByteString 
+{-# INLINE peekByteStringLen #-}
+peekByteStringLen (cstr, len) =
+    I.create (fromIntegral len) $ \ptr ->
+        I.memcpy ptr (castPtr cstr) (fromIntegral len)
+
 -- | The tree representation of the XML document.
 data Node tag text =
     Element {
@@ -99,12 +113,6 @@ parseTree' :: Eq tag =>
            -> Maybe Encoding      -- ^ Optional encoding override
            -> L.ByteString        -- ^ Input text (a lazy ByteString)
            -> Either XMLParseError (Node tag text)
-{-# SPECIALIZE parseTree' :: TreeFlavor String String -> Maybe Encoding
-               -> L.ByteString -> Either XMLParseError (Node String String) #-}
-{-# SPECIALIZE parseTree' :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
-               -> L.ByteString -> Either XMLParseError (Node B.ByteString B.ByteString) #-}
-{-# SPECIALIZE parseTree' :: TreeFlavor T.Text T.Text -> Maybe Encoding
-               -> L.ByteString -> Either XMLParseError (Node T.Text T.Text) #-}
 parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
@@ -162,20 +170,13 @@ parseSAX :: TreeFlavor tag text -- ^ Flavor, which determines the string type to
          -> Maybe Encoding      -- ^ Optional encoding override
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
-{-# SPECIALIZE parseSAX :: TreeFlavor String String -> Maybe Encoding
-         -> L.ByteString -> [SAXEvent String String] #-}
-{-# SPECIALIZE parseSAX :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
-         -> L.ByteString -> [SAXEvent B.ByteString B.ByteString] #-}
-{-# SPECIALIZE parseSAX :: TreeFlavor T.Text T.Text -> Maybe Encoding
-         -> L.ByteString -> [SAXEvent T.Text T.Text] #-}
 parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
     events <- newEmptyMVar
     runningH <- newIORef True
-    parser <- newParser enc
     -- We must use an OS thread, because otherwise multiple Expat instances
     -- are running inside each other's callbacks and GHC deadlocks trying to
     -- untangle it all.  At least, this is what I think is happening.
-    parserThread <- forkOS $ runParser runningH events parser
+    forkOS $ runParser runningH events
 
     keepalive <- newEmptyMVar
     addMVarFinalizer keepalive $ do
@@ -199,7 +200,8 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
                     return []
     readEvents
   where
-    runParser runningH events parser = do
+    runParser runningH events = do
+        parser <- newParser enc
         setStartElementHandler parser $ \cName cAttrs -> do
             name <- mkTag cName
             attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do

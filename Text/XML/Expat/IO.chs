@@ -27,9 +27,7 @@ module Text.XML.Expat.IO (
   parseChunk,
 
   -- ** Helpers
-  encodingToString,
-  peekByteString,
-  peekByteStringLen
+  encodingToString
 ) where
 
 import Control.Exception (bracket)
@@ -241,14 +239,4 @@ setCharacterDataHandler parser@(Parser _ _ _ charRef) handler =
 
 pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
 pairwise []         = []
-
-peekByteString :: CString -> IO BS.ByteString
-peekByteString cstr = do
-    len <- BSI.c_strlen cstr
-    peekByteStringLen (castPtr cstr, fromIntegral len)
-
-peekByteStringLen :: CStringLen -> IO BS.ByteString 
-peekByteStringLen (cstr, len) =
-    BSI.create (fromIntegral len) $ \ptr ->
-        BSI.memcpy ptr (castPtr cstr) (fromIntegral len)
 
