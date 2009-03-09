@@ -24,11 +24,11 @@ module Text.XML.Expat.IO (
   setStartElementHandler, setEndElementHandler, setCharacterDataHandler,
 
   -- ** Lower-level interface
+  unsafeParseChunk,
   withHandlers,
   unsafeSetHandlers,
   unsafeReleaseHandlers,
   ExpatHandlers,
-  unsafeParseChunk,
 
   -- ** Helpers
   encodingToString
@@ -122,9 +122,9 @@ parseChunk :: Parser
            -> IO (Maybe XMLParseError)
 parseChunk parser xml final = withHandlers parser $ unsafeParseChunk parser xml final
 
--- | This version of parseChunk must either be called inside withHandlers (safest), or
+-- | This variant of parseChunk must either be called inside 'withHandlers' (safest), or
 -- between 'unsafeSetHandlers' and 'unsafeReleaseHandlers', and this
--- will give you better performance if you process multiple chunks inside.
+-- will give you better performance than 'parseChunk' if you process multiple chunks inside.
 unsafeParseChunk :: Parser
            -> BS.ByteString
            -> Bool
@@ -166,9 +166,11 @@ unsafeReleaseHandlers (ExpatHandlers cStartH cEndH cCharH) = do
     freeHaskellFunPtr cEndH
     freeHaskellFunPtr cCharH
 
--- | 'unsafeParseChunk' is required to be called inside the argument to this.
--- Safer than using unsafeSetHandlers / unsafeReleaseHandlers.
-withHandlers :: Parser -> IO a -> IO a
+-- | 'unsafeParseChunk' is required to be called inside @withHandlers@.
+-- Safer than using 'unsafeSetHandlers' / 'unsafeReleaseHandlers'.
+withHandlers :: Parser
+             -> IO a  -- ^ Computation where unsafeParseChunk may be used
+             -> IO a
 withHandlers parser code = do
     bracket
         (unsafeSetHandlers parser)
