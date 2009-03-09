@@ -113,6 +113,12 @@ parseTree' :: Eq tag =>
            -> Maybe Encoding      -- ^ Optional encoding override
            -> L.ByteString        -- ^ Input text (a lazy ByteString)
            -> Either XMLParseError (Node tag text)
+{-# SPECIALIZE parseTree' :: TreeFlavor String String -> Maybe Encoding
+          -> L.ByteString -> Either XMLParseError (Node String String) #-}
+{-# SPECIALIZE parseTree' :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
+          -> L.ByteString -> Either XMLParseError (Node B.ByteString B.ByteString) #-}
+{-# SPECIALIZE parseTree' :: TreeFlavor T.Text T.Text -> Maybe Encoding
+          -> L.ByteString -> Either XMLParseError (Node T.Text T.Text) #-}
 parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
@@ -120,7 +126,7 @@ parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse wh
     -- whose only child at the end of parsing is the root of the actual tree.
     emptyString <- withCString "" mkTag 
     stack <- newIORef [Element emptyString [] []]
-    setStartElementHandler  parser $ \cName cAttrs -> do
+    setStartElementHandler parser $ \cName cAttrs -> do
         name <- mkTag cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
             attrName <- mkTag cAttrName
@@ -170,65 +176,38 @@ parseSAX :: TreeFlavor tag text -- ^ Flavor, which determines the string type to
          -> Maybe Encoding      -- ^ Optional encoding override
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
-parseSAX (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ do
-    eventsVar <- newEmptyMVar
-    runningH <- newIORef True
-    -- When we're multi-threading, we must use an OS thread, because otherwise
-    -- multiple Expat instances are running inside each other's callbacks and
-    -- GHC deadlocks trying to untangle it all.  At least, this is what I think
-    -- is happening.
-    let fork = if rtsSupportsBoundThreads then forkOS else forkIO
-    fork $ runParser runningH eventsVar
+parseSAX (TreeFlavor mkTag mkText _ _) enc input = unsafePerformIO $ do
+    parser <- newParser enc
+    queueRef <- newIORef []
+    setStartElementHandler parser $ \cName cAttrs -> do
+        name <- mkTag cName
+        attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
+            attrName <- mkTag cAttrName
+            len <- c_strlen cAttrValue
+            attrValue <- mkText (cAttrValue, fromIntegral len)
+            return (attrName, attrValue)
+        modifyIORef queueRef (StartElement name attrs:)
+        return True
+    setEndElementHandler parser $ \cName -> do
+        name <- mkTag cName
+        modifyIORef queueRef (EndElement name:)
+        return True
+    setCharacterDataHandler parser $ \cText -> do
+        txt <- mkText cText
+        modifyIORef queueRef (CharacterData txt:)
+        return True
 
-    keepalive <- newEmptyMVar
-    addMVarFinalizer keepalive $ do
-        writeIORef runningH False  -- request the 'runParser thread to terminate
-        tryTakeMVar eventsVar      -- unblock the 'runParser' thread
-        return ()
+    let runParser [] = return []
+        runParser (c:cs) = unsafeInterleaveIO $ do
+            mError <- parseChunk parser c (null cs)
+            queue <- readIORef queueRef
+            writeIORef queueRef []
+            rem <- case mError of
+                Just error -> return [FailDocument error]
+                Nothing -> runParser cs
+            return $ reverse queue ++ rem
 
-    let readEvents = unsafeInterleaveIO $ do
-            events <- takeMVar eventsVar
-            if null events
-                then do
-                    tryTakeMVar keepalive  -- touch the 'keepalive' reference
-                    return []
-                else do
-                    rem <- readEvents
-                    return $ events ++ rem
-    readEvents
-  where
-    runParser runningH eventsVar = do
-        parser <- newParser enc
-        queueRef <- newIORef []
-        setStartElementHandler parser $ \cName cAttrs -> do
-            name <- mkTag cName
-            attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-                attrName <- mkTag cAttrName
-                len <- c_strlen cAttrValue
-                attrValue <- mkText (cAttrValue, fromIntegral len)
-                return (attrName, attrValue)
-            modifyIORef queueRef (StartElement name attrs:)
-            readIORef runningH
-        setEndElementHandler parser $ \cName -> do
-            name <- mkTag cName
-            modifyIORef queueRef (EndElement name:)
-            readIORef runningH
-        setCharacterDataHandler parser $ \cText -> do
-            txt <- mkText cText
-            modifyIORef queueRef (CharacterData txt:)
-            readIORef runningH
-        let pushOut = \_ -> do
-                queue <- readIORef queueRef
-                writeIORef queueRef []
-                running <- readIORef runningH
-                when running $
-                    putMVar eventsVar (reverse queue)
-        mError <- parse_ pushOut parser doc
-        running <- readIORef runningH
-        when running $ do
-            case mError of
-                Nothing -> putMVar eventsVar []
-                Just err -> putMVar eventsVar [FailDocument err]
+    runParser $ L.toChunks input
 
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't

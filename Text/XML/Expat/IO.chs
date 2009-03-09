@@ -17,14 +17,18 @@ module Text.XML.Expat.IO (
   Parser, newParser,
 
   -- ** Parsing
-  parse, parse_, Encoding(..), XMLParseError(..),
+  parse, parseChunk, Encoding(..), XMLParseError(..),
 
   -- ** Parser Callbacks
   StartElementHandler, EndElementHandler, CharacterDataHandler,
   setStartElementHandler, setEndElementHandler, setCharacterDataHandler,
 
-  -- ** Lower-level Parsing Interface
-  parseChunk,
+  -- ** Lower-level interface
+  withHandlers,
+  unsafeSetHandlers,
+  unsafeReleaseHandlers,
+  ExpatHandlers,
+  unsafeParseChunk,
 
   -- ** Helpers
   encodingToString
@@ -97,6 +101,18 @@ unStatus :: CInt -> Bool
 unStatus 0 = False
 unStatus 1 = True
 
+-- |@parse data@ feeds /lazy/ bytestring data into a parser. It returns Nothing
+-- on success, or Just the parse error.
+parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
+parse parser@(Parser _ _ _ _) bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
+  where
+    feedChunk []      = return Nothing
+    feedChunk (c:cs)  = do
+        ok <- doParseChunk parser c (null cs)
+        if ok
+            then feedChunk cs
+            else Just `fmap` getError parser
+
 -- |@parseChunk data False@ feeds /strict/ ByteString data into a
 -- 'Parser'.  The end of the data is indicated by passing @True@ for the
 -- final parameter.   It returns Nothing on success, or Just the parse error.
@@ -104,8 +120,17 @@ parseChunk :: Parser
            -> BS.ByteString
            -> Bool
            -> IO (Maybe XMLParseError)
-parseChunk parser xml final = do
-    ok <- withHandlers parser $ doParseChunk parser xml final
+parseChunk parser xml final = withHandlers parser $ unsafeParseChunk parser xml final
+
+-- | This version of parseChunk must either be called inside withHandlers (safest), or
+-- between 'unsafeSetHandlers' and 'unsafeReleaseHandlers', and this
+-- will give you better performance if you process multiple chunks inside.
+unsafeParseChunk :: Parser
+           -> BS.ByteString
+           -> Bool
+           -> IO (Maybe XMLParseError)
+unsafeParseChunk parser xml final = do
+    ok <- doParseChunk parser xml final
     if ok
         then return Nothing
         else Just `fmap` getError parser
@@ -119,22 +144,35 @@ getError parser = withParser parser $ \p -> do
                 return $ XMLParseError err
                     (fromIntegral line) (fromIntegral col)
 
+data ExpatHandlers = ExpatHandlers
+    (FunPtr CStartElementHandler)
+    (FunPtr CEndElementHandler)
+    (FunPtr CCharacterDataHandler)
+
+unsafeSetHandlers :: Parser -> IO ExpatHandlers
+unsafeSetHandlers parser@(Parser fp startRef endRef charRef) = do
+    cStartH <- mkCStartElementHandler =<< readIORef startRef
+    cEndH   <- mkCEndElementHandler =<< readIORef endRef
+    cCharH  <- mkCCharacterDataHandler =<< readIORef charRef
+    withParser parser $ \p -> do
+        {#call unsafe XML_SetStartElementHandler as ^#}  p cStartH
+        {#call unsafe XML_SetEndElementHandler as ^#}    p cEndH
+        {#call unsafe XML_SetCharacterDataHandler as ^#} p cCharH
+    return $ ExpatHandlers cStartH cEndH cCharH
+
+unsafeReleaseHandlers :: ExpatHandlers -> IO ()
+unsafeReleaseHandlers (ExpatHandlers cStartH cEndH cCharH) = do
+    freeHaskellFunPtr cStartH
+    freeHaskellFunPtr cEndH
+    freeHaskellFunPtr cCharH
+
+-- | 'unsafeParseChunk' is required to be called inside the argument to this.
+-- Safer than using unsafeSetHandlers / unsafeReleaseHandlers.
 withHandlers :: Parser -> IO a -> IO a
-withHandlers parser@(Parser fp startRef endRef charRef) code = do
+withHandlers parser code = do
     bracket
-        (do
-            cStartH <- mkCStartElementHandler =<< readIORef startRef
-            cEndH   <- mkCEndElementHandler =<< readIORef endRef
-            cCharH  <- mkCCharacterDataHandler =<< readIORef charRef
-            withParser parser $ \p -> do
-                {#call unsafe XML_SetStartElementHandler as ^#}  p cStartH
-                {#call unsafe XML_SetEndElementHandler as ^#}    p cEndH
-                {#call unsafe XML_SetCharacterDataHandler as ^#} p cCharH
-            return (cStartH, cEndH, cCharH))
-        (\(cStartH, cEndH, cCharH) -> do
-            freeHaskellFunPtr cStartH
-            freeHaskellFunPtr cEndH
-            freeHaskellFunPtr cCharH)
+        (unsafeSetHandlers parser)
+        unsafeReleaseHandlers
         (\_ -> code)
 
 {#fun XML_Parse as doParseChunk
@@ -146,26 +184,6 @@ data XMLParseError = XMLParseError String Integer Integer deriving (Eq, Show)
 
 instance NFData XMLParseError where
     rnf (XMLParseError msg lin col) = rnf (msg, lin, col)
-
--- |@parse data@ feeds /lazy/ bytestring data into a parser. It returns Nothing
--- on success, or Just the parse error.
-parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
-parse = parse_ (\_ -> return ())
-
--- |A version of parse that executes a specified computation after each lazy
--- ByteString block is processed.
-parse_ :: (Bool -> IO ())  -- ^ Computation to process after each block, passed success status
-       -> Parser
-       -> BSL.ByteString -> IO (Maybe XMLParseError)
-parse_ postProcess parser@(Parser _ _ _ _) bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
-  where
-    feedChunk []      = return Nothing
-    feedChunk (c:cs)  = do
-        ok <- doParseChunk parser c (null cs)
-        postProcess ok
-        if ok
-            then feedChunk cs
-            else Just `fmap` getError parser
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs. Return True
