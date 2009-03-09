@@ -108,8 +108,7 @@ modifyChildren :: ([Node tag text] -> [Node tag text])
 modifyChildren f node = node { eChildren = f (eChildren node) }
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
-parseTree' :: Eq tag =>
-              TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
+parseTree' :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
            -> Maybe Encoding      -- ^ Optional encoding override
            -> L.ByteString        -- ^ Input text (a lazy ByteString)
            -> Either XMLParseError (Node tag text)
@@ -153,7 +152,6 @@ parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse wh
   start name attrs stack = Element name attrs [] : stack
   text str (cur:rest) = modifyChildren (Text str:) cur : rest
   end name (cur:parent:rest) =
-    if eName cur /= name then error "name mismatch" else
     let node = modifyChildren reverse cur in
     modifyChildren (node:) parent : rest
 

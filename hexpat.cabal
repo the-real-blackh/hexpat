@@ -15,12 +15,12 @@ Description:
   .
   Benchmark results on ghc 6.10.1 against HaXml for parsing a 4K xml file with non-threading runtime:
   HAXML: 2683 us, HEXPAT: low-level parse-no tree: 243 us, lazy-String: 1340 us,
-  lazy-Text: 814 us, strict-String: 1356 us, strict-Text: 828 us
+  lazy-Text: 814 us, strict-String: 1194 us, strict-Text: 732 us
   .
   With -threaded:
   HAXML: 2691 us, HEXPAT: low-level parse-no tree: 472 us,
-  lazy-String: 1575 us, lazy-Text: 1068 us, strict-String: 1560 us,
-  strict-Text: 1121 us
+  lazy-String: 1575 us, lazy-Text: 1068 us, strict-String: 1396 us,
+  strict-Text: 964 us
 Category: XML
 License: BSD3
 License-File: LICENSE
