@@ -10,7 +10,8 @@ Description:
   SAX-style representation, and it includes an XML formatter.  It is extensible
   to any string type, with String, ByteString and Text provided out of the box.
   .
-  The emphasis is on speed and simplicity.
+  The emphasis is on speed and simplicity. If you want more complete and powerful
+  XML libraries, consider using HaXml or HXT instead.
   .
   Benchmark results on ghc 6.10.1 against HaXml for parsing a 4K xml file with non-threading runtime:
   HAXML: 2683 us, HEXPAT: low-level parse-no tree: 243 us, lazy-String: 1340 us,

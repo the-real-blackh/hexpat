@@ -122,7 +122,7 @@ parseChunk :: Parser
            -> IO (Maybe XMLParseError)
 parseChunk parser xml final = withHandlers parser $ unsafeParseChunk parser xml final
 
--- | This variant of parseChunk must either be called inside 'withHandlers' (safest), or
+-- | This variant of 'parseChunk' must either be called inside 'withHandlers' (safest), or
 -- between 'unsafeSetHandlers' and 'unsafeReleaseHandlers', and this
 -- will give you better performance than 'parseChunk' if you process multiple chunks inside.
 unsafeParseChunk :: Parser
