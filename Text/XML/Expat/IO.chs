@@ -103,15 +103,12 @@ unStatus 1 = True
 
 -- |@parse data@ feeds /lazy/ bytestring data into a parser. It returns Nothing
 -- on success, or Just the parse error.
-parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
-parse parser@(Parser _ _ _ _) bs = withHandlers parser $ feedChunk (BSL.toChunks bs)
-  where
-    feedChunk []      = return Nothing
-    feedChunk (c:cs)  = do
-        ok <- doParseChunk parser c (null cs)
-        if ok
-            then feedChunk cs
-            else Just `fmap` getError parser
+parse :: Parser -> BS.ByteString -> IO (Maybe XMLParseError)
+parse parser@(Parser _ _ _ _) bs = withHandlers parser $ do
+    ok <- doParseChunk parser bs True
+    if ok
+        then return Nothing
+        else Just `fmap` getError parser
 
 -- |@parseChunk data False@ feeds /strict/ ByteString data into a
 -- 'Parser'.  The end of the data is indicated by passing @True@ for the

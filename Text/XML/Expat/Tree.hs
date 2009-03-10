@@ -110,14 +110,14 @@ modifyChildren f node = node { eChildren = f (eChildren node) }
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parseTree' :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
            -> Maybe Encoding      -- ^ Optional encoding override
-           -> L.ByteString        -- ^ Input text (a lazy ByteString)
+           -> B.ByteString        -- ^ Input text (a lazy ByteString)
            -> Either XMLParseError (Node tag text)
 {-# SPECIALIZE parseTree' :: TreeFlavor String String -> Maybe Encoding
-          -> L.ByteString -> Either XMLParseError (Node String String) #-}
+          -> B.ByteString -> Either XMLParseError (Node String String) #-}
 {-# SPECIALIZE parseTree' :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
-          -> L.ByteString -> Either XMLParseError (Node B.ByteString B.ByteString) #-}
+          -> B.ByteString -> Either XMLParseError (Node B.ByteString B.ByteString) #-}
 {-# SPECIALIZE parseTree' :: TreeFlavor T.Text T.Text -> Maybe Encoding
-          -> L.ByteString -> Either XMLParseError (Node T.Text T.Text) #-}
+          -> B.ByteString -> Either XMLParseError (Node T.Text T.Text) #-}
 parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc

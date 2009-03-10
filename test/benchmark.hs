@@ -40,22 +40,24 @@ instance NFData Reference where
 instance NFData Content where
     rnf content = ()
 
-parseOnly :: L.ByteString -> String -> IO ()
+parseOnly :: B.ByteString -> String -> IO ()
 parseOnly xml _ = do
     parser <- newParser Nothing
     parse parser xml
     return ()
 
-tests :: [(String, L.ByteString -> String -> IO ())]
+myParseTree flavor enc xml = parseTree flavor enc (L.fromChunks [xml])
+
+tests :: [(String, B.ByteString -> String -> IO ())]
 tests = [
     ("HaXml", \_ xml -> rnf (HaXml.xmlParse "input" xml) `seq` return ()),
     ("low-level parse only, no tree", parseOnly),
-    ("lazy parseTree stringFlavor", \xml _ -> rnf (parseTree stringFlavor Nothing xml) `seq` return ()),
-    ("lazy parseTree byteStringFlavor", \xml _ -> rnf (parseTree byteStringFlavor Nothing xml) `seq` return ()),
-    ("lazy parseTree textFlavor", \xml _ -> rnf (parseTree textFlavor Nothing xml) `seq` return ()),
-    ("lazy parseTree qualifiedStringFlavor", \xml _ -> rnf (parseTree qualifiedStringFlavor Nothing xml) `seq` return ()),
-    ("lazy parseTree qualifiedByteStringFlavor", \xml _ -> rnf (parseTree qualifiedByteStringFlavor Nothing xml) `seq` return ()),
-    ("lazy parseTree qualifiedTextFlavor", \xml _ -> rnf (parseTree qualifiedTextFlavor Nothing xml) `seq` return ()),
+    ("lazy myParseTree stringFlavor", \xml _ -> rnf (myParseTree stringFlavor Nothing xml) `seq` return ()),
+    ("lazy myParseTree byteStringFlavor", \xml _ -> rnf (myParseTree byteStringFlavor Nothing xml) `seq` return ()),
+    ("lazy myParseTree textFlavor", \xml _ -> rnf (myParseTree textFlavor Nothing xml) `seq` return ()),
+    ("lazy myParseTree qualifiedStringFlavor", \xml _ -> rnf (myParseTree qualifiedStringFlavor Nothing xml) `seq` return ()),
+    ("lazy myParseTree qualifiedByteStringFlavor", \xml _ -> rnf (myParseTree qualifiedByteStringFlavor Nothing xml) `seq` return ()),
+    ("lazy myParseTree qualifiedTextFlavor", \xml _ -> rnf (myParseTree qualifiedTextFlavor Nothing xml) `seq` return ()),
     ("strict parseTree' stringFlavor", \xml _ -> rnf (parseTree' stringFlavor Nothing xml) `seq` return ()),
     ("strict parseTree' byteStringFlavor", \xml _ -> rnf (parseTree' byteStringFlavor Nothing xml) `seq` return ()),
     ("strict parseTree' textFlavor", \xml _ -> rnf (parseTree' textFlavor Nothing xml) `seq` return ()),
@@ -73,5 +75,5 @@ main = do
     forM_ tests $ \(a,b) -> microbench a $ do
         copy <- myCopy xml
         let xmlStr = map w2c $ B.unpack copy
-        b (L.fromChunks [copy]) xmlStr
+        b copy xmlStr
 

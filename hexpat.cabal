@@ -24,11 +24,12 @@ Description:
 Category: XML
 License: BSD3
 License-File: LICENSE
-Author: Evan Martin, Stephen Blackheath
+Author: Stephen Blackheath, Evan Martin, Matthew Pocock
 Maintainer: http://blacksapphire.com/antispam/
 Copyright:
-  (c) 2008 Evan Martin <martine@danga.com>,
   (c) 2009 Stephen Blackheath <http://blacksapphire.com/antispam/>
+  (c) 2009 Matthew Pocock <oversensitive.pastors.stephen@blacksapphire.com>
+  (c) 2008 Evan Martin <martine@danga.com>,
 Homepage: http://code.haskell.org/hexpat/
 Extra-Source-Files:
   test/tests.hs,

@@ -12,25 +12,32 @@ import Control.Parallel.Strategies
 import Test.HUnit hiding (Node)
 import System.IO
 
-toByteString :: String -> BSL.ByteString
-toByteString = BSL.pack . map c2w
+toByteStringL :: String -> BSL.ByteString
+toByteStringL = BSL.pack . map c2w
 
-fromByteString :: BSL.ByteString -> String
-fromByteString = map w2c . BSL.unpack
+fromByteStringL :: BSL.ByteString -> String
+fromByteStringL = map w2c . BSL.unpack
+
+toByteString :: String -> BS.ByteString
+toByteString = BS.pack . map c2w
+
+fromByteString :: BS.ByteString -> String
+fromByteString = map w2c . BS.unpack
 
 testDoc :: (Show tag, Show text) =>
-           (Maybe Encoding -> BSL.ByteString -> Either XMLParseError (Node tag text))
+           (Maybe Encoding -> bs -> Either XMLParseError (Node tag text))
         -> (Node tag text -> BSL.ByteString)
+        -> (String -> bs)
         -> String
         -> Int
         -> String
         -> IO ()
-testDoc parse fmt descr0 idx xml = do
-  let eTree = parse (Just UTF8) (toByteString xml)
+testDoc parse fmt toBS descr0 idx xml = do
+  let eTree = parse (Just UTF8) (toBS xml)
       descr = descr0++" #"++show idx
   case eTree of
       Right tree -> do
-          let out = fromByteString $ fmt tree
+          let out = fromByteStringL $ fmt tree
           assertEqual descr xml out
       Left error -> do
           hPutStrLn stderr $ "parse failed: "++show error
@@ -62,7 +69,7 @@ test_error2 = do
             Element {eName = "hello", eAttrs = [], eChildren = []},
             Just (XMLParseError "mismatched tag" 1 9)
         ) $ parseTree stringFlavor Nothing
-              (toByteString "<hello></goodbye>")
+              (toByteStringL "<hello></goodbye>")
 
 test_error3 :: IO ()
 test_error3 =
@@ -73,7 +80,7 @@ test_error3 =
             ]},
             Just (XMLParseError "mismatched tag" 1 35)
         ) $ parseTree stringFlavor Nothing
-              (toByteString "<open><test1>Hello</test1><hello></goodbye>")
+              (toByteStringL "<open><test1>Hello</test1><hello></goodbye>")
 
 test_error4 :: IO ()
 test_error4 = do
@@ -87,17 +94,20 @@ main = do
         docs = simpleDocs ++ [testXML']
         t (descr, parse, fmt) = do
             forM_ (zip [1..] docs) $ \(idx, doc) ->
-                testDoc parse fmt descr idx doc
+                testDoc parse fmt toByteStringL descr idx doc
+        t' (descr, parse, fmt) = do
+            forM_ (zip [1..] docs) $ \(idx, doc) ->
+                testDoc parse fmt toByteString descr idx doc
     runTestTT $ TestList [
-        TestCase $ t ("String", parseTree' stringFlavor, formatTree stringFlavor),
-        TestCase $ t ("ByteString", parseTree' byteStringFlavor, formatTree byteStringFlavor),
-        TestCase $ t ("Text", parseTree' textFlavor, formatTree textFlavor),
+        TestCase $ t' ("String", parseTree' stringFlavor, formatTree stringFlavor),
+        TestCase $ t' ("ByteString", parseTree' byteStringFlavor, formatTree byteStringFlavor),
+        TestCase $ t' ("Text", parseTree' textFlavor, formatTree textFlavor),
         TestCase $ t ("String/Lazy", eitherify $ parseTree stringFlavor, formatTree stringFlavor),
         TestCase $ t ("ByteString/Lazy", eitherify $ parseTree byteStringFlavor, formatTree byteStringFlavor),
         TestCase $ t ("Text/Lazy", eitherify $ parseTree textFlavor, formatTree textFlavor),
-        TestCase $ t ("String/Qualified", parseTree' qualifiedStringFlavor, formatTree qualifiedStringFlavor),
-        TestCase $ t ("ByteString/Qualified", parseTree' qualifiedByteStringFlavor, formatTree qualifiedByteStringFlavor),
-        TestCase $ t ("Text/Qualified", parseTree' qualifiedTextFlavor, formatTree qualifiedTextFlavor),
+        TestCase $ t' ("String/Qualified", parseTree' qualifiedStringFlavor, formatTree qualifiedStringFlavor),
+        TestCase $ t' ("ByteString/Qualified", parseTree' qualifiedByteStringFlavor, formatTree qualifiedByteStringFlavor),
+        TestCase $ t' ("Text/Qualified", parseTree' qualifiedTextFlavor, formatTree qualifiedTextFlavor),
         TestCase $ t ("String/Qualified/Lazy", eitherify $ parseTree qualifiedStringFlavor, formatTree qualifiedStringFlavor),
         TestCase $ t ("ByteString/Qualified/Lazy", eitherify $ parseTree qualifiedByteStringFlavor, formatTree qualifiedByteStringFlavor),
         TestCase $ t ("Text/Qualified/Lazy", eitherify $ parseTree qualifiedTextFlavor, formatTree qualifiedTextFlavor),
