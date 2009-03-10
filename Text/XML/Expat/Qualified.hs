@@ -13,6 +13,7 @@
 module Text.XML.Expat.Qualified (
         QName(..),
         mkQName,
+        mkAnName,
         qualifiedStringFlavor,
         qualifiedByteStringFlavor,
         qualifiedTextFlavor
@@ -50,6 +51,10 @@ instance NFData text => NFData (QName text) where
 -- | Make a new QName from a prefix and localPart.
 mkQName :: text -> text -> QName text
 mkQName prefix localPart = QName (Just prefix) localPart
+
+-- | Make a new QName with no prefix.
+mkAnName :: text -> QName text
+mkAnName localPart = QName Nothing localPart
 
 -- | Flavor for qualified tags, using String data type.
 qualifiedStringFlavor :: TreeFlavor (QName String) String
