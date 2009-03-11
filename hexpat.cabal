@@ -39,7 +39,7 @@ Extra-Source-Files:
   test/test.xml,
   test/benchmark.hs,
   test/lazySAX.hs,
-  text/lazyTree.hs
+  test/lazyTree.hs
 Build-Type: Simple
 Stability: beta
 
