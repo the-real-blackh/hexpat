@@ -2,7 +2,7 @@
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
 -- Copyright (C) 2009 Stephen Blackheath <http://blacksapphire.com/antispam>
 
--- | A very low-level interface to Expat. Unless you need extreme speed, this
+-- | Low-level interface to Expat. Unless speed is paramount, this
 -- should normally be avoided in favour of the interface provided by "Text-XML-Expat-Tree".
 -- Basic usage is:
 --
@@ -37,18 +37,13 @@ module Text.XML.Expat.IO (
 import Control.Exception (bracket)
 import Control.Parallel.Strategies
 import Control.Monad
-import C2HS
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Internal as BSI
 import Data.IORef
+import Foreign
+import CForeign
 
-#include <expat.h>
-
--- Expat functions start with "XML", but C2HS appears to ignore our "as"
--- definitions if they only differ from the symbol in case.  So we write out
--- XML_* in most cases anyway...  :(
-{#context lib = "expat" prefix = "XML"#}
 
 -- |Opaque parser type.
 type ParserPtr = Ptr ()
@@ -76,8 +71,12 @@ withOptEncoding :: Maybe Encoding -> (CString -> IO a) -> IO a
 withOptEncoding Nothing    f = f nullPtr
 withOptEncoding (Just enc) f = withCString (encodingToString enc) f
 
-{#fun unsafe XML_ParserCreate as parserCreate
-    {withOptEncoding* `Maybe Encoding'} -> `ParserPtr' id#}
+parserCreate :: Maybe Encoding -> IO (ParserPtr)
+parserCreate a1 =
+  withOptEncoding a1 $ \a1' -> 
+  parserCreate'_ a1' >>= \res ->
+  let {res' = id res} in
+  return (res')
 foreign import ccall "&XML_ParserFree" parserFree :: FunPtr (ParserPtr -> IO ())
 
 -- |Create a 'Parser'.  The encoding parameter, if provided, overrides the
@@ -152,9 +151,9 @@ unsafeSetHandlers parser@(Parser fp startRef endRef charRef) = do
     cEndH   <- mkCEndElementHandler =<< readIORef endRef
     cCharH  <- mkCCharacterDataHandler =<< readIORef charRef
     withParser parser $ \p -> do
-        {#call unsafe XML_SetStartElementHandler as ^#}  p cStartH
-        {#call unsafe XML_SetEndElementHandler as ^#}    p cEndH
-        {#call unsafe XML_SetCharacterDataHandler as ^#} p cCharH
+        xmlSetstartelementhandler  p cStartH
+        xmlSetendelementhandler    p cEndH
+        xmlSetcharacterdatahandler p cCharH
     return $ ExpatHandlers cStartH cEndH cCharH
 
 unsafeReleaseHandlers :: ExpatHandlers -> IO ()
@@ -174,9 +173,19 @@ withHandlers parser code = do
         unsafeReleaseHandlers
         (\_ -> code)
 
-{#fun XML_Parse as doParseChunk
-    {withParser* `Parser', withBStringLen* `BS.ByteString' &, `Bool'}
-    -> `Bool' unStatus#}
+-- |Obtain C value from Haskell 'Bool'.
+--
+cFromBool :: Num a => Bool -> a
+cFromBool  = fromBool
+
+doParseChunk :: Parser -> BS.ByteString -> Bool -> IO (Bool)
+doParseChunk a1 a2 a3 =
+  withParser a1 $ \a1' -> 
+  withBStringLen a2 $ \(a2'1, a2'2) -> 
+  let {a3' = cFromBool a3} in 
+  doParseChunk'_ a1' a2'1  a2'2 a3' >>= \res ->
+  let {res' = unStatus res} in
+  return (res')
 
 -- | Parse error, consisting of message text, line number, and column number
 data XMLParseError = XMLParseError String Integer Integer deriving (Eq, Show)
@@ -274,3 +283,18 @@ setCharacterDataHandler parser@(Parser _ _ _ charRef) handler =
 pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
 pairwise []         = []
 
+
+foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_ParserCreate"
+  parserCreate'_ :: ((Ptr CChar) -> (IO (Ptr ())))
+
+foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_SetStartElementHandler"
+  xmlSetstartelementhandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> ((Ptr (Ptr CChar)) -> (IO ()))))) -> (IO ())))
+
+foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_SetEndElementHandler"
+  xmlSetendelementhandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> (IO ())))) -> (IO ())))
+
+foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_SetCharacterDataHandler"
+  xmlSetcharacterdatahandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> (CInt -> (IO ()))))) -> (IO ())))
+
+foreign import ccall safe "Text/XML/Expat/IO.chs.h XML_Parse"
+  doParseChunk'_ :: ((Ptr ()) -> ((Ptr CChar) -> (CInt -> (CInt -> (IO CInt)))))
