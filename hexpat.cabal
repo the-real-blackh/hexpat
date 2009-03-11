@@ -53,6 +53,7 @@ Library
     binary >= 0.4,
     utf8-string >= 0.3.3,
     parallel
+  Build-Tools: c2hs
   Exposed-Modules:
     Text.XML.Expat.Tree,
     Text.XML.Expat.Format,
