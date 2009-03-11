@@ -13,6 +13,8 @@ Description:
   The emphasis is on speed and simplicity. If you want more complete and powerful
   XML libraries, consider using HaXml or HXT instead.
   .
+  Note that hexpat has undergone a major API change since 0.3.x.
+  .
   Benchmark results on ghc 6.10.1 against HaXml for parsing a 4K xml file with non-threading runtime:
   HAXML: 2683 us, HEXPAT: low-level parse-no tree: 243 us, lazy-String: 1340 us,
   lazy-Text: 814 us, strict-String: 1194 us, strict-Text: 732 us
@@ -28,8 +30,8 @@ Author: Stephen Blackheath (blackh), Evan Martin, Matthew Pocock (drdozer)
 Maintainer: http://blacksapphire.com/antispam/
 Copyright:
   (c) 2009 Stephen Blackheath <http://blacksapphire.com/antispam/>,
-  (c) 2009 Matthew Pocock <oversensitive.pastors.stephen@blacksapphire.com>,
-  (c) 2008 Evan Martin <martine@danga.com>
+  (c) 2008 Evan Martin <martine@danga.com>,
+  (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>
 Homepage: http://code.haskell.org/hexpat/
 Extra-Source-Files:
   test/tests.hs,
