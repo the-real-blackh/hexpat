@@ -7,6 +7,8 @@ module Text.XML.Expat.Namespaced
       , mkAnNName
       , withNamespaces
       , withQualifiers
+      , xmlnsUri
+      , xmlns
       ) where
 
 import Text.XML.Expat.Tree
