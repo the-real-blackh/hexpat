@@ -69,7 +69,7 @@ import Foreign.Ptr
 -- attribute values or element text content). If you want to use a
 -- new string type with @hexpat-pickle@, you must make it an instance of
 -- 'GenericXMLString'.
-class M.Monoid s => GenericXMLString s where
+class (M.Monoid s, Eq s) => GenericXMLString s where
     gxNullString :: s -> Bool
     gxToString :: s -> String
     gxFromString :: String -> s
