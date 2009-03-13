@@ -40,7 +40,14 @@ import qualified Codec.Binary.UTF8.String as U8
 import Foreign.C.String
 import Foreign.Ptr
 
-
+-- | A qualified name.
+--
+-- Qualified names have two parts, a prefix and a local part. The local part
+-- is the name of the tag. The prefix scopes that name to a particular
+-- group of legal tags.
+--
+-- The prefix will usually be associated with a namespace URI. This is usually
+-- achieved by using xmlns attributes to bind prefixes to URIs.
 data QName text =
     QName {
         qnPrefix    :: Maybe text,
