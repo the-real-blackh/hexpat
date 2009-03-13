@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances #-}
 
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
@@ -31,6 +31,8 @@ module Text.XML.Expat.Tree (
   XMLParseException(..),
   parseSAXThrowing,
   parseTreeThrowing,
+  -- * Abstraction of string types
+  GenericXMLString(..),
   -- * Flavors
   TreeFlavor(..),
   stringFlavor,
@@ -45,6 +47,7 @@ import qualified Data.ByteString.Internal as I
 import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
 import Data.ByteString.Internal (c2w, w2c, c_strlen)
+import qualified Data.Monoid as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Codec.Binary.UTF8.String as U8
@@ -60,6 +63,31 @@ import System.IO.Unsafe
 import System.Mem.Weak
 import Foreign.C.String
 import Foreign.Ptr
+
+
+-- | An abstraction for any string type you want to use as xml text (that is,
+-- attribute values or element text content). If you want to use a
+-- new string type with @hexpat-pickle@, you must make it an instance of
+-- 'GenericXMLString'.
+class M.Monoid s => GenericXMLString s where
+    gxNullString :: s -> Bool
+    gxToString :: s -> String
+    gxFromString :: String -> s
+
+instance GenericXMLString String where
+    gxNullString = null
+    gxToString = id
+    gxFromString = id
+
+instance GenericXMLString B.ByteString where
+    gxNullString = B.null
+    gxToString = U8.decodeString . map w2c . B.unpack
+    gxFromString = B.pack . map c2w . U8.encodeString
+
+instance GenericXMLString T.Text where
+    gxNullString = T.null
+    gxToString = T.unpack
+    gxFromString = T.pack
 
 
 data TreeFlavor tag text = TreeFlavor
