@@ -16,7 +16,7 @@ module Text.XML.Expat.Qualified (
         QNodes,
         QAttributes,
         mkQName,
-        mkAnName,
+        mkAnQName,
         qualifiedStringFlavor,
         qualifiedByteStringFlavor,
         qualifiedTextFlavor
@@ -72,8 +72,8 @@ mkQName :: text -> text -> QName text
 mkQName prefix localPart = QName (Just prefix) localPart
 
 -- | Make a new QName with no prefix.
-mkAnName :: text -> QName text
-mkAnName localPart = QName Nothing localPart
+mkAnQName :: text -> QName text
+mkAnQName localPart = QName Nothing localPart
 
 -- | Flavor for qualified tags, using String data type.
 qualifiedStringFlavor :: TreeFlavor (QName String) String
