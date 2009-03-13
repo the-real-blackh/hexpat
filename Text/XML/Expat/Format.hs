@@ -24,17 +24,29 @@ import qualified Data.Text.Encoding as TE
 import Data.Binary.Put
 import Control.Monad
 
--- | Format document with <?xml.. header.
+-- | Format document with <?xml.. header - lazy variant that returns lazy ByteString.
 formatTree :: TreeFlavor tag text
            -> Node tag text
            -> L.ByteString
 formatTree flavour node = runPut $ putTree flavour node
 
--- | Format XML node with no header.
+-- | Format document with <?xml.. header - strict variant that returns strict ByteString.
+formatTree' :: TreeFlavor tag text
+           -> Node tag text
+           -> B.ByteString
+formatTree' flavour node = B.concat $ L.toChunks $ runPut $ putTree flavour node
+
+-- | Format XML node with no header - lazy variant that returns lazy ByteString.
 formatNode :: TreeFlavor tag text
            -> Node tag text
            -> L.ByteString
 formatNode flavour node = runPut $ putNode flavour node
+
+-- | Format XML node with no header - strict variant that returns strict ByteString.
+formatNode' :: TreeFlavor tag text
+           -> Node tag text
+           -> B.ByteString
+formatNode' flavour node = B.concat $ L.toChunks $ runPut $ putNode flavour node
 
 -- | 'Data.Binary.Put.Put' interface for formatting a tree with <?xml.. header.
 putTree :: TreeFlavor tag text

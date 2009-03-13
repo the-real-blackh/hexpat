@@ -12,6 +12,9 @@
 
 module Text.XML.Expat.Qualified (
         QName(..),
+        QNode,
+        QNodes,
+        QAttributes,
         mkQName,
         mkAnName,
         qualifiedStringFlavor,
@@ -47,6 +50,15 @@ data QName text =
 
 instance NFData text => NFData (QName text) where
     rnf (QName pre loc) = rnf (pre, loc)
+
+-- | Type shortcut for nodes where qualified names are used for tags
+type QNodes text = Nodes (QName text) text
+
+-- | Type shortcut for a single node where qualified names are used for tags
+type QNode text = Node (QName text) text
+
+-- | Type shortcut for attributes where qualified names are used for tags
+type QAttributes text = Attributes (QName text) text
 
 -- | Make a new QName from a prefix and localPart.
 mkQName :: text -> text -> QName text

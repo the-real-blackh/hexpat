@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
 -- Copyright (C) 2009 Stephen Blackheath <http://blacksapphire.com/antispam>
@@ -11,14 +13,24 @@
 module Text.XML.Expat.Tree (
   -- * Tree structure
   Node(..),
+  Nodes,
+  Attributes,
+  UNode,
+  UNodes,
+  UAttributes,
   -- * Parse to tree
   parseTree,
   parseTree',
   Encoding(..),
   XMLParseError(..),
+  saxToTree,
   -- * SAX-style parse
   parseSAX,
   SAXEvent(..),
+  -- * Variants that throw exceptions
+  XMLParseException(..),
+  parseSAXThrowing,
+  parseTreeThrowing,
   -- * Flavors
   TreeFlavor(..),
   stringFlavor,
@@ -37,6 +49,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Codec.Binary.UTF8.String as U8
 import Data.Binary.Put
+import Data.Typeable
+import Control.Exception.Extensible as Exc
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.MVar
@@ -101,6 +115,24 @@ data Node tag text =
 instance (NFData tag, NFData text) => NFData (Node tag text) where
     rnf (Element nam att chi) = rnf (nam, att, chi)
     rnf (Text txt) = rnf txt
+
+-- | Type shortcut for attributes
+type Attributes tag text = [(tag, text)]
+
+-- | Type shortcut for nodes
+type Nodes tag text = [Node tag text]
+
+-- | Type shortcut for nodes with unqualified tag names where tag and
+-- text are the same string type.
+type UNodes text = Nodes text text
+
+-- | Type shortcut for a single node with unqualified tag names where tag and
+-- text are the same string type.
+type UNode text = Node text text
+
+-- | Type shortcut for attributes with unqualified tag names where tag and
+-- text are the same string type.
+type UAttributes text = Attributes text text
 
 modifyChildren :: ([Node tag text] -> [Node tag text])
                -> Node tag text
@@ -207,22 +239,26 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc input = unsafePerformIO $ do
 
     runParser $ L.toChunks input
 
--- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
--- will force the entire parse.  Therefore, to ensure lazy operation, don't
--- check the error status until you have processed the tree.
-parseTree :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the tree
-          -> Maybe Encoding      -- ^ Optional encoding override
-          -> L.ByteString        -- ^ Input text (a lazy ByteString)
-          -> (Node tag text, Maybe XMLParseError)
-{-# SPECIALIZE parseTree :: TreeFlavor String String -> Maybe Encoding
-          -> L.ByteString -> (Node String String, Maybe XMLParseError) #-}
-{-# SPECIALIZE parseTree :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
-          -> L.ByteString -> (Node B.ByteString B.ByteString, Maybe XMLParseError) #-}
-{-# SPECIALIZE parseTree :: TreeFlavor T.Text T.Text -> Maybe Encoding
-          -> L.ByteString -> (Node T.Text T.Text, Maybe XMLParseError) #-}
-parseTree flavor@(TreeFlavor mkTag _ _ _) mEnc bs =
-    let events = parseSAX flavor mEnc bs
-        (nodes, mError, _) = ptl events
+-- | An exception indicating an XML parse error, using by the /..Throwing/ variants.
+data XMLParseException = XMLParseException XMLParseError
+    deriving (Eq, Show, Typeable)
+
+instance Exception XMLParseException where
+
+-- | Lazily parse XML to SAX events. In the event of an error, throw 'XMLParseException'.
+parseSAXThrowing :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
+                 -> Maybe Encoding      -- ^ Optional encoding override
+                 -> L.ByteString        -- ^ Input text (a lazy ByteString)
+                 -> [SAXEvent tag text]
+parseSAXThrowing flavor mEnc bs = map freakOut $ parseSAX flavor mEnc bs
+  where
+    freakOut (FailDocument err) = Exc.throw $ XMLParseException err
+    freakOut other = other
+
+-- | A lower level function that lazily converts a SAX stream into a tree structure.
+saxToTree :: TreeFlavor tag text -> [SAXEvent tag text] -> (Node tag text, Maybe XMLParseError)
+saxToTree flavor@(TreeFlavor mkTag _ _ _) events =
+    let (nodes, mError, _) = ptl events
     in  (safeHead nodes, mError)
   where
     safeHead (a:_) = a
@@ -238,4 +274,20 @@ parseTree flavor@(TreeFlavor mkTag _ _ _) mEnc bs =
         in  (Text txt:out, err, rem')
     ptl (FailDocument err:_) = ([], Just err, [])
     ptl [] = ([], Nothing, [])
+
+-- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
+-- will force the entire parse.  Therefore, to ensure lazy operation, don't
+-- check the error status until you have processed the tree.
+parseTree :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the tree
+          -> Maybe Encoding      -- ^ Optional encoding override
+          -> L.ByteString        -- ^ Input text (a lazy ByteString)
+          -> (Node tag text, Maybe XMLParseError)
+parseTree flavor mEnc bs = saxToTree flavor $ parseSAX flavor mEnc bs
+
+-- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
+parseTreeThrowing :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the tree
+          -> Maybe Encoding      -- ^ Optional encoding override
+          -> L.ByteString        -- ^ Input text (a lazy ByteString)
+          -> Node tag text
+parseTreeThrowing flavor mEnc bs = fst $ saxToTree flavor $ parseSAXThrowing flavor mEnc bs
 

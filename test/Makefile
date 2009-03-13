@@ -1,4 +1,4 @@
-all: tests lazySAX lazyTree benchmark leak
+all: tests lazySAX lazyTree lazyTreeThrow benchmark leak
 
 tests: tests.hs
 	ghc -O2 -lexpat --make -o tests tests.hs
@@ -12,8 +12,11 @@ lazySAX: lazySAX.hs
 lazyTree: lazyTree.hs
 	ghc -O2 -lexpat --make -o lazyTree lazyTree.hs
 
+lazyTreeThrow: lazyTreeThrow.hs
+	ghc -O2 -lexpat --make -o lazyTreeThrow lazyTreeThrow.hs
+
 benchmark: benchmark.hs
-	ghc -O2 -lexpat --make -o benchmark benchmark.hs -threaded
+	ghc -O2 -lexpat --make -o benchmark benchmark.hs #-threaded
 
 leak: leak.hs
 	ghc -O2 -lexpat --make -o leak leak.hs -threaded
