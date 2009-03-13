@@ -5,10 +5,14 @@ module Text.XML.Expat.Namespaced
       , NAttributes
       , mkNName
       , mkAnNName
+      , withNamespaces
       ) where
 
 import Text.XML.Expat.Tree
+import Text.XML.Expat.Qualified
 import Control.Parallel.Strategies
+import qualified Data.Map as M
+import qualified Data.List as L
 
 -- | A namespace-qualified tag.
 --
@@ -43,3 +47,36 @@ mkNName prefix localPart = NName (Just prefix) localPart
 -- | Make a new NName with no prefix.
 mkAnNName :: text -> NName text
 mkAnNName localPart = NName Nothing localPart
+
+type NsMap text = M.Map (Maybe text) text
+
+xmlnsUri :: (GenericXMLString text) => text
+xmlnsUri = gxFromString "http://www.w3.org/2000/xmlns/"
+xmlns :: (GenericXMLString text) => text
+xmlns = gxFromString "xmlns"
+
+withNamespaces :: (GenericXMLString text, Ord text) => QNode text -> NNode text
+withNamespaces = nodeWithNamespaces $ M.fromList [(Just xmlns, xmlnsUri)]
+
+nodeWithNamespaces :: (GenericXMLString text, Ord text) => NsMap text -> QNode text -> NNode text
+nodeWithNamespaces _ (Text t) = Text t
+nodeWithNamespaces bindings (Element qname qattrs qchildren) = Element nname nattrs nchildren
+  where
+    for = flip map
+    (nsAtts, otherAtts) = L.partition ((== Just xmlns) . qnPrefix . fst) qattrs
+    (dfAtt, normalAtts) = L.partition ((== xmlns) . qnLocalPart . fst) qattrs
+    nsMap  = M.fromList $ for nsAtts $ \((QName _ lp), uri) -> (Just lp, uri)
+    dfMap  = M.fromList $ for dfAtt $ \q -> (Nothing, snd q)
+    chldBs = M.unions [dfMap, nsMap, bindings]
+    trans (QName pref qual) = NName (pref `M.lookup` chldBs)
+                                    qual
+    transAt (qn, v) = (trans qn, v) 
+
+    nname       = trans qname
+
+    nNsAtts     = map transAt nsAtts
+    nDfAtt      = map transAt dfAtt
+    nNormalAtts = map transAt normalAtts
+    nattrs      = concat [nNsAtts, nDfAtt, nNormalAtts]
+
+    nchildren   = for qchildren $ nodeWithNamespaces chldBs
