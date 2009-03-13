@@ -9,7 +9,9 @@
 
 module Text.XML.Expat.Format (
         formatTree,
+        formatTree',
         formatNode,
+        formatNode',
         putTree,
         putNode
     ) where

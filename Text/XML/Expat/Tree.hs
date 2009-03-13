@@ -239,7 +239,7 @@ parseSAX (TreeFlavor mkTag mkText _ _) enc input = unsafePerformIO $ do
 
     runParser $ L.toChunks input
 
--- | An exception indicating an XML parse error, using by the /..Throwing/ variants.
+-- | An exception indicating an XML parse error, used by the /..Throwing/ variants.
 data XMLParseException = XMLParseException XMLParseError
     deriving (Eq, Show, Typeable)
 
