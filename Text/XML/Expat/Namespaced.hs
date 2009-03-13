@@ -6,6 +6,7 @@ module Text.XML.Expat.Namespaced
       , mkNName
       , mkAnNName
       , withNamespaces
+      , withQualifiers
       ) where
 
 import Text.XML.Expat.Tree
@@ -48,17 +49,28 @@ mkNName prefix localPart = NName (Just prefix) localPart
 mkAnNName :: text -> NName text
 mkAnNName localPart = NName Nothing localPart
 
-type NsMap text = M.Map (Maybe text) text
+type NsPrefixMap text = M.Map (Maybe text) text -- Maybe (namespace uri) :-> prefix string 
+type PrefixNsMap text = M.Map (Maybe text) text -- Maybe (prefix string) :-> namespace uri
 
 xmlnsUri :: (GenericXMLString text) => text
 xmlnsUri = gxFromString "http://www.w3.org/2000/xmlns/"
 xmlns :: (GenericXMLString text) => text
 xmlns = gxFromString "xmlns"
 
-withNamespaces :: (GenericXMLString text, Ord text) => QNode text -> NNode text
-withNamespaces = nodeWithNamespaces $ M.fromList [(Just xmlns, xmlnsUri)]
+baseNsBindings :: (GenericXMLString text, Ord text)
+               => NsPrefixMap text
+baseNsBindings = M.fromList [(Just xmlns, xmlnsUri)]
 
-nodeWithNamespaces :: (GenericXMLString text, Ord text) => NsMap text -> QNode text -> NNode text
+basePfBindings :: (GenericXMLString text, Ord text)
+               => PrefixNsMap text
+basePfBindings = M.fromList [(Just xmlnsUri, xmlns)]
+
+withNamespaces :: (GenericXMLString text, Ord text)
+               => QNode text -> NNode text
+withNamespaces = nodeWithNamespaces baseNsBindings
+
+nodeWithNamespaces :: (GenericXMLString text, Ord text)
+                   => NsPrefixMap text -> QNode text -> NNode text
 nodeWithNamespaces _ (Text t) = Text t
 nodeWithNamespaces bindings (Element qname qattrs qchildren) = Element nname nattrs nchildren
   where
@@ -80,3 +92,36 @@ nodeWithNamespaces bindings (Element qname qattrs qchildren) = Element nname nat
     nattrs      = concat [nNsAtts, nDfAtt, nNormalAtts]
 
     nchildren   = for qchildren $ nodeWithNamespaces chldBs
+
+withQualifiers :: (GenericXMLString text, Ord text) => NNode text -> QNode text
+withQualifiers = nodeWithQualifiers 1 basePfBindings
+
+nodeWithQualifiers :: (GenericXMLString text, Ord text)
+                   => Int -> PrefixNsMap text -> NNode text -> QNode text
+nodeWithQualifiers cntr bindings (Element nname nattrs nchildren) = Element qname qattrs qchildren
+  where
+    for = flip map
+    (nsAtts, otherAtts) = L.partition ((== Just xmlnsUri) . nnNamespace . fst) nattrs
+    (dfAtt, normalAtts) = L.partition ((== xmlns) . nnLocalPart . fst) nattrs
+    nsMap = M.fromList $ for nsAtts $ \((NName _ lp), uri) -> (Just lp, uri)
+    dfMap = M.fromList $ for dfAtt  $ \(_, uri) -> (Just xmlns, uri)
+    chldBs = M.unions [dfMap, nsMap, bindings]
+
+    trans (i, bs) (NName nspace qual) =
+      case nspace `M.lookup` bs of
+           Nothing -> let
+                        pfx = gxFromString $ "ns" ++ show i
+                        bs' = M.insert nspace pfx bs
+                      in trans (i+1, bs') (NName nspace qual)
+           Just pfx -> ((i, bs), QName (Just pfx) qual)
+    transAt ibs (nn, v) = let (ibs', qn) = trans ibs nn
+                          in  (ibs', (qn, v))
+
+    ((i', bs'), qname) = trans (cntr, bindings) nname
+
+    ((i'',   bs''),   qNsAtts)     = L.mapAccumL transAt (i',   bs')   nsAtts
+    ((i''',  bs'''),  qDfAtt)      = L.mapAccumL transAt (i'',  bs'')  dfAtt
+    ((i'''', bs''''), qNormalAtts) = L.mapAccumL transAt (i''', bs''') normalAtts
+    qattrs = concat [qNsAtts, qDfAtt, qNormalAtts]
+
+    qchildren = for nchildren $ nodeWithQualifiers i'''' bs''''
