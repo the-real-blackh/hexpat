@@ -58,6 +58,7 @@ Library
   Exposed-Modules:
     Text.XML.Expat.Tree,
     Text.XML.Expat.Format,
+    Text.XML.Expat.Namespaced,
     Text.XML.Expat.Qualified,
     Text.XML.Expat.IO
   Extensions: ForeignFunctionInterface
