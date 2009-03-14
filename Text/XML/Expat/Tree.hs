@@ -8,7 +8,7 @@
 -- either strictly or lazily, as well as a lazy SAX-style interface.
 --
 -- Extensible \"flavors\" give you the ability to use any string type. Three
--- are provided here: String, ByteString and Text.
+-- string types are provided for here: @String@, @ByteString@ and @Text@.
 
 module Text.XML.Expat.Tree (
   -- * Tree structure
@@ -23,10 +23,10 @@ module Text.XML.Expat.Tree (
   parseTree',
   Encoding(..),
   XMLParseError(..),
-  saxToTree,
   -- * SAX-style parse
   parseSAX,
   SAXEvent(..),
+  saxToTree,
   -- * Variants that throw exceptions
   XMLParseException(..),
   parseSAXThrowing,
@@ -67,8 +67,8 @@ import Foreign.Ptr
 
 -- | An abstraction for any string type you want to use as xml text (that is,
 -- attribute values or element text content). If you want to use a
--- new string type with @hexpat-pickle@, you must make it an instance of
--- 'GenericXMLString'.
+-- new string type with /hexpat/, you must make it an instance of
+-- 'GenericXMLString', and you will also need to create a /flavor/ for it.
 class (M.Monoid s, Eq s) => GenericXMLString s where
     gxNullString :: s -> Bool
     gxToString :: s -> String
@@ -170,7 +170,7 @@ modifyChildren f node = node { eChildren = f (eChildren node) }
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parseTree' :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
            -> Maybe Encoding      -- ^ Optional encoding override
-           -> B.ByteString        -- ^ Input text (a lazy ByteString)
+           -> B.ByteString        -- ^ Input text (a strict ByteString)
            -> Either XMLParseError (Node tag text)
 {-# SPECIALIZE parseTree' :: TreeFlavor String String -> Maybe Encoding
           -> B.ByteString -> Either XMLParseError (Node String String) #-}
