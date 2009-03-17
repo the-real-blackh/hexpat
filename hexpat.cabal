@@ -16,13 +16,13 @@ Description:
   Note that /hexpat/ has undergone a major API change since 0.3.x.
   .
   Benchmark results on ghc 6.10.1 against HaXml for parsing a 4K xml file with non-threading runtime:
-  HAXML: 2683 us, HEXPAT: low-level parse-no tree: 243 us, lazy-String: 1340 us,
-  lazy-Text: 814 us, strict-String: 1194 us, strict-Text: 732 us
+  HAXML: 2631 us, HEXPAT: low-level parse-no tree: 243 us, lazy-String: 1240 us,
+  lazy-Text: 782 us, strict-String: 1125 us, strict-Text: 770 us
   .
   With -threaded:
-  HAXML: 2691 us, HEXPAT: low-level parse-no tree: 472 us,
-  lazy-String: 1575 us, lazy-Text: 1068 us, strict-String: 1396 us,
-  strict-Text: 964 us
+  HAXML: 2667 us, HEXPAT: low-level parse-no tree: 472 us,
+  lazy-String: 1453 us, lazy-Text: 1057 us, strict-String: 1342 us,
+  strict-Text: 943 us
 Category: XML
 License: BSD3
 License-File: LICENSE
