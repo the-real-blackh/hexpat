@@ -11,22 +11,22 @@ main = do
   xml <- B.readFile "test.xml"
   --xml <- B.readFile "XMLSchema.xsd"
   
-  case  parseTree' byteStringFlavor Nothing xml of
+  case  parseTree' Nothing xml of
     Left terr -> putStrLn $ show terr
-    Right t -> vitalStats "text" t
-  case parseTree' qualifiedByteStringFlavor Nothing xml of
-    Left qerr -> putStrLn $ show qerr
-    Right q -> do
+    Right t -> do
+      vitalStats "text" t
+      let q = toQualified t
       vitalStats "qualified" q
-      vitalStats "namespaced" $ withNamespaces q
+      let n = toNamespaced q
+      vitalStats "namespaced" t
 
-vitalStats :: (Show tag, Show text) => String -> Node tag text -> IO ()
+vitalStats :: (Show tag) => String -> Node tag String -> IO ()
 vitalStats name n = do
   putStrLn $ "Processing tree: " ++ name
   display "  " "" n
   
 
-display :: (Show tag, Show text) => String -> String -> Node tag text -> IO ()
+display :: (Show tag) => String -> String -> Node tag String -> IO ()
 display _ pfx t@(Text _) = putStrLn $ pfx ++ show t
 display ind pfx (Element name attrs chldrn) = do
   putStrLn $ pfx ++ "Element: " ++ show name

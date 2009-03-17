@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 import Text.XML.Expat.Tree
 import Text.XML.Expat.Format
 import Text.XML.Expat.Qualified
@@ -11,8 +13,9 @@ main = do
   --xml <- B.readFile "test.xml"
   xml <- B.readFile "XMLSchema.xsd"
   
-  case parseTree' qualifiedByteStringFlavor Nothing xml of
-    Left qerr -> putStrLn $ show qerr
-    Right q -> do
-      B.putStrLn $ formatTree' qualifiedByteStringFlavor q
-      B.putStrLn $ formatTree' qualifiedByteStringFlavor $ withQualifiers $ withNamespaces q
+  case parseTree' Nothing xml of
+    Left uerr -> putStrLn $ show uerr
+    Right (u::UNode String) -> do
+      B.putStrLn $ formatTree' u
+      B.putStrLn $ formatTree' $ fromQualified $ toQualified u
+      B.putStrLn $ formatTree' $ fromQualified $ fromNamespaced $ toNamespaced $ toQualified u
