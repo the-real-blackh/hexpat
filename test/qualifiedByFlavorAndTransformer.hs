@@ -18,4 +18,8 @@ main = do
         Left terr -> putStrLn $ show terr
         Right t -> do
           let tq = toQualified t
+          putStr "Flavor and toQualified are equivalent: "
           putStrLn . show $ q == tq
+          let fq = fromQualified tq
+          putStr "Plane text and fromQualified . toQualified are equivalent: "
+          putStrLn . show $ t == fq
