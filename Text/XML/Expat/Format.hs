@@ -27,64 +27,64 @@ import Data.Binary.Put
 import Control.Monad
 
 -- | Format document with <?xml.. header - lazy variant that returns lazy ByteString.
-formatTree :: TreeFlavor tag text
-           -> Node tag text
+formatTree :: (GenericXMLString tag, GenericXMLString text) =>
+              Node tag text
            -> L.ByteString
-formatTree flavour node = runPut $ putTree flavour node
+formatTree node = runPut $ putTree node
 
 -- | Format document with <?xml.. header - strict variant that returns strict ByteString.
-formatTree' :: TreeFlavor tag text
-           -> Node tag text
-           -> B.ByteString
-formatTree' flavour node = B.concat $ L.toChunks $ runPut $ putTree flavour node
+formatTree' :: (GenericXMLString tag, GenericXMLString text) =>
+               Node tag text
+            -> B.ByteString
+formatTree' node = B.concat $ L.toChunks $ runPut $ putTree node
 
 -- | Format XML node with no header - lazy variant that returns lazy ByteString.
-formatNode :: TreeFlavor tag text
-           -> Node tag text
+formatNode :: (GenericXMLString tag, GenericXMLString text) =>
+              Node tag text
            -> L.ByteString
-formatNode flavour node = runPut $ putNode flavour node
+formatNode node = runPut $ putNode node
 
 -- | Format XML node with no header - strict variant that returns strict ByteString.
-formatNode' :: TreeFlavor tag text
-           -> Node tag text
-           -> B.ByteString
-formatNode' flavour node = B.concat $ L.toChunks $ runPut $ putNode flavour node
+formatNode' :: (GenericXMLString tag, GenericXMLString text) =>
+               Node tag text
+            -> B.ByteString
+formatNode' node = B.concat $ L.toChunks $ runPut $ putNode node
 
 -- | 'Data.Binary.Put.Put' interface for formatting a tree with <?xml.. header.
-putTree :: TreeFlavor tag text
-        -> Node tag text
+putTree :: (GenericXMLString tag, GenericXMLString text) =>
+           Node tag text
         -> Put
-putTree flavour node = do
+putTree node = do
     putByteString $ pack "<?xml version=\"1.0\""
     putByteString $ pack " encoding=\"UTF-8\""
     putByteString $ pack "?>\n"
-    putNode flavour node
+    putNode node
 
 -- | 'Data.Binary.Put.Put' interface for formatting a node with no header.
-putNode :: TreeFlavor tag text
-           -> Node tag text
-           -> Put
-putNode flavour@(TreeFlavor _ _ putTag fmtText) (Element name attrs children) = do
+putNode :: (GenericXMLString tag, GenericXMLString text) =>
+           Node tag text
+        -> Put
+putNode (Element name attrs children) = do
     putWord8 $ c2w '<'
-    let putThisTag = putTag name
+    let putThisTag = putByteString $ gxToByteString name
     putThisTag
     forM_ attrs $ \(aname, avalue) -> do
         putWord8 $ c2w ' '
-        putTag aname
+        putByteString $ gxToByteString aname
         putByteString $ pack "=\""
-        putXMLText $ fmtText avalue
+        putXMLText $ gxToByteString avalue
         putByteString $ pack "\"" 
     if null children
         then
             putByteString $ pack "/>"
         else do
             putWord8 $ c2w '>'
-            forM_ children $ putNode flavour
+            forM_ children putNode
             putByteString $ pack "</"
             putThisTag
             putWord8 $ c2w '>'
-putNode (TreeFlavor _ _ putTag fmtText) (Text txt) =
-    putXMLText $ fmtText txt
+putNode (Text txt) =
+    putXMLText $ gxToByteString txt
 
 pack :: String -> B.ByteString
 pack = B.pack . map c2w

@@ -21,5 +21,5 @@ toBL = L.fromChunks . chunkify
 infiniteBL = toBL infiniteDoc
 
 main = do
-    print $ fst $ parseTree stringFlavor Nothing infiniteBL
+    print (fst $ parseTree Nothing infiniteBL :: UNode B.ByteString)
 

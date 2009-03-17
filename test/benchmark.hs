@@ -46,24 +46,29 @@ parseOnly xml _ = do
     parse parser xml
     return ()
 
-myParseTree flavor enc xml = parseTree flavor enc (L.fromChunks [xml])
+myParseTree enc xml = parseTree enc (L.fromChunks [xml])
+
+fromRight :: Either XMLParseError a -> a
+fromRight x = case x of
+    Right right -> right
+    Left err -> error (show err)
 
 tests :: [(String, B.ByteString -> String -> IO ())]
 tests = [
     ("HaXml", \_ xml -> rnf (HaXml.xmlParse "input" xml) `seq` return ()),
     ("low-level parse only, no tree", parseOnly),
-    ("lazy myParseTree stringFlavor", \xml _ -> rnf (myParseTree stringFlavor Nothing xml) `seq` return ()),
-    ("lazy myParseTree byteStringFlavor", \xml _ -> rnf (myParseTree byteStringFlavor Nothing xml) `seq` return ()),
-    ("lazy myParseTree textFlavor", \xml _ -> rnf (myParseTree textFlavor Nothing xml) `seq` return ()),
-    ("lazy myParseTree qualifiedStringFlavor", \xml _ -> rnf (myParseTree qualifiedStringFlavor Nothing xml) `seq` return ()),
-    ("lazy myParseTree qualifiedByteStringFlavor", \xml _ -> rnf (myParseTree qualifiedByteStringFlavor Nothing xml) `seq` return ()),
-    ("lazy myParseTree qualifiedTextFlavor", \xml _ -> rnf (myParseTree qualifiedTextFlavor Nothing xml) `seq` return ()),
-    ("strict parseTree' stringFlavor", \xml _ -> rnf (parseTree' stringFlavor Nothing xml) `seq` return ()),
-    ("strict parseTree' byteStringFlavor", \xml _ -> rnf (parseTree' byteStringFlavor Nothing xml) `seq` return ()),
-    ("strict parseTree' textFlavor", \xml _ -> rnf (parseTree' textFlavor Nothing xml) `seq` return ()),
-    ("strict parseTree' qualifiedStringFlavor", \xml _ -> rnf (parseTree' qualifiedStringFlavor Nothing xml) `seq` return ()),
-    ("strict parseTree' qualifiedByteStringFlavor", \xml _ -> rnf (parseTree' qualifiedByteStringFlavor Nothing xml) `seq` return ()),
-    ("strict parseTree' qualifiedTextFlavor", \xml _ -> rnf (parseTree' qualifiedTextFlavor Nothing xml) `seq` return ())
+    ("lazy myParseTree string", \xml _ -> rnf (fst $ myParseTree Nothing xml :: UNode String) `seq` return ()),
+    ("lazy myParseTree byteString", \xml _ -> rnf (fst $ myParseTree Nothing xml :: UNode B.ByteString) `seq` return ()),
+    ("lazy myParseTree text", \xml _ -> rnf (fst $ myParseTree Nothing xml :: UNode T.Text) `seq` return ()),
+    ("lazy myParseTree qualifiedString", \xml _ -> rnf (toQualified $ fst $ myParseTree Nothing xml :: QNode String) `seq` return ()),
+    ("lazy myParseTree qualifiedByteString", \xml _ -> rnf (toQualified $ fst $ myParseTree Nothing xml :: QNode B.ByteString) `seq` return ()),
+    ("lazy myParseTree qualifiedText", \xml _ -> (toQualified $ fst $ myParseTree Nothing xml :: QNode T.Text) `seq` return ()),
+    ("strict parseTree' string", \xml _ -> rnf (fromRight $ parseTree' Nothing xml :: UNode String) `seq` return ()),
+    ("strict parseTree' byteString", \xml _ -> rnf (fromRight $ parseTree' Nothing xml :: UNode B.ByteString) `seq` return ()),
+    ("strict parseTree' text", \xml _ -> rnf (fromRight $ parseTree' Nothing xml :: UNode T.Text) `seq` return ()),
+    ("strict parseTree' qualifiedString", \xml _ -> rnf (toQualified $ fromRight $ parseTree' Nothing xml :: QNode String) `seq` return ()),
+    ("strict parseTree' qualifiedByteString", \xml _ -> rnf (toQualified $ fromRight $ parseTree' Nothing xml :: QNode B.ByteString) `seq` return ()),
+    ("strict parseTree' qualifiedText", \xml _ -> rnf (toQualified $ fromRight $ parseTree' Nothing xml :: QNode T.Text) `seq` return ())
   ]
 
 myCopy :: B.ByteString -> IO B.ByteString

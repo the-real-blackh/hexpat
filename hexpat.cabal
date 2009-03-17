@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.2
 Name: hexpat
-Version: 0.4.1
+Version: 0.5
 Synopsis: wrapper for expat, the fast XML parser
 Description:
   Expat (<http://expat.sourceforge.net/>) is a stream-oriented XML parser
@@ -35,7 +35,6 @@ Copyright:
 Homepage: http://code.haskell.org/hexpat/
 Extra-Source-Files:
   test/tests.hs,
-  test/perf.hs,
   test/test.xml,
   test/benchmark.hs,
   test/lazySAX.hs,

@@ -3,9 +3,6 @@ all: tests lazySAX lazyTree lazyTreeThrow benchmark leak
 tests: tests.hs
 	ghc -O2 -lexpat --make -o tests tests.hs
 
-perf: test.hs
-	ghc -O2 -lexpat --make -o perf perf.hs
-
 lazySAX: lazySAX.hs
 	ghc -O2 -lexpat --make -o lazySAX lazySAX.hs
 

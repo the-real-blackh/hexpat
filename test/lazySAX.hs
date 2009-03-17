@@ -21,5 +21,5 @@ toBL = L.fromChunks . chunkify
 infiniteBL = toBL infiniteDoc
 
 main = do
-    mapM_ print $ parseSAX byteStringFlavor Nothing infiniteBL
+    mapM_ print (parseSAX Nothing infiniteBL :: [SAXEvent B.ByteString B.ByteString])
 

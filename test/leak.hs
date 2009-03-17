@@ -54,7 +54,7 @@ allocateStuff = do
 gocrazy descr = forever $ do
     putStrLn descr
     c <- myLCopy longBL
-    let sax = parseSAX byteStringFlavor Nothing c
+    let sax = parseSAX Nothing c :: [SAXEvent B.ByteString B.ByteString]
     rnf (take 20 sax) `seq` return ()
 
 main = do

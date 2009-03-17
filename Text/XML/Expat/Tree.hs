@@ -7,7 +7,7 @@
 -- | This module provides functions to parse an XML document to a tree structure,
 -- either strictly or lazily, as well as a lazy SAX-style interface.
 --
--- Extensible \"flavors\" give you the ability to use any string type. Three
+-- The GenericXMLString type class allows you to use any string type. Three
 -- string types are provided for here: @String@, @ByteString@ and @Text@.
 
 module Text.XML.Expat.Tree (
@@ -32,12 +32,7 @@ module Text.XML.Expat.Tree (
   parseSAXThrowing,
   parseTreeThrowing,
   -- * Abstraction of string types
-  GenericXMLString(..),
-  -- * Flavors
-  TreeFlavor(..),
-  stringFlavor,
-  byteStringFlavor,
-  textFlavor
+  GenericXMLString(..)
 ) where
 
 import Text.XML.Expat.IO
@@ -68,7 +63,7 @@ import Foreign.Ptr
 -- | An abstraction for any string type you want to use as xml text (that is,
 -- attribute values or element text content). If you want to use a
 -- new string type with /hexpat/, you must make it an instance of
--- 'GenericXMLString', and you will also need to create a /flavor/ for it.
+-- 'GenericXMLString'.
 class (M.Monoid s, Eq s) => GenericXMLString s where
     gxNullString :: s -> Bool
     gxToString :: s -> String
@@ -77,7 +72,9 @@ class (M.Monoid s, Eq s) => GenericXMLString s where
     gxHead :: s -> Char
     gxTail :: s -> s
     gxBreakOn :: Char -> s -> (s, s)
-    
+    gxFromCStringLen :: CStringLen -> IO s
+    gxToByteString :: s -> B.ByteString
+
 instance GenericXMLString String where
     gxNullString = null
     gxToString = id
@@ -86,6 +83,8 @@ instance GenericXMLString String where
     gxHead = head
     gxTail = tail
     gxBreakOn c = break (==c)
+    gxFromCStringLen cstr = U8.decodeString <$> peekCStringLen cstr
+    gxToByteString = B.pack . map c2w . U8.encodeString
 
 instance GenericXMLString B.ByteString where
     gxNullString = B.null
@@ -95,6 +94,8 @@ instance GenericXMLString B.ByteString where
     gxHead = w2c . B.head
     gxTail = B.tail
     gxBreakOn c = B.break (== c2w c)
+    gxFromCStringLen = peekByteStringLen
+    gxToByteString = id
 
 instance GenericXMLString T.Text where
     gxNullString = T.null
@@ -104,47 +105,15 @@ instance GenericXMLString T.Text where
     gxHead = T.head
     gxTail = T.tail
     gxBreakOn c = T.break (==c)
-
-
-data TreeFlavor tag text = TreeFlavor
-        (CString -> IO tag)
-        (CStringLen -> IO text)
-        (tag -> Put)
-        (text -> B.ByteString)
-
--- | Flavor for String data type.
-stringFlavor :: TreeFlavor String String
-stringFlavor = TreeFlavor unpack unpackLen (mapM_ (putWord8 . c2w)) pack
-  where
-    unpack    cstr = U8.decodeString <$> peekCString cstr
-    unpackLen cstr = U8.decodeString <$> peekCStringLen cstr
-    pack = B.pack . map c2w . U8.encodeString
-
--- | Flavor for ByteString data type, containing UTF-8 encoded Unicode.
-byteStringFlavor :: TreeFlavor B.ByteString B.ByteString
-byteStringFlavor = TreeFlavor unpack unpackLen putByteString id
-  where
-    unpack    cstr = peekByteString cstr
-    unpackLen cstr = peekByteStringLen cstr
-
--- | Flavor for Text data type.
-textFlavor :: TreeFlavor T.Text T.Text
-textFlavor = TreeFlavor unpack unpackLen (putByteString . TE.encodeUtf8) TE.encodeUtf8
-  where
-    unpack    cstr = TE.decodeUtf8 <$> peekByteString cstr
-    unpackLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
-
-peekByteString :: CString -> IO B.ByteString
-{-# INLINE peekByteString #-}
-peekByteString cstr = do
-    len <- I.c_strlen cstr
-    peekByteStringLen (castPtr cstr, fromIntegral len)
+    gxFromCStringLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
+    gxToByteString = TE.encodeUtf8
 
 peekByteStringLen :: CStringLen -> IO B.ByteString 
 {-# INLINE peekByteStringLen #-}
 peekByteStringLen (cstr, len) =
     I.create (fromIntegral len) $ \ptr ->
         I.memcpy ptr (castPtr cstr) (fromIntegral len)
+
 
 -- | The tree representation of the XML document.
 data Node tag text =
@@ -183,39 +152,37 @@ modifyChildren :: ([Node tag text] -> [Node tag text])
                -> Node tag text
 modifyChildren f node = node { eChildren = f (eChildren node) }
 
+mkText :: GenericXMLString text => CString -> IO text
+{-# INLINE mkText #-}
+mkText cstr = do
+    len <- c_strlen cstr
+    gxFromCStringLen (cstr, fromIntegral len)
+
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
-parseTree' :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
-           -> Maybe Encoding      -- ^ Optional encoding override
+parseTree' :: (GenericXMLString tag, GenericXMLString text) =>
+              Maybe Encoding      -- ^ Optional encoding override
            -> B.ByteString        -- ^ Input text (a strict ByteString)
            -> Either XMLParseError (Node tag text)
-{-# SPECIALIZE parseTree' :: TreeFlavor String String -> Maybe Encoding
-          -> B.ByteString -> Either XMLParseError (Node String String) #-}
-{-# SPECIALIZE parseTree' :: TreeFlavor B.ByteString B.ByteString -> Maybe Encoding
-          -> B.ByteString -> Either XMLParseError (Node B.ByteString B.ByteString) #-}
-{-# SPECIALIZE parseTree' :: TreeFlavor T.Text T.Text -> Maybe Encoding
-          -> B.ByteString -> Either XMLParseError (Node T.Text T.Text) #-}
-parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse where
+parseTree' enc doc = unsafePerformIO $ runParse where
   runParse = do
     parser <- newParser enc
     -- We maintain the invariant that the stack always has one element,
     -- whose only child at the end of parsing is the root of the actual tree.
-    emptyString <- withCString "" mkTag 
+    let emptyString = gxFromString ""
     stack <- newIORef [Element emptyString [] []]
     setStartElementHandler parser $ \cName cAttrs -> do
-        name <- mkTag cName
+        name <- mkText cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-            attrName <- mkTag cAttrName
-            len <- c_strlen cAttrValue
-            attrValue <- mkText (cAttrValue, fromIntegral len)
+            attrName <- mkText cAttrName
+            attrValue <- mkText cAttrValue
             return (attrName, attrValue)
         modifyIORef stack (start name attrs)
         return True
     setEndElementHandler parser $ \cName -> do
-        name <- mkTag cName
-        modifyIORef stack (end name)
+        modifyIORef stack end
         return True
     setCharacterDataHandler parser $ \cText -> do
-        txt <- mkText cText
+        txt <- gxFromCStringLen cText
         modifyIORef stack (text txt)
         return True
     mError <- parse parser doc
@@ -227,7 +194,7 @@ parseTree' (TreeFlavor mkTag mkText _ _) enc doc = unsafePerformIO $ runParse wh
             
   start name attrs stack = Element name attrs [] : stack
   text str (cur:rest) = modifyChildren (Text str:) cur : rest
-  end name (cur:parent:rest) =
+  end (cur:parent:rest) =
     let node = modifyChildren reverse cur in
     modifyChildren (node:) parent : rest
 
@@ -246,28 +213,27 @@ instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list.
-parseSAX :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
-         -> Maybe Encoding      -- ^ Optional encoding override
+parseSAX :: (GenericXMLString tag, GenericXMLString text) =>
+            Maybe Encoding      -- ^ Optional encoding override
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
-parseSAX (TreeFlavor mkTag mkText _ _) enc input = unsafePerformIO $ do
+parseSAX enc input = unsafePerformIO $ do
     parser <- newParser enc
     queueRef <- newIORef []
     setStartElementHandler parser $ \cName cAttrs -> do
-        name <- mkTag cName
+        name <- mkText cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-            attrName <- mkTag cAttrName
-            len <- c_strlen cAttrValue
-            attrValue <- mkText (cAttrValue, fromIntegral len)
+            attrName <- mkText cAttrName
+            attrValue <- mkText cAttrValue
             return (attrName, attrValue)
         modifyIORef queueRef (StartElement name attrs:)
         return True
     setEndElementHandler parser $ \cName -> do
-        name <- mkTag cName
+        name <- mkText cName
         modifyIORef queueRef (EndElement name:)
         return True
     setCharacterDataHandler parser $ \cText -> do
-        txt <- mkText cText
+        txt <- gxFromCStringLen cText
         modifyIORef queueRef (CharacterData txt:)
         return True
 
@@ -290,23 +256,25 @@ data XMLParseException = XMLParseException XMLParseError
 instance Exception XMLParseException where
 
 -- | Lazily parse XML to SAX events. In the event of an error, throw 'XMLParseException'.
-parseSAXThrowing :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the output
-                 -> Maybe Encoding      -- ^ Optional encoding override
+parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
+                    Maybe Encoding      -- ^ Optional encoding override
                  -> L.ByteString        -- ^ Input text (a lazy ByteString)
                  -> [SAXEvent tag text]
-parseSAXThrowing flavor mEnc bs = map freakOut $ parseSAX flavor mEnc bs
+parseSAXThrowing mEnc bs = map freakOut $ parseSAX mEnc bs
   where
     freakOut (FailDocument err) = Exc.throw $ XMLParseException err
     freakOut other = other
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
-saxToTree :: TreeFlavor tag text -> [SAXEvent tag text] -> (Node tag text, Maybe XMLParseError)
-saxToTree flavor@(TreeFlavor mkTag _ _ _) events =
+saxToTree :: GenericXMLString tag =>
+             [SAXEvent tag text]
+          -> (Node tag text, Maybe XMLParseError)
+saxToTree events =
     let (nodes, mError, _) = ptl events
     in  (safeHead nodes, mError)
   where
     safeHead (a:_) = a
-    safeHead [] = Element (unsafePerformIO $ withCString "" mkTag) [] []
+    safeHead [] = Element (gxFromString "") [] []
     ptl (StartElement name attrs:rem) =
         let (children, err1, rem') = ptl rem
             elt = Element name attrs children
@@ -322,16 +290,16 @@ saxToTree flavor@(TreeFlavor mkTag _ _ _) events =
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
-parseTree :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the tree
-          -> Maybe Encoding      -- ^ Optional encoding override
+parseTree :: (GenericXMLString tag, GenericXMLString text) =>
+             Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> (Node tag text, Maybe XMLParseError)
-parseTree flavor mEnc bs = saxToTree flavor $ parseSAX flavor mEnc bs
+parseTree mEnc bs = saxToTree $ parseSAX mEnc bs
 
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
-parseTreeThrowing :: TreeFlavor tag text -- ^ Flavor, which determines the string type to use in the tree
-          -> Maybe Encoding      -- ^ Optional encoding override
+parseTreeThrowing :: (GenericXMLString tag, GenericXMLString text) =>
+             Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> Node tag text
-parseTreeThrowing flavor mEnc bs = fst $ saxToTree flavor $ parseSAXThrowing flavor mEnc bs
+parseTreeThrowing mEnc bs = fst $ saxToTree $ parseSAXThrowing mEnc bs
 
