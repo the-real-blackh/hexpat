@@ -39,7 +39,9 @@ Extra-Source-Files:
   test/benchmark.hs,
   test/lazySAX.hs,
   test/lazyTree.hs,
-  test/lazyTreeThrow.hs
+  test/lazyTreeThrow.hs,
+  test/errorHandlingWay1.hs,
+  test/errorHandlingWay2.hs
 Build-Type: Simple
 Stability: beta
 

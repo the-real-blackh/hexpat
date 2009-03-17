@@ -9,6 +9,40 @@
 --
 -- The GenericXMLString type class allows you to use any string type. Three
 -- string types are provided for here: @String@, @ByteString@ and @Text@.
+--
+-- Error handling in strict parses is very straight forward - just check the
+-- 'Either' return value.  Lazy parses are not so simple.  Here are two working
+-- examples that illustrate the ways to handle errors.  Here they are:
+--
+-- Way no. 1
+--
+-- > import Text.XML.Expat.Tree
+-- > import qualified Data.ByteString.Lazy as L
+-- > import Data.ByteString.Internal (c2w)
+-- > import Control.Exception.Extensible as E
+-- > 
+-- > -- This is the recommended way to handle errors in lazy parses
+-- > main = do
+-- >     let (tree, mError) = parseTree Nothing (L.pack $ map c2w $ "<top><banana></apple></top>")
+-- >     print (tree :: UNode String)
+-- >     -- Note: We check the error _after_ we have finished our processing on the tree.
+-- >     case mError of
+-- >         Just err -> putStrLn $ "It failed : "++show err
+-- >         Nothing -> putStrLn "Success!"
+--
+-- Way no. 2
+--
+-- > -- This is not the recommended way to handle errors. See errorHandlingWay1.hs
+-- > main = do
+-- >     do
+-- >         let tree = parseTreeThrowing Nothing (L.pack $ map c2w $ "<top><banana></apple></top>")
+-- >         print (tree :: UNode String)
+-- >         -- Because of lazy evaluation, you should not process the tree outside the 'do' block,
+-- >         -- or exceptions could be thrown that won't get caught.
+-- >     `E.catch` (\exc ->
+-- >         case E.fromException exc of
+-- >             Just (XMLParseException err) -> putStrLn $ "It failed : "++show err
+-- >             Nothing -> E.throwIO exc)
 
 module Text.XML.Expat.Tree (
   -- * Tree structure
