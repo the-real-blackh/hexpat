@@ -21,6 +21,8 @@ toBL = L.fromChunks . chunkify
 
 infiniteBL = toBL infiniteDoc
 
+-- This test passes if it raises an exception when it gets bad XML.
+
 main = do
     print $ (parseTreeThrowing Nothing infiniteBL :: UNode B.ByteString)
 
