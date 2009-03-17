@@ -5,8 +5,8 @@ module Text.XML.Expat.Namespaced
       , NAttributes
       , mkNName
       , mkAnNName
-      , withNamespaces
-      , withQualifiers
+      , toNamespaced
+      , fromNamespaced
       , xmlnsUri
       , xmlns
       ) where
@@ -81,9 +81,9 @@ basePfBindings = M.fromList
    , (Just xmlnsUri, Just xmlns)
    ]
 
-withNamespaces :: (GenericXMLString text, Ord text, Show text)
+toNamespaced :: (GenericXMLString text, Ord text, Show text)
                => QNode text -> NNode text
-withNamespaces = nodeWithNamespaces baseNsBindings
+toNamespaced = nodeWithNamespaces baseNsBindings
 
 nodeWithNamespaces :: (GenericXMLString text, Ord text, Show text)
                    => NsPrefixMap text -> QNode text -> NNode text
@@ -113,8 +113,8 @@ nodeWithNamespaces bindings (Element qname qattrs qchildren) = Element nname nat
 
     nchildren   = for qchildren $ nodeWithNamespaces chldBs
 
-withQualifiers :: (GenericXMLString text, Ord text) => NNode text -> QNode text
-withQualifiers = nodeWithQualifiers 1 basePfBindings
+fromNamespaced :: (GenericXMLString text, Ord text) => NNode text -> QNode text
+fromNamespaced = nodeWithQualifiers 1 basePfBindings
 
 nodeWithQualifiers :: (GenericXMLString text, Ord text)
                    => Int -> PrefixNsMap text -> NNode text -> QNode text

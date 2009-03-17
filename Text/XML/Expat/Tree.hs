@@ -73,21 +73,37 @@ class (M.Monoid s, Eq s) => GenericXMLString s where
     gxNullString :: s -> Bool
     gxToString :: s -> String
     gxFromString :: String -> s
-
+    gxFromChar :: Char -> s
+    gxHead :: s -> Char
+    gxTail :: s -> s
+    gxBreakOn :: Char -> s -> (s, s)
+    
 instance GenericXMLString String where
     gxNullString = null
     gxToString = id
     gxFromString = id
+    gxFromChar c = [c]
+    gxHead = head
+    gxTail = tail
+    gxBreakOn c = break (==c)
 
 instance GenericXMLString B.ByteString where
     gxNullString = B.null
     gxToString = U8.decodeString . map w2c . B.unpack
     gxFromString = B.pack . map c2w . U8.encodeString
+    gxFromChar = B.singleton . c2w
+    gxHead = w2c . B.head
+    gxTail = B.tail
+    gxBreakOn c = B.break (== c2w c)
 
 instance GenericXMLString T.Text where
     gxNullString = T.null
     gxToString = T.unpack
     gxFromString = T.pack
+    gxFromChar = T.singleton
+    gxHead = T.head
+    gxTail = T.tail
+    gxBreakOn c = T.break (==c)
 
 
 data TreeFlavor tag text = TreeFlavor
