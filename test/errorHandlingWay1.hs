@@ -1,7 +1,6 @@
 import Text.XML.Expat.Tree
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Internal (c2w)
-import Control.Exception.Extensible as E
 
 -- This is the recommended way to handle errors in lazy parses
 main = do

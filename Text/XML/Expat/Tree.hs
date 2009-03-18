@@ -32,7 +32,10 @@
 --
 -- Way no. 2
 --
--- > -- This is not the recommended way to handle errors. See errorHandlingWay1.hs
+-- > ...
+-- > import Control.Exception.Extensible as E
+-- > 
+-- > -- This is not the recommended way to handle errors.
 -- > main = do
 -- >     do
 -- >         let tree = parseTreeThrowing Nothing (L.pack $ map c2w $ "<top><banana></apple></top>")
