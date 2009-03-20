@@ -94,17 +94,22 @@ nodeWithNamespaces bindings (Element qname qattrs qchildren) = Element nname nat
     (nsAtts, otherAtts) = L.partition ((== Just xmlns) . qnPrefix . fst) qattrs
     (dfAtt, normalAtts) = L.partition ((== QName Nothing xmlns) . fst) otherAtts
     nsMap  = M.fromList $ for nsAtts $ \((QName _ lp), uri) -> (Just lp, Just uri)
+    -- fixme: when snd q is null, use Nothing
     dfMap  = M.fromList $ for dfAtt $ \q -> (Nothing, Just $ snd q)
     chldBs = M.unions [dfMap, nsMap, bindings]
-    trans (QName pref qual) = case pref `M.lookup` chldBs of
+
+    trans bs (QName pref qual) = case pref `M.lookup` bs of
       Nothing -> error 
               $  "Namespace prefix referenced but never bound: '"
               ++ (show . DM.fromJust) pref
               ++ "'"
       Just mUri -> NName mUri qual
-    transAt (qn, v) = (trans qn, v) 
+    nname       = trans chldBs qname
 
-    nname       = trans qname
+    -- attributes with no prefix are in the same namespace as the element
+    attBs = M.insert Nothing (nnNamespace nname) chldBs
+
+    transAt (qn, v) = (trans attBs qn, v)
 
     nNsAtts     = map transAt nsAtts
     nDfAtt      = map transAt dfAtt
