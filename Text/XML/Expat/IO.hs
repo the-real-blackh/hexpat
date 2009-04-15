@@ -188,7 +188,7 @@ doParseChunk a1 a2 a3 =
   let {res' = unStatus res} in
   return (res')
 
--- | Parse error, consisting of message text, line number, and column number
+-- | Parse error, consisting of message text and error location
 data XMLParseError = XMLParseError String XMLParseLocation deriving (Eq, Show)
 
 instance NFData XMLParseError where
