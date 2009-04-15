@@ -33,6 +33,7 @@ Extra-Source-Files:
   test/lazySAX.hs,
   test/lazyTree.hs,
   test/lazyTreeThrow.hs,
+  test/leak.hs,
   test/errorHandlingWay1.hs,
   test/errorHandlingWay2.hs,
   test/helloworld.hs,
