@@ -36,7 +36,8 @@ Extra-Source-Files:
   test/errorHandlingWay1.hs,
   test/errorHandlingWay2.hs,
   test/helloworld.hs,
-  test/locations.hs
+  test/locations.hs,
+  test/Makefile
 Build-Type: Simple
 Stability: beta
 
