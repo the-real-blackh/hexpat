@@ -62,13 +62,13 @@ eitherify f mEnc bs = do
 test_error1 :: IO ()
 test_error1 = do
     let eDoc = parseTree' Nothing (toByteString "<hello></goodbye>") :: Either XMLParseError (UNode String)
-    assertEqual "error1" (Left $ XMLParseError "mismatched tag" 1 9) eDoc
+    assertEqual "error1" (Left $ XMLParseError "mismatched tag" (XMLParseLocation 1 9 9 0)) eDoc
 
 test_error2 :: IO ()
 test_error2 = do
     assertEqual "error2" (
             Element {eName = "hello", eAttrs = [], eChildren = []},
-            Just (XMLParseError "mismatched tag" 1 9)
+            Just (XMLParseError "mismatched tag" (XMLParseLocation 1 9 9 0))
         ) (parseTree Nothing
               (toByteStringL "<hello></goodbye>") :: (UNode String, Maybe XMLParseError))
 
@@ -79,14 +79,15 @@ test_error3 =
                 Element {eName = "test1", eAttrs = [], eChildren = [Text "Hello"]},
                 Element {eName = "hello", eAttrs = [], eChildren = []}
             ]},
-            Just (XMLParseError "mismatched tag" 1 35)
+            Just (XMLParseError "mismatched tag" (XMLParseLocation 1 35 35 0))
         ) $ parseTree Nothing
               (toByteStringL "<open><test1>Hello</test1><hello></goodbye>")
 
 test_error4 :: IO ()
 test_error4 = do
     let eDoc = parseTree' Nothing (toByteString "!") :: Either XMLParseError (UNode String)
-    assertEqual "error1" (Left $ XMLParseError "not well-formed (invalid token)" 1 0) eDoc
+    assertEqual "error1" (Left $ XMLParseError "not well-formed (invalid token)"
+        (XMLParseLocation 1 0 0 0)) eDoc
 
 main = do
     testXML <- readFile "test.xml"

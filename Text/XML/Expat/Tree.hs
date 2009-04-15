@@ -10,16 +10,50 @@
 -- The GenericXMLString type class allows you to use any string type. Three
 -- string types are provided for here: @String@, @ByteString@ and @Text@.
 --
+-- Here is a complete example to get you started:
+--
+-- > -- | A "hello world" example of hexpat that lazily parses a document, printing
+-- > -- it to standard out.
+-- > 
+-- > import Text.XML.Expat.Tree
+-- > import Text.XML.Expat.Format
+-- > import System.Environment
+-- > import System.Exit
+-- > import System.IO
+-- > import qualified Data.ByteString.Lazy as L
+-- > 
+-- > main = do
+-- >     args <- getArgs
+-- >     case args of
+-- >         [filename] -> process filename
+-- >         otherwise  -> do
+-- >             hPutStrLn stderr "Usage: helloworld <file.xml>"
+-- >             exitWith $ ExitFailure 1
+-- > 
+-- > process :: String -> IO ()
+-- > process filename = do
+-- >     inputText <- L.readFile filename
+-- >     -- Note: Because we're not using the tree, Haskell can't infer the type of
+-- >     -- strings we're using so we need to tell it explicitly with a type signature.
+-- >     let (xml, mErr) = parseTree Nothing inputText :: (UNode String, Maybe XMLParseError)
+-- >     -- Process document before handling error, so we get lazy processing.
+-- >     L.hPutStr stdout $ formatTree xml
+-- >     putStrLn ""
+-- >     case mErr of
+-- >         Nothing -> return ()
+-- >         Just err -> do
+-- >             hPutStrLn stderr $ "XML parse failed: "++show err
+-- >             exitWith $ ExitFailure 2
+--
 -- Error handling in strict parses is very straight forward - just check the
 -- 'Either' return value.  Lazy parses are not so simple.  Here are two working
 -- examples that illustrate the ways to handle errors.  Here they are:
 --
--- Way no. 1
+-- Way no. 1 - Using a Maybe value
 --
 -- > import Text.XML.Expat.Tree
 -- > import qualified Data.ByteString.Lazy as L
 -- > import Data.ByteString.Internal (c2w)
--- > import Control.Exception.Extensible as E
 -- > 
 -- > -- This is the recommended way to handle errors in lazy parses
 -- > main = do
@@ -30,7 +64,9 @@
 -- >         Just err -> putStrLn $ "It failed : "++show err
 -- >         Nothing -> putStrLn "Success!"
 --
--- Way no. 2
+-- Way no. 2 - Using exceptions
+--
+-- Unless exceptions fit in with the design of your program, this way is less preferred.
 --
 -- > ...
 -- > import Control.Exception.Extensible as E
@@ -60,10 +96,12 @@ module Text.XML.Expat.Tree (
   parseTree',
   Encoding(..),
   XMLParseError(..),
+  XMLParseLocation(..),
   -- * SAX-style parse
   parseSAX,
   SAXEvent(..),
   saxToTree,
+  parseSAXLocations,
   -- * Variants that throw exceptions
   XMLParseException(..),
   parseSAXThrowing,
@@ -301,6 +339,49 @@ parseSAXThrowing mEnc bs = map freakOut $ parseSAX mEnc bs
   where
     freakOut (FailDocument err) = Exc.throw $ XMLParseException err
     freakOut other = other
+
+-- | A variant of parseSAX that gives a document location with each SAX event.
+parseSAXLocations :: (GenericXMLString tag, GenericXMLString text) =>
+            Maybe Encoding      -- ^ Optional encoding override
+         -> L.ByteString        -- ^ Input text (a lazy ByteString)
+         -> [(SAXEvent tag text, XMLParseLocation)]
+parseSAXLocations enc input = unsafePerformIO $ do
+    -- Done with cut & paste coding for maximum speed.
+    parser <- newParser enc
+    queueRef <- newIORef []
+    setStartElementHandler parser $ \cName cAttrs -> do
+        name <- mkText cName
+        attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
+            attrName <- mkText cAttrName
+            attrValue <- mkText cAttrValue
+            return (attrName, attrValue)
+        loc <- getParseLocation parser
+        modifyIORef queueRef ((StartElement name attrs,loc):)
+        return True
+    setEndElementHandler parser $ \cName -> do
+        name <- mkText cName
+        loc <- getParseLocation parser
+        modifyIORef queueRef ((EndElement name, loc):)
+        return True
+    setCharacterDataHandler parser $ \cText -> do
+        txt <- gxFromCStringLen cText
+        loc <- getParseLocation parser
+        modifyIORef queueRef ((CharacterData txt, loc):)
+        return True
+
+    let runParser [] = return []
+        runParser (c:cs) = unsafeInterleaveIO $ do
+            mError <- parseChunk parser c (null cs)
+            queue <- readIORef queueRef
+            writeIORef queueRef []
+            rem <- case mError of
+                Just error -> do
+                    loc <- getParseLocation parser
+                    return [(FailDocument error, loc)]
+                Nothing -> runParser cs
+            return $ reverse queue ++ rem
+
+    runParser $ L.toChunks input
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 saxToTree :: GenericXMLString tag =>

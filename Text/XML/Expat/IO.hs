@@ -18,6 +18,8 @@ module Text.XML.Expat.IO (
 
   -- ** Parsing
   parse, parseChunk, Encoding(..), XMLParseError(..),
+  getParseLocation,
+  XMLParseLocation(..),
 
   -- ** Parser Callbacks
   StartElementHandler, EndElementHandler, CharacterDataHandler,
@@ -41,6 +43,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Internal as BSI
 import Data.IORef
+import Data.Int
 import Foreign
 import CForeign
 
@@ -132,13 +135,11 @@ unsafeParseChunk parser xml final = do
         else Just `fmap` getError parser
 
 getError parser = withParser parser $ \p -> do
-                code <- xmlGetErrorCode p
-                cerr <- xmlErrorString code
-                err <- peekCString cerr
-                line <- xmlGetCurrentLineNumber p
-                col <- xmlGetCurrentColumnNumber p
-                return $ XMLParseError err
-                    (fromIntegral line) (fromIntegral col)
+    code <- xmlGetErrorCode p
+    cerr <- xmlErrorString code
+    err <- peekCString cerr
+    loc <- getParseLocation parser
+    return $ XMLParseError err loc
 
 data ExpatHandlers = ExpatHandlers
     (FunPtr CStartElementHandler)
@@ -188,10 +189,34 @@ doParseChunk a1 a2 a3 =
   return (res')
 
 -- | Parse error, consisting of message text, line number, and column number
-data XMLParseError = XMLParseError String Integer Integer deriving (Eq, Show)
+data XMLParseError = XMLParseError String XMLParseLocation deriving (Eq, Show)
 
 instance NFData XMLParseError where
-    rnf (XMLParseError msg lin col) = rnf (msg, lin, col)
+    rnf (XMLParseError msg loc) = rnf (msg, loc)
+
+-- | Specifies a location of an event within the input text
+data XMLParseLocation = XMLParseLocation {
+        xmlLineNumber   :: Int64,  -- ^ Line number of the event
+        xmlColumnNumber :: Int64,  -- ^ Column number of the event
+        xmlByteIndex    :: Int64,  -- ^ Byte index of event from start of document
+        xmlByteCount    :: Int64   -- ^ The number of bytes in the event
+    }
+    deriving (Eq, Show)
+
+instance NFData XMLParseLocation where
+    rnf (XMLParseLocation lin col ind cou) = rnf (lin, col, ind, cou)
+
+getParseLocation parser = withParser parser $ \p -> do
+    line <- xmlGetCurrentLineNumber p
+    col <- xmlGetCurrentColumnNumber p
+    index <- xmlGetCurrentByteIndex p
+    count <- xmlGetCurrentByteCount p
+    return $ XMLParseLocation {
+            xmlLineNumber = fromIntegral line,
+            xmlColumnNumber = fromIntegral col,
+            xmlByteIndex = fromIntegral index,
+            xmlByteCount = fromIntegral count
+        }
 
 -- |The type of the \"element started\" callback.  The first parameter is
 -- the element name; the second are the (attribute, value) pairs. Return True
@@ -210,12 +235,38 @@ type CharacterDataHandler = CStringLen -> IO Bool
 type CStartElementHandler = Ptr () -> CString -> Ptr CString -> IO ()
 nullCStartElementHandler _ _ _ = return ()
 
+-- Note on word sizes:
+--
+-- on expat 2.0:
+-- XML_GetCurrentLineNumber returns XML_Size
+-- XML_GetCurrentColumnNumber returns XML_Size
+-- XML_GetCurrentByteIndex returns XML_Index
+-- These are defined in expat_external.h
+--
+-- debian-i386 says XML_Size and XML_Index are 4 bytes.
+-- ubuntu-amd64 says XML_Size and XML_Index are 8 bytes.
+-- These two systems do NOT define XML_LARGE_SIZE, which would force these types
+-- to be 64-bit.
+--
+-- If we guess the word size too small, it shouldn't matter: We will just discard
+-- the most significant part.  If we get the word size too large, we will get
+-- garbage (very bad).
+--
+-- So - what I will do is use CLong and CULong, which correspond to what expat
+-- is using when XML_LARGE_SIZE is disabled, and give the correct sizes on the 
+-- two machines mentioned above.  At the absolute worst the word size will be too
+-- short.
+
 foreign import ccall unsafe "expat.h XML_GetErrorCode" xmlGetErrorCode
     :: ParserPtr -> IO CInt
 foreign import ccall unsafe "expat.h XML_GetCurrentLineNumber" xmlGetCurrentLineNumber
-    :: ParserPtr -> IO CUInt  -- to do: Get 64-bit value if supported (how?)
+    :: ParserPtr -> IO CULong
 foreign import ccall unsafe "expat.h XML_GetCurrentColumnNumber" xmlGetCurrentColumnNumber
-    :: ParserPtr -> IO CUInt  -- to do: Get 64-bit value if supported (how?)
+    :: ParserPtr -> IO CULong
+foreign import ccall unsafe "expat.h XML_GetCurrentByteIndex" xmlGetCurrentByteIndex
+    :: ParserPtr -> IO CLong
+foreign import ccall unsafe "expat.h XML_GetCurrentByteCount" xmlGetCurrentByteCount
+    :: ParserPtr -> IO CInt
 foreign import ccall unsafe "expat.h XML_ErrorString" xmlErrorString
     :: CInt -> IO CString
 foreign import ccall unsafe "expat.h XML_StopParser" xmlStopParser
