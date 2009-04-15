@@ -41,7 +41,7 @@ type NNodes text = Nodes (NName text) text
 -- | Type shortcut for a single node where namespaced names are used for tags
 type NNode text = Node (NName text) text
 
--- | Type shortcut for attributes where namespaced names are used for tags
+-- | Type shortcut for attributes with namespaced names
 type NAttributes text = Attributes (NName text) text
 
 -- | Make a new NName from a prefix and localPart.

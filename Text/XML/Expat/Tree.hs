@@ -218,7 +218,7 @@ type UNodes text = Nodes text text
 -- text are the same string type.
 type UNode text = Node text text
 
--- | Type shortcut for attributes with unqualified tag names where tag and
+-- | Type shortcut for attributes with unqualified names where tag and
 -- text are the same string type.
 type UAttributes text = Attributes text text
 
