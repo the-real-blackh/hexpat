@@ -103,7 +103,7 @@ unStatus :: CInt -> Bool
 unStatus 0 = False
 unStatus 1 = True
 
--- |@parse data@ feeds /lazy/ bytestring data into a parser. It returns Nothing
+-- |@parse data@ feeds /strict/ ByteString data into a 'Parser'. It returns Nothing
 -- on success, or Just the parse error.
 parse :: Parser -> BS.ByteString -> IO (Maybe XMLParseError)
 parse parser@(Parser _ _ _ _) bs = withHandlers parser $ do
