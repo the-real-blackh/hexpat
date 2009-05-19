@@ -14,14 +14,14 @@
 --
 -- > -- | A "hello world" example of hexpat that lazily parses a document, printing
 -- > -- it to standard out.
--- > 
+-- >
 -- > import Text.XML.Expat.Tree
 -- > import Text.XML.Expat.Format
 -- > import System.Environment
 -- > import System.Exit
 -- > import System.IO
 -- > import qualified Data.ByteString.Lazy as L
--- > 
+-- >
 -- > main = do
 -- >     args <- getArgs
 -- >     case args of
@@ -29,7 +29,7 @@
 -- >         otherwise  -> do
 -- >             hPutStrLn stderr "Usage: helloworld <file.xml>"
 -- >             exitWith $ ExitFailure 1
--- > 
+-- >
 -- > process :: String -> IO ()
 -- > process filename = do
 -- >     inputText <- L.readFile filename
@@ -54,7 +54,7 @@
 -- > import Text.XML.Expat.Tree
 -- > import qualified Data.ByteString.Lazy as L
 -- > import Data.ByteString.Internal (c2w)
--- > 
+-- >
 -- > -- This is the recommended way to handle errors in lazy parses
 -- > main = do
 -- >     let (tree, mError) = parseTree Nothing (L.pack $ map c2w $ "<top><banana></apple></top>")
@@ -70,7 +70,7 @@
 --
 -- > ...
 -- > import Control.Exception.Extensible as E
--- > 
+-- >
 -- > -- This is not the recommended way to handle errors.
 -- > main = do
 -- >     do
@@ -183,7 +183,7 @@ instance GenericXMLString T.Text where
     gxFromCStringLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
     gxToByteString = TE.encodeUtf8
 
-peekByteStringLen :: CStringLen -> IO B.ByteString 
+peekByteStringLen :: CStringLen -> IO B.ByteString
 {-# INLINE peekByteStringLen #-}
 peekByteStringLen (cstr, len) =
     I.create (fromIntegral len) $ \ptr ->
@@ -266,7 +266,7 @@ parseTree' enc doc = unsafePerformIO $ runParse where
         Nothing -> do
             [Element _ _ [root]] <- readIORef stack
             return $ Right root
-            
+
   start name attrs stack = Element name attrs [] : stack
   text str (cur:rest) = modifyChildren (Text str:) cur : rest
   end (cur:parent:rest) =
@@ -279,7 +279,7 @@ data SAXEvent tag text =
     CharacterData text |
     FailDocument XMLParseError
     deriving (Eq, Show)
-    
+
 instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
     rnf (StartElement tag atts) = rnf (tag, atts)
     rnf (EndElement tag) = rnf tag
@@ -288,7 +288,7 @@ instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list.
-parseSAX :: (GenericXMLString tag, GenericXMLString text) =>
+parseSAX :: (Show tag, Show text, GenericXMLString tag, GenericXMLString text) =>
             Maybe Encoding      -- ^ Optional encoding override
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
@@ -312,14 +312,20 @@ parseSAX enc input = unsafePerformIO $ do
         modifyIORef queueRef (CharacterData txt:)
         return True
 
-    let runParser [] = return []
-        runParser (c:cs) = unsafeInterleaveIO $ do
-            mError <- parseChunk parser c (null cs)
+    let runParser input = unsafeInterleaveIO $ do
+            rem <- case input of
+                (c:cs) -> do
+                    mError <- parseChunk parser c False
+                    case mError of
+                        Just error -> return [FailDocument error]
+                        Nothing -> runParser cs
+                [] -> do
+                    mError <- parseChunk parser B.empty True
+                    case mError of
+                        Just error -> return [FailDocument error]
+                        Nothing -> return []
             queue <- readIORef queueRef
             writeIORef queueRef []
-            rem <- case mError of
-                Just error -> return [FailDocument error]
-                Nothing -> runParser cs
             return $ reverse queue ++ rem
 
     runParser $ L.toChunks input
@@ -331,7 +337,7 @@ data XMLParseException = XMLParseException XMLParseError
 instance Exception XMLParseException where
 
 -- | Lazily parse XML to SAX events. In the event of an error, throw 'XMLParseException'.
-parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
+parseSAXThrowing :: (Show tag, Show text, GenericXMLString tag, GenericXMLString text) =>
                     Maybe Encoding      -- ^ Optional encoding override
                  -> L.ByteString        -- ^ Input text (a lazy ByteString)
                  -> [SAXEvent tag text]
@@ -408,14 +414,14 @@ saxToTree events =
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
-parseTree :: (GenericXMLString tag, GenericXMLString text) =>
+parseTree :: (Show tag, Show text, GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> (Node tag text, Maybe XMLParseError)
 parseTree mEnc bs = saxToTree $ parseSAX mEnc bs
 
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
-parseTreeThrowing :: (GenericXMLString tag, GenericXMLString text) =>
+parseTreeThrowing :: (Show tag, Show text, GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> Node tag text
