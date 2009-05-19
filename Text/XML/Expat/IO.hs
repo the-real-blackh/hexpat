@@ -17,7 +17,7 @@ module Text.XML.Expat.IO (
   Parser, newParser,
 
   -- ** Parsing
-  parse, parseChunk, Encoding(..), XMLParseError(..),
+  parse, parse', parseChunk, Encoding(..), XMLParseError(..),
   getParseLocation,
   XMLParseLocation(..),
 
@@ -52,8 +52,8 @@ import CForeign
 type ParserPtr = Ptr ()
 data Parser = Parser
     (ForeignPtr ())
-    (IORef CStartElementHandler) 
-    (IORef CEndElementHandler) 
+    (IORef CStartElementHandler)
+    (IORef CEndElementHandler)
     (IORef CCharacterDataHandler)
 
 instance Show Parser where
@@ -76,7 +76,7 @@ withOptEncoding (Just enc) f = withCString (encodingToString enc) f
 
 parserCreate :: Maybe Encoding -> IO (ParserPtr)
 parserCreate a1 =
-  withOptEncoding a1 $ \a1' -> 
+  withOptEncoding a1 $ \a1' ->
   parserCreate'_ a1' >>= \res ->
   let {res' = id res} in
   return (res')
@@ -103,10 +103,26 @@ unStatus :: CInt -> Bool
 unStatus 0 = False
 unStatus 1 = True
 
+-- |@parse data@ feeds /lazy/ ByteString data into a 'Parser'. It returns Nothing
+-- on success, or Just the parse error.
+parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
+parse parser@(Parser _ _ _ _) bs = withHandlers parser $ do
+    ok <- doParseChunks (BSL.toChunks bs)
+    if ok
+        then return Nothing
+        else Just `fmap` getError parser
+  where
+    doParseChunks [] = doParseChunk parser BS.empty True
+    doParseChunks (c:cs) = do
+        ok <- doParseChunk parser c False
+        if ok
+            then doParseChunks cs
+            else return False
+
 -- |@parse data@ feeds /strict/ ByteString data into a 'Parser'. It returns Nothing
 -- on success, or Just the parse error.
-parse :: Parser -> BS.ByteString -> IO (Maybe XMLParseError)
-parse parser@(Parser _ _ _ _) bs = withHandlers parser $ do
+parse' :: Parser -> BS.ByteString -> IO (Maybe XMLParseError)
+parse' parser@(Parser _ _ _ _) bs = withHandlers parser $ do
     ok <- doParseChunk parser bs True
     if ok
         then return Nothing
@@ -117,7 +133,7 @@ parse parser@(Parser _ _ _ _) bs = withHandlers parser $ do
 -- final parameter.   It returns Nothing on success, or Just the parse error.
 parseChunk :: Parser
            -> BS.ByteString
-           -> Bool
+           -> Bool  -- ^ True if last chunk
            -> IO (Maybe XMLParseError)
 parseChunk parser xml final = withHandlers parser $ unsafeParseChunk parser xml final
 
@@ -181,9 +197,9 @@ cFromBool  = fromBool
 
 doParseChunk :: Parser -> BS.ByteString -> Bool -> IO (Bool)
 doParseChunk a1 a2 a3 =
-  withParser a1 $ \a1' -> 
-  withBStringLen a2 $ \(a2'1, a2'2) -> 
-  let {a3' = cFromBool a3} in 
+  withParser a1 $ \a1' ->
+  withBStringLen a2 $ \(a2'1, a2'2) ->
+  let {a3' = cFromBool a3} in
   doParseChunk'_ a1' a2'1  a2'2 a3' >>= \res ->
   let {res' = unStatus res} in
   return (res')
@@ -253,7 +269,7 @@ nullCStartElementHandler _ _ _ = return ()
 -- garbage (very bad).
 --
 -- So - what I will do is use CLong and CULong, which correspond to what expat
--- is using when XML_LARGE_SIZE is disabled, and give the correct sizes on the 
+-- is using when XML_LARGE_SIZE is disabled, and give the correct sizes on the
 -- two machines mentioned above.  At the absolute worst the word size will be too
 -- short.
 
@@ -283,7 +299,7 @@ wrapStartElementHandler parser@(Parser _ _ _ _) handler = h
         cattrlist <- peekArray0 nullPtr cattrs
         stillRunning <- handler cname (pairwise cattrlist)
         unless stillRunning $
-            withParser parser $ \p -> xmlStopParser p 0 
+            withParser parser $ \p -> xmlStopParser p 0
 
 -- |Attach a StartElementHandler to a Parser.
 setStartElementHandler :: Parser -> StartElementHandler -> IO ()
@@ -303,7 +319,7 @@ wrapEndElementHandler parser@(Parser _ _ _ _) handler = h
     h ptr cname = do
         stillRunning <- handler cname
         unless stillRunning $
-            withParser parser $ \p -> xmlStopParser p 0 
+            withParser parser $ \p -> xmlStopParser p 0
 
 -- |Attach an EndElementHandler to a Parser.
 setEndElementHandler :: Parser -> EndElementHandler -> IO ()
@@ -323,7 +339,7 @@ wrapCharacterDataHandler parser@(Parser _ _ _ _) handler = h
     h ptr cdata len = do
         stillRunning <- handler (cdata, fromIntegral len)
         unless stillRunning $
-            withParser parser $ \p -> xmlStopParser p 0 
+            withParser parser $ \p -> xmlStopParser p 0
 
 -- | Attach an CharacterDataHandler to a Parser.
 setCharacterDataHandler :: Parser -> CharacterDataHandler -> IO ()

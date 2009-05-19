@@ -1,12 +1,16 @@
 import Text.XML.Expat.Tree
+import Text.XML.Expat.IO
 import Text.XML.Expat.Format
 import Text.XML.Expat.Qualified
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as T
+import CForeign
 import Data.ByteString.Internal (c2w, w2c)
 import Data.Char
 import Data.Maybe
+import Data.IORef
+import Control.Applicative
 import Control.Exception as E
 import Control.Monad
 import Control.Parallel.Strategies
@@ -89,6 +93,29 @@ test_error4 = do
     assertEqual "error1" (Left $ XMLParseError "not well-formed (invalid token)"
         (XMLParseLocation 1 0 0 0)) eDoc
 
+test_parse :: IO ()
+test_parse = do
+    ref <- newIORef []
+    let lazy = L.fromChunks [
+            toByteString "<open><tes",
+            toByteString "t1>Hello</test",
+            toByteString "1><hello></he",
+            toByteString "llo></open>"]
+    parser <- newParser Nothing
+    setStartElementHandler parser $ \cname cattrs -> do
+        name <- peekCString cname
+        ref <- modifyIORef ref $ \l -> ("start "++name):l
+        return True
+    setEndElementHandler parser $ \cname -> do
+        name <- peekCString cname
+        ref <- modifyIORef ref $ \l -> ("end "++name):l
+        return True
+    parse parser lazy
+    l <- reverse <$> readIORef ref
+    assertEqual "parse"
+        ["start open","start test1","end test1","start hello","end hello","end open"]
+        l
+
 main = do
     testXML <- readFile "test.xml"
     -- Remove trailing newline
@@ -122,6 +149,7 @@ main = do
         TestCase $ test_error1,
         TestCase $ test_error2,
         TestCase $ test_error3,
-        TestCase $ test_error4
+        TestCase $ test_error4,
+        TestCase $ test_parse
       ]
 

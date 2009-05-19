@@ -43,7 +43,7 @@ instance NFData Content where
 parseOnly :: B.ByteString -> String -> IO ()
 parseOnly xml _ = do
     parser <- newParser Nothing
-    parse parser xml
+    parse' parser xml
     return ()
 
 myParseTree enc xml = parseTree enc (L.fromChunks [xml])

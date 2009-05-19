@@ -260,7 +260,7 @@ parseTree' enc doc = unsafePerformIO $ runParse where
         txt <- gxFromCStringLen cText
         modifyIORef stack (text txt)
         return True
-    mError <- parse parser doc
+    mError <- parse' parser doc
     case mError of
         Just error -> return $ Left error
         Nothing -> do
