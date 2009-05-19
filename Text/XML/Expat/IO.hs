@@ -10,7 +10,7 @@
 --
 -- (2) Set up callbacks on the parser: 'setStartElementHandler', etc.
 --
--- (3) Feed data into the parser: 'parse' or 'parseChunk'.
+-- (3) Feed data into the parser: 'parse', 'parse'' or 'parseChunk'.
 
 module Text.XML.Expat.IO (
   -- ** Parser Setup
