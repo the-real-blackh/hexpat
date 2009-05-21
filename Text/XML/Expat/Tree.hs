@@ -91,6 +91,7 @@ module Text.XML.Expat.Tree (
   UNode,
   UNodes,
   UAttributes,
+  extractText,
   -- * Parse to tree
   parseTree,
   parseTree',
@@ -122,6 +123,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Codec.Binary.UTF8.String as U8
 import Data.Binary.Put
+import Data.Monoid
 import Data.Typeable
 import Control.Exception.Extensible as Exc
 import Control.Applicative
@@ -222,6 +224,12 @@ type UNode text = Node text text
 -- text are the same string type.
 type UAttributes text = Attributes text text
 
+-- | Extract all text content from inside a tag into a single string, including
+-- any text contained in children.
+extractText :: Monoid text => Node tag text -> text
+extractText (Element _ _ children) = mconcat $ map extractText children
+extractText (Text txt) = txt
+
 modifyChildren :: ([Node tag text] -> [Node tag text])
                -> Node tag text
                -> Node tag text
@@ -288,7 +296,7 @@ instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list.
-parseSAX :: (Show tag, Show text, GenericXMLString tag, GenericXMLString text) =>
+parseSAX :: (GenericXMLString tag, GenericXMLString text) =>
             Maybe Encoding      -- ^ Optional encoding override
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
@@ -337,7 +345,7 @@ data XMLParseException = XMLParseException XMLParseError
 instance Exception XMLParseException where
 
 -- | Lazily parse XML to SAX events. In the event of an error, throw 'XMLParseException'.
-parseSAXThrowing :: (Show tag, Show text, GenericXMLString tag, GenericXMLString text) =>
+parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
                     Maybe Encoding      -- ^ Optional encoding override
                  -> L.ByteString        -- ^ Input text (a lazy ByteString)
                  -> [SAXEvent tag text]
@@ -414,16 +422,15 @@ saxToTree events =
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
-parseTree :: (Show tag, Show text, GenericXMLString tag, GenericXMLString text) =>
+parseTree :: (GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> (Node tag text, Maybe XMLParseError)
 parseTree mEnc bs = saxToTree $ parseSAX mEnc bs
 
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
-parseTreeThrowing :: (Show tag, Show text, GenericXMLString tag, GenericXMLString text) =>
+parseTreeThrowing :: (GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> Node tag text
 parseTreeThrowing mEnc bs = fst $ saxToTree $ parseSAXThrowing mEnc bs
-

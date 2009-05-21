@@ -73,7 +73,7 @@ putNode (Element name attrs children) = do
         putByteString $ gxToByteString aname
         putByteString $ pack "=\""
         putXMLText $ gxToByteString avalue
-        putByteString $ pack "\"" 
+        putByteString $ pack "\""
     if null children
         then
             putByteString $ pack "/>"
@@ -83,6 +83,7 @@ putNode (Element name attrs children) = do
             putByteString $ pack "</"
             putThisTag
             putWord8 $ c2w '>'
+    flush
 putNode (Text txt) =
     putXMLText $ gxToByteString txt
 

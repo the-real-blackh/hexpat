@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.2
 Name: hexpat
-Version: 0.7
+Version: 0.8
 Synopsis: wrapper for expat, the fast XML parser
 Description:
   Expat (<http://expat.sourceforge.net/>) is a stream-oriented XML parser

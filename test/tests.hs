@@ -116,6 +116,14 @@ test_parse = do
         ["start open","start test1","end test1","start hello","end hello","end open"]
         l
 
+test_extractText = do
+    let tree = Element "cheese" [("type", "edam")]
+            [Text "You don't actually ",
+             Element "sub" [] [Text "have any "],
+             Text "cheese at all",
+             Text ", do you?"]
+    assertEqual "extractText" "You don't actually have any cheese at all, do you?" (extractText tree)
+
 main = do
     testXML <- readFile "test.xml"
     -- Remove trailing newline
@@ -150,6 +158,7 @@ main = do
         TestCase $ test_error2,
         TestCase $ test_error3,
         TestCase $ test_error4,
-        TestCase $ test_parse
+        TestCase $ test_parse,
+        TestCase $ test_extractText
       ]
 
