@@ -33,7 +33,6 @@ import Control.Applicative
 import Control.Monad.Writer
 import Control.Parallel.Strategies
 import Data.Monoid
-import Data.Binary.Put
 import qualified Codec.Binary.UTF8.String as U8
 
 -- | A qualified name.
