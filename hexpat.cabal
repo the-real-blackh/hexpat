@@ -1,4 +1,4 @@
-Cabal-Version: >= 1.2
+Cabal-Version: >= 1.4
 Name: hexpat
 Version: 0.9
 Synopsis: wrapper for expat, the fast XML parser
@@ -44,7 +44,7 @@ Stability: beta
 
 Library
   Build-Depends:
-    base,
+    base >= 3 && < 5,
     haskell98,
     bytestring,
     mtl >= 1.1.0.0,
