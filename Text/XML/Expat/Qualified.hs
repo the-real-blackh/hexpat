@@ -96,4 +96,3 @@ fromQualified (Element qname qatts qchldrn) = Element uname uatts uchldrn
     tag (QName (Just prefix) local) = prefix `mappend` gxFromChar ':' `mappend` local
     tag (QName Nothing       local) = local
 
-

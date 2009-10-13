@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.4
 Name: hexpat
-Version: 0.9
+Version: 0.10
 Synopsis: wrapper for expat, the fast XML parser
 Description:
   Expat (<http://expat.sourceforge.net/>) is a stream-oriented XML parser
@@ -48,17 +48,17 @@ Library
     haskell98,
     bytestring,
     mtl >= 1.1.0.0,
-    text >= 0.1,
+    text >= 0.5,
     utf8-string >= 0.3.3,
     parallel,
     containers,
     extensible-exceptions >= 0.1 && < 0.2
   Exposed-Modules:
+    Text.XML.Expat.Annotated,
     Text.XML.Expat.Tree,
     Text.XML.Expat.Format,
     Text.XML.Expat.Namespaced,
     Text.XML.Expat.Qualified,
     Text.XML.Expat.IO
-  Extensions: ForeignFunctionInterface
   Extra-Libraries: expat
 

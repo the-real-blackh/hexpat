@@ -1,3 +1,5 @@
+{-# LANGUAGE ForeignFunctionInterface #-}
+
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
 -- Copyright (C) 2009 Stephen Blackheath <http://blacksapphire.com/antispam>
@@ -101,7 +103,7 @@ withBStringLen bs f = do
 
 unStatus :: CInt -> Bool
 unStatus 0 = False
-unStatus 1 = True
+unStatus _ = True
 
 -- |@parse data@ feeds /lazy/ ByteString data into a 'Parser'. It returns Nothing
 -- on success, or Just the parse error.
@@ -348,7 +350,7 @@ setCharacterDataHandler parser@(Parser _ _ _ charRef) handler =
         writeIORef charRef $ wrapCharacterDataHandler parser handler
 
 pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
-pairwise []         = []
+pairwise _          = []
 
 
 foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_ParserCreate"

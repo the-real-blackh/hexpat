@@ -91,6 +91,7 @@ module Text.XML.Expat.Tree (
   UNode,
   UNodes,
   UAttributes,
+  textContent,
   extractText,
   -- * Parse to tree
   parseTree,
@@ -105,8 +106,9 @@ module Text.XML.Expat.Tree (
   parseSAXLocations,
   -- * Variants that throw exceptions
   XMLParseException(..),
-  parseSAXThrowing,
   parseTreeThrowing,
+  parseSAXThrowing,
+  parseSAXLocationsThrowing,
   -- * Abstraction of string types
   GenericXMLString(..)
 ) where
@@ -180,7 +182,7 @@ instance GenericXMLString T.Text where
     gxFromChar = T.singleton
     gxHead = T.head
     gxTail = T.tail
-    gxBreakOn c = T.break (==c)
+    gxBreakOn c = T.breakBy (==c)
     gxFromCStringLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
     gxToByteString = TE.encodeUtf8
 
@@ -225,9 +227,14 @@ type UAttributes text = Attributes text text
 
 -- | Extract all text content from inside a tag into a single string, including
 -- any text contained in children.
+textContent :: Monoid text => Node tag text -> text
+textContent (Element _ _ children) = mconcat $ map textContent children
+textContent (Text txt) = txt
+
+-- | Deprecated - renamed to textContent.
 extractText :: Monoid text => Node tag text -> text
-extractText (Element _ _ children) = mconcat $ map extractText children
-extractText (Text txt) = txt
+{-# DEPRECATED extractText "renamed to textContent" #-}
+extractText = textContent
 
 modifyChildren :: ([Node tag text] -> [Node tag text])
                -> Node tag text
@@ -276,9 +283,12 @@ parseTree' enc doc = unsafePerformIO $ runParse where
 
   start name attrs stack = Element name attrs [] : stack
   text str (cur:rest) = modifyChildren (Text str:) cur : rest
+  text _ [] = impossible
   end (cur:parent:rest) =
     let node = modifyChildren reverse cur in
     modifyChildren (node:) parent : rest
+  end _ = impossible
+  impossible = error "parseTree' impossible"
 
 data SAXEvent tag text =
     StartElement tag [(tag, text)] |
@@ -343,16 +353,6 @@ data XMLParseException = XMLParseException XMLParseError
 
 instance Exception XMLParseException where
 
--- | Lazily parse XML to SAX events. In the event of an error, throw 'XMLParseException'.
-parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                    Maybe Encoding      -- ^ Optional encoding override
-                 -> L.ByteString        -- ^ Input text (a lazy ByteString)
-                 -> [SAXEvent tag text]
-parseSAXThrowing mEnc bs = map freakOut $ parseSAX mEnc bs
-  where
-    freakOut (FailDocument err) = Exc.throw $ XMLParseException err
-    freakOut other = other
-
 -- | A variant of parseSAX that gives a document location with each SAX event.
 parseSAXLocations :: (GenericXMLString tag, GenericXMLString text) =>
             Maybe Encoding      -- ^ Optional encoding override
@@ -395,6 +395,27 @@ parseSAXLocations enc input = unsafePerformIO $ do
             return $ reverse queue ++ rem
 
     runParser $ L.toChunks input
+
+-- | Lazily parse XML to SAX events. In the event of an error, throw 'XMLParseException'.
+parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
+                    Maybe Encoding      -- ^ Optional encoding override
+                 -> L.ByteString        -- ^ Input text (a lazy ByteString)
+                 -> [SAXEvent tag text]
+parseSAXThrowing mEnc bs = map freakOut $ parseSAX mEnc bs
+  where
+    freakOut (FailDocument err) = Exc.throw $ XMLParseException err
+    freakOut other = other
+
+-- | A variant of parseSAX that gives a document location with each SAX event.
+-- In the event of an error, throw 'XMLParseException'.
+parseSAXLocationsThrowing :: (GenericXMLString tag, GenericXMLString text) =>
+                             Maybe Encoding      -- ^ Optional encoding override
+                          -> L.ByteString        -- ^ Input text (a lazy ByteString)
+                          -> [(SAXEvent tag text, XMLParseLocation)]
+parseSAXLocationsThrowing mEnc bs = map freakOut $ parseSAXLocations mEnc bs
+  where
+    freakOut (FailDocument err, _) = Exc.throw $ XMLParseException err
+    freakOut other = other
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 saxToTree :: GenericXMLString tag =>

@@ -102,13 +102,11 @@ putSAX (EndElement name:elts) =
     B.concat [pack "</", gxToByteString name, B.singleton (c2w '>')]:putSAX elts
 putSAX (CharacterData txt:elts) =
     B.concat (escapeText (gxToByteString txt)):putSAX elts
+putSAX (FailDocument _:elts) = putSAX elts
 putSAX [] = []
 
 pack :: String -> B.ByteString
 pack = B.pack . map c2w
-
-unpack :: L.ByteString -> String
-unpack = map w2c . L.unpack
 
 escapees :: [Word8]
 escapees = map c2w "&<\"'"
