@@ -116,16 +116,16 @@ test_parse = do
         ["start open","start test1","end test1","start hello","end hello","end open"]
         l
 
-test_extractText = do
+test_textContent = do
     let tree = Element "cheese" [("type", "edam")]
             [Text "You don't actually ",
              Element "sub" [] [Text "have any "],
              Text "cheese at all",
              Text ", do you?"]
-    assertEqual "extractText" "You don't actually have any cheese at all, do you?" (extractText tree)
+    assertEqual "textContent" "You don't actually have any cheese at all, do you?" (textContent tree)
 
 main = do
-    testXML <- readFile "test.xml"
+    testXML <- map w2c . B.unpack <$> B.readFile "test.xml"
     -- Remove trailing newline
     let testXML' = reverse . dropWhile (== '\n') . reverse $ testXML
         docs = simpleDocs ++ [testXML']
@@ -159,6 +159,6 @@ main = do
         TestCase $ test_error3,
         TestCase $ test_error4,
         TestCase $ test_parse,
-        TestCase $ test_extractText
+        TestCase $ test_textContent
       ]
 

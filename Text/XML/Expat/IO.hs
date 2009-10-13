@@ -353,17 +353,17 @@ pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
 pairwise _          = []
 
 
-foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_ParserCreate"
+foreign import ccall unsafe "XML_ParserCreate"
   parserCreate'_ :: ((Ptr CChar) -> (IO (Ptr ())))
 
-foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_SetStartElementHandler"
+foreign import ccall unsafe "XML_SetStartElementHandler"
   xmlSetstartelementhandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> ((Ptr (Ptr CChar)) -> (IO ()))))) -> (IO ())))
 
-foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_SetEndElementHandler"
+foreign import ccall unsafe "XML_SetEndElementHandler"
   xmlSetendelementhandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> (IO ())))) -> (IO ())))
 
-foreign import ccall unsafe "Text/XML/Expat/IO.chs.h XML_SetCharacterDataHandler"
+foreign import ccall unsafe "XML_SetCharacterDataHandler"
   xmlSetcharacterdatahandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> (CInt -> (IO ()))))) -> (IO ())))
 
-foreign import ccall safe "Text/XML/Expat/IO.chs.h XML_Parse"
+foreign import ccall safe "XML_Parse"
   doParseChunk'_ :: ((Ptr ()) -> ((Ptr CChar) -> (CInt -> (CInt -> (IO CInt)))))
