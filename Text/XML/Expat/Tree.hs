@@ -93,6 +93,13 @@ module Text.XML.Expat.Tree (
   UAttributes,
   textContent,
   extractText,
+  isElement,
+  isNamed,
+  isText,
+  getAttribute,
+  getChildren,
+  modifyChildren,
+
   -- * Parse to tree
   parseTree,
   parseTree',
@@ -236,10 +243,36 @@ extractText :: Monoid text => Node tag text -> text
 {-# DEPRECATED extractText "renamed to textContent" #-}
 extractText = textContent
 
+-- | Is the given node an element?
+isElement :: Node tag text -> Bool
+isElement (Element _ _ _) = True
+isElement _               = False
+
+-- | Is the given node text?
+isText :: Node tag text -> Bool
+isText (Text _) = True
+isText _        = False
+
+-- | Is the given node a tag with the given name?
+isNamed :: (Eq tag) => tag -> Node tag text -> Bool
+isNamed _  (Text _) = False
+isNamed nm (Element nm' _ _) = nm == nm'
+
+-- | Get the value of the attribute having the specified name.
+getAttribute :: GenericXMLString tag => Node tag text -> tag -> Maybe text
+getAttribute n t = lookup t $ eAttrs n
+
+-- | Get children of a node if it's an element, return empty list otherwise.
+getChildren :: Node tag text -> [Node tag text]
+getChildren (Text _)         = []
+getChildren (Element _ _ ch) = ch
+
+-- | Modify a node's children using the specified function.
 modifyChildren :: ([Node tag text] -> [Node tag text])
                -> Node tag text
                -> Node tag text
-modifyChildren f node = node { eChildren = f (eChildren node) }
+modifyChildren f node@(Text _) = node
+modifyChildren f (Element n a c) = Element n a (f c)
 
 mkText :: GenericXMLString text => CString -> IO text
 {-# INLINE mkText #-}
