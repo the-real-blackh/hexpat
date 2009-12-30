@@ -5,7 +5,7 @@
 -- Copyright (C) 2009 Stephen Blackheath <http://blacksapphire.com/antispam>
 
 -- | This module provides functions to parse an XML document to a tree structure,
--- either strictly or lazily, as well as a lazy SAX-style interface.
+-- either strictly or lazily.
 --
 -- The 'GenericXMLString' type class allows you to use any string type. Three
 -- string types are provided for here: 'String', 'ByteString' and 'Text'.

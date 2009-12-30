@@ -3,7 +3,7 @@ Name: hexpat
 Version: 0.11
 Synopsis: wrapper for expat, the fast XML parser
 Description:
-  This package provides a general purpose Haskell XML library using the Expat do
+  This package provides a general purpose Haskell XML library using Expat to
   do its parsing (<http://expat.sourceforge.net/> - a fast stream-oriented XML
   parser written in C).  It is extensible to any string type, with @String@,
   @ByteString@ and @Text@ provided out of the box.
