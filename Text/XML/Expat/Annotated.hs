@@ -37,29 +37,48 @@ module Text.XML.Expat.Annotated (
         mkAnNName,
         xmlnsUri,
         xmlns,
-        -- * Parse to tree
+        -- * Deprecated parse functions
+        parseSAX,
+        parseSAXThrowing,
+        parseSAXLocations,
+        parseSAXLocationsThrowing,
         parseTree,
         parseTree',
+        parseTreeThrowing,
+
+        -- * Parse to tree
         Encoding(..),
         XMLParseError(..),
         XMLParseLocation(..),
+        parse,
+        parse',
+        parseThrowing,
+
         -- * SAX-style parse
-        parseSAX,
         SAXEvent(..),
         saxToTree,
-        parseSAXLocations,
+
         -- * Variants that throw exceptions
         XMLParseException(..),
-        parseTreeThrowing,
-        parseSAXThrowing,
-        parseSAXLocationsThrowing,
         -- * Abstraction of string types
         GenericXMLString(..)
     ) where
 
-import Text.XML.Expat.Tree hiding (Node(..), Nodes, UNode, UNodes, saxToTree,
-    parseTree, parseTree', parseTreeThrowing, textContent)
-import qualified Text.XML.Expat.Tree as Tree (Node(..))
+import Text.XML.Expat.Tree ( Attributes, UAttributes )
+import qualified Text.XML.Expat.Tree as Tree
+import Text.XML.Expat.SAX ( Encoding(..)
+                          , GenericXMLString(..)
+                          , ParserOptions(..)
+                          , SAXEvent(..)
+                          , XMLParseError(..)
+                          , XMLParseException(..)
+                          , XMLParseLocation(..)
+                          , parseSAX
+                          , parseSAXThrowing
+                          , parseSAXLocations
+                          , parseSAXLocationsThrowing )
+
+import qualified Text.XML.Expat.SAX as SAX
 import Text.XML.Expat.Qualified hiding (QNode, QNodes)
 import Text.XML.Expat.Namespaced hiding (NNode, NNodes)
 
@@ -169,25 +188,51 @@ saxToTree events =
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
+parse :: (GenericXMLString tag, GenericXMLString text) =>
+         ParserOptions tag text   -- ^ Optional encoding override
+      -> L.ByteString             -- ^ Input text (a lazy ByteString)
+      -> (LNode tag text, Maybe XMLParseError)
+parse opts bs = saxToTree $ SAX.parseLocations opts bs
+
+-- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
+-- will force the entire parse.  Therefore, to ensure lazy operation, don't
+-- check the error status until you have processed the tree.
 parseTree :: (GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> (LNode tag text, Maybe XMLParseError)
-parseTree mEnc bs = saxToTree $ parseSAXLocations mEnc bs
+{-# DEPRECATED parseTree "use Text.XML.Expat.parse instead" #-}
+parseTree mEnc = parse (ParserOptions mEnc Nothing)
+
+-- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
+parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
+                 ParserOptions tag text   -- ^ Optional encoding override
+              -> L.ByteString             -- ^ Input text (a lazy ByteString)
+              -> LNode tag text
+parseThrowing opts bs = fst $ saxToTree $ SAX.parseLocationsThrowing opts bs
 
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
 parseTreeThrowing :: (GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> LNode tag text
-parseTreeThrowing mEnc bs = fst $ saxToTree $ parseSAXLocationsThrowing mEnc bs
+{-# DEPRECATED parseTreeThrowing "use Text.XML.Expat.parseThrowing instead" #-}
+parseTreeThrowing mEnc = parseThrowing (ParserOptions mEnc Nothing)
+
+-- | Strictly parse XML to tree. Returns error message or valid parsed tree.
+parse' :: (GenericXMLString tag, GenericXMLString text) =>
+          ParserOptions tag text  -- ^ Optional encoding override
+       -> B.ByteString            -- ^ Input text (a strict ByteString)
+       -> Either XMLParseError (LNode tag text)
+parse' opts bs = case parse opts (L.fromChunks [bs]) of
+    (_, Just err)   -> Left err
+    (root, Nothing) -> Right root 
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parseTree' :: (GenericXMLString tag, GenericXMLString text) =>
               Maybe Encoding      -- ^ Optional encoding override
            -> B.ByteString        -- ^ Input text (a strict ByteString)
            -> Either XMLParseError (LNode tag text)
-parseTree' mEnc bs = case parseTree mEnc (L.fromChunks [bs]) of
-    (_, Just err)   -> Left err
-    (root, Nothing) -> Right root 
+{-# DEPRECATED parseTree' "use Text.XML.Expat.parse' instead" #-}
+parseTree' mEnc = parse' (ParserOptions mEnc Nothing)
 

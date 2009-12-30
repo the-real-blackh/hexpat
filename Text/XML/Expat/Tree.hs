@@ -7,15 +7,15 @@
 -- | This module provides functions to parse an XML document to a tree structure,
 -- either strictly or lazily, as well as a lazy SAX-style interface.
 --
--- The GenericXMLString type class allows you to use any string type. Three
--- string types are provided for here: @String@, @ByteString@ and @Text@.
+-- The 'GenericXMLString' type class allows you to use any string type. Three
+-- string types are provided for here: 'String', 'ByteString' and 'Text'.
 --
 -- Here is a complete example to get you started:
 --
 -- > -- | A "hello world" example of hexpat that lazily parses a document, printing
 -- > -- it to standard out.
 -- >
--- > import Text.XML.Expat.Tree
+-- > import qualified Text.XML.Expat.Tree as Tree
 -- > import Text.XML.Expat.Format
 -- > import System.Environment
 -- > import System.Exit
@@ -35,7 +35,7 @@
 -- >     inputText <- L.readFile filename
 -- >     -- Note: Because we're not using the tree, Haskell can't infer the type of
 -- >     -- strings we're using so we need to tell it explicitly with a type signature.
--- >     let (xml, mErr) = parseTree Nothing inputText :: (UNode String, Maybe XMLParseError)
+-- >     let (xml, mErr) = Tree.parse defaultParserOptions inputText :: (UNode String, Maybe XMLParseError)
 -- >     -- Process document before handling error, so we get lazy processing.
 -- >     L.hPutStr stdout $ formatTree xml
 -- >     putStrLn ""
@@ -51,15 +51,19 @@
 --
 -- Way no. 1 - Using a Maybe value
 --
--- > import Text.XML.Expat.Tree
+-- > import qualified Text.XML.Expat.Tree as Tree
 -- > import qualified Data.ByteString.Lazy as L
 -- > import Data.ByteString.Internal (c2w)
 -- >
 -- > -- This is the recommended way to handle errors in lazy parses
 -- > main = do
--- >     let (tree, mError) = parseTree Nothing (L.pack $ map c2w $ "<top><banana></apple></top>")
+-- >     let (tree, mError) =
+-- >         Tree.parse defaultParserOptions
+-- >                    (L.pack $ map c2w $ "<top><banana></apple></top>")
 -- >     print (tree :: UNode String)
--- >     -- Note: We check the error _after_ we have finished our processing on the tree.
+-- >
+-- >     -- Note: We check the error _after_ we have finished our processing
+-- >     -- on the tree.
 -- >     case mError of
 -- >         Just err -> putStrLn $ "It failed : "++show err
 -- >         Nothing -> putStrLn "Success!"
@@ -74,10 +78,12 @@
 -- > -- This is not the recommended way to handle errors.
 -- > main = do
 -- >     do
--- >         let tree = parseTreeThrowing Nothing (L.pack $ map c2w $ "<top><banana></apple></top>")
+-- >         let tree = Tree.parseThrowing
+-- >                        defaultParserOptions
+-- >                        (L.pack $ map c2w $ "<top><banana></apple></top>")
 -- >         print (tree :: UNode String)
--- >         -- Because of lazy evaluation, you should not process the tree outside the 'do' block,
--- >         -- or exceptions could be thrown that won't get caught.
+-- >         -- Because of lazy evaluation, you should not process the tree outside
+-- >         -- the 'do' block, or exceptions could be thrown that won't get caught.
 -- >     `E.catch` (\exc ->
 -- >         case E.fromException exc of
 -- >             Just (XMLParseException err) -> putStrLn $ "It failed : "++show err
@@ -100,27 +106,61 @@ module Text.XML.Expat.Tree (
   getChildren,
   modifyChildren,
 
-  -- * Parse to tree
+  -- * Parse functions
+  ParserOptions(..),
+  defaultParserOptions,
+  parse,
+  parse',
+  parseThrowing,
+
+  -- * Deprecated parse functions
   parseTree,
   parseTree',
-  Encoding(..),
-  XMLParseError(..),
-  XMLParseLocation(..),
-  -- * SAX-style parse
+
   parseSAX,
-  SAXEvent(..),
-  saxToTree,
   parseSAXLocations,
-  -- * Variants that throw exceptions
-  XMLParseException(..),
+
   parseTreeThrowing,
   parseSAXThrowing,
   parseSAXLocationsThrowing,
+
+  -- * Parse to tree
+  Encoding(..),
+  XMLParseError(..),
+  XMLParseLocation(..),
+
+  -- * SAX-style parse
+  SAXEvent(..),
+  saxToTree,
+
+  -- * Variants that throw exceptions
+  XMLParseException(..),
+
   -- * Abstraction of string types
   GenericXMLString(..)
 ) where
 
-import Text.XML.Expat.IO
+------------------------------------------------------------------------------
+import Text.XML.Expat.IO hiding (parse,parse')
+import qualified Text.XML.Expat.IO as IO
+
+import Text.XML.Expat.SAX ( Encoding(..)
+                          , ParserOptions(..)
+                          , XMLParseException(..)
+                          , XMLParseError(..)
+                          , XMLParseLocation(..)
+                          , SAXEvent(..)
+                          , defaultParserOptions
+                          , mkText
+                          , parseSAX
+                          , parseSAXLocations
+                          , parseSAXLocationsThrowing
+                          , parseSAXThrowing
+                          , GenericXMLString(..) )
+import qualified Text.XML.Expat.SAX as SAX
+
+------------------------------------------------------------------------------
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Internal as I
@@ -145,61 +185,6 @@ import Foreign.C.String
 import Foreign.Ptr
 
 
--- | An abstraction for any string type you want to use as xml text (that is,
--- attribute values or element text content). If you want to use a
--- new string type with /hexpat/, you must make it an instance of
--- 'GenericXMLString'.
-class (M.Monoid s, Eq s) => GenericXMLString s where
-    gxNullString :: s -> Bool
-    gxToString :: s -> String
-    gxFromString :: String -> s
-    gxFromChar :: Char -> s
-    gxHead :: s -> Char
-    gxTail :: s -> s
-    gxBreakOn :: Char -> s -> (s, s)
-    gxFromCStringLen :: CStringLen -> IO s
-    gxToByteString :: s -> B.ByteString
-
-instance GenericXMLString String where
-    gxNullString = null
-    gxToString = id
-    gxFromString = id
-    gxFromChar c = [c]
-    gxHead = head
-    gxTail = tail
-    gxBreakOn c = break (==c)
-    gxFromCStringLen cstr = U8.decodeString <$> peekCStringLen cstr
-    gxToByteString = B.pack . map c2w . U8.encodeString
-
-instance GenericXMLString B.ByteString where
-    gxNullString = B.null
-    gxToString = U8.decodeString . map w2c . B.unpack
-    gxFromString = B.pack . map c2w . U8.encodeString
-    gxFromChar = B.singleton . c2w
-    gxHead = w2c . B.head
-    gxTail = B.tail
-    gxBreakOn c = B.break (== c2w c)
-    gxFromCStringLen = peekByteStringLen
-    gxToByteString = id
-
-instance GenericXMLString T.Text where
-    gxNullString = T.null
-    gxToString = T.unpack
-    gxFromString = T.pack
-    gxFromChar = T.singleton
-    gxHead = T.head
-    gxTail = T.tail
-    gxBreakOn c = T.breakBy (==c)
-    gxFromCStringLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
-    gxToByteString = TE.encodeUtf8
-
-peekByteStringLen :: CStringLen -> IO B.ByteString
-{-# INLINE peekByteStringLen #-}
-peekByteStringLen (cstr, len) =
-    I.create (fromIntegral len) $ \ptr ->
-        I.memcpy ptr (castPtr cstr) (fromIntegral len)
-
-
 -- | The tree representation of the XML document.
 data Node tag text =
     Element {
@@ -217,12 +202,14 @@ instance (NFData tag, NFData text) => NFData (Node tag text) where
 -- | Type shortcut for attributes
 type Attributes tag text = [(tag, text)]
 
--- | Type shortcut for nodes
+-- | Type shortcut for nodes. Deprecated
 type Nodes tag text = [Node tag text]
+{-# DEPRECATED Nodes "use [Node tag text] instead" #-}
 
 -- | Type shortcut for nodes with unqualified tag names where tag and
--- text are the same string type.
+-- text are the same string type. Deprecated
 type UNodes text = Nodes text text
+{-# DEPRECATED UNodes "use [UNode tag text] instead" #-}
 
 -- | Type shortcut for a single node with unqualified tag names where tag and
 -- text are the same string type.
@@ -274,24 +261,59 @@ modifyChildren :: ([Node tag text] -> [Node tag text])
 modifyChildren f node@(Text _) = node
 modifyChildren f (Element n a c) = Element n a (f c)
 
-mkText :: GenericXMLString text => CString -> IO text
-{-# INLINE mkText #-}
-mkText cstr = do
-    len <- c_strlen cstr
-    gxFromCStringLen (cstr, fromIntegral len)
+
+setEntityDecoder :: (GenericXMLString tag, GenericXMLString text)
+                 => Parser
+                 -> IORef [Node tag text]
+                 -> (tag -> Maybe text)
+                 -> IO ()
+setEntityDecoder parser queueRef decoder = do
+    setUseForeignDTD parser True
+    setExternalEntityRefHandler parser eh
+    setSkippedEntityHandler parser skip
+
+  where
+    text str (cur:rest) = modifyChildren (Text str:) cur : rest
+    text _ [] = undefined
+
+    skip _ 1 = return False
+    skip entityName 0 = do
+        en <- mkText entityName
+        let mbt = decoder en
+        maybe (return False)
+              (\t -> do
+                   modifyIORef queueRef $ text t
+                   return True)
+              mbt
+
+    eh p ctx _ systemID publicID =
+        if systemID == nullPtr && publicID == nullPtr
+           then withCStringLen "" $ \c -> do
+               parseExternalEntityReference p ctx Nothing c
+           else return False
+
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
-parseTree' :: (GenericXMLString tag, GenericXMLString text) =>
-              Maybe Encoding      -- ^ Optional encoding override
-           -> B.ByteString        -- ^ Input text (a strict ByteString)
-           -> Either XMLParseError (Node tag text)
-parseTree' enc doc = unsafePerformIO $ runParse where
+parse' :: (GenericXMLString tag, GenericXMLString text) =>
+          ParserOptions tag text  -- ^ Parser options
+       -> ByteString              -- ^ Input text (a strict ByteString)
+       -> Either XMLParseError (Node tag text)
+parse' opts doc = unsafePerformIO $ runParse where
   runParse = do
+    let enc = parserEncoding opts
+    let mEntityDecoder = entityDecoder opts
+
     parser <- newParser enc
+
     -- We maintain the invariant that the stack always has one element,
     -- whose only child at the end of parsing is the root of the actual tree.
     let emptyString = gxFromString ""
     stack <- newIORef [Element emptyString [] []]
+
+    maybe (return ())
+          (setEntityDecoder parser stack)
+          mEntityDecoder
+
     setStartElementHandler parser $ \cName cAttrs -> do
         name <- mkText cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
@@ -307,7 +329,7 @@ parseTree' enc doc = unsafePerformIO $ runParse where
         txt <- gxFromCStringLen cText
         modifyIORef stack (text txt)
         return True
-    mError <- parse' parser doc
+    mError <- IO.parse' parser doc
     case mError of
         Just error -> return $ Left error
         Nothing -> do
@@ -321,134 +343,17 @@ parseTree' enc doc = unsafePerformIO $ runParse where
     let node = modifyChildren reverse cur in
     modifyChildren (node:) parent : rest
   end _ = impossible
-  impossible = error "parseTree' impossible"
+  impossible = error "parse' impossible"
 
-data SAXEvent tag text =
-    StartElement tag [(tag, text)] |
-    EndElement tag |
-    CharacterData text |
-    FailDocument XMLParseError
-    deriving (Eq, Show)
 
-instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
-    rnf (StartElement tag atts) = rnf (tag, atts)
-    rnf (EndElement tag) = rnf tag
-    rnf (CharacterData text) = rnf text
-    rnf (FailDocument err) = rnf err
+-- | Strictly parse XML to tree. Returns error message or valid parsed tree.
+parseTree' :: (GenericXMLString tag, GenericXMLString text) =>
+              Maybe Encoding      -- ^ Optional encoding override
+           -> ByteString          -- ^ Input text (a strict ByteString)
+           -> Either XMLParseError (Node tag text)
+{-# DEPRECATED parseTree' "use Text.XML.Expat.parse' instead" #-}
+parseTree' enc = parse' (ParserOptions enc Nothing)
 
--- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
--- the last element of the output list.
-parseSAX :: (GenericXMLString tag, GenericXMLString text) =>
-            Maybe Encoding      -- ^ Optional encoding override
-         -> L.ByteString        -- ^ Input text (a lazy ByteString)
-         -> [SAXEvent tag text]
-parseSAX enc input = unsafePerformIO $ do
-    parser <- newParser enc
-    queueRef <- newIORef []
-    setStartElementHandler parser $ \cName cAttrs -> do
-        name <- mkText cName
-        attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-            attrName <- mkText cAttrName
-            attrValue <- mkText cAttrValue
-            return (attrName, attrValue)
-        modifyIORef queueRef (StartElement name attrs:)
-        return True
-    setEndElementHandler parser $ \cName -> do
-        name <- mkText cName
-        modifyIORef queueRef (EndElement name:)
-        return True
-    setCharacterDataHandler parser $ \cText -> do
-        txt <- gxFromCStringLen cText
-        modifyIORef queueRef (CharacterData txt:)
-        return True
-
-    let runParser input = unsafeInterleaveIO $ do
-            rem <- case input of
-                (c:cs) -> do
-                    mError <- parseChunk parser c False
-                    case mError of
-                        Just error -> return [FailDocument error]
-                        Nothing -> runParser cs
-                [] -> do
-                    mError <- parseChunk parser B.empty True
-                    case mError of
-                        Just error -> return [FailDocument error]
-                        Nothing -> return []
-            queue <- readIORef queueRef
-            writeIORef queueRef []
-            return $ reverse queue ++ rem
-
-    runParser $ L.toChunks input
-
--- | An exception indicating an XML parse error, used by the /..Throwing/ variants.
-data XMLParseException = XMLParseException XMLParseError
-    deriving (Eq, Show, Typeable)
-
-instance Exception XMLParseException where
-
--- | A variant of parseSAX that gives a document location with each SAX event.
-parseSAXLocations :: (GenericXMLString tag, GenericXMLString text) =>
-            Maybe Encoding      -- ^ Optional encoding override
-         -> L.ByteString        -- ^ Input text (a lazy ByteString)
-         -> [(SAXEvent tag text, XMLParseLocation)]
-parseSAXLocations enc input = unsafePerformIO $ do
-    -- Done with cut & paste coding for maximum speed.
-    parser <- newParser enc
-    queueRef <- newIORef []
-    setStartElementHandler parser $ \cName cAttrs -> do
-        name <- mkText cName
-        attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-            attrName <- mkText cAttrName
-            attrValue <- mkText cAttrValue
-            return (attrName, attrValue)
-        loc <- getParseLocation parser
-        modifyIORef queueRef ((StartElement name attrs,loc):)
-        return True
-    setEndElementHandler parser $ \cName -> do
-        name <- mkText cName
-        loc <- getParseLocation parser
-        modifyIORef queueRef ((EndElement name, loc):)
-        return True
-    setCharacterDataHandler parser $ \cText -> do
-        txt <- gxFromCStringLen cText
-        loc <- getParseLocation parser
-        modifyIORef queueRef ((CharacterData txt, loc):)
-        return True
-
-    let runParser [] = return []
-        runParser (c:cs) = unsafeInterleaveIO $ do
-            mError <- parseChunk parser c (null cs)
-            queue <- readIORef queueRef
-            writeIORef queueRef []
-            rem <- case mError of
-                Just error -> do
-                    loc <- getParseLocation parser
-                    return [(FailDocument error, loc)]
-                Nothing -> runParser cs
-            return $ reverse queue ++ rem
-
-    runParser $ L.toChunks input
-
--- | Lazily parse XML to SAX events. In the event of an error, throw 'XMLParseException'.
-parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                    Maybe Encoding      -- ^ Optional encoding override
-                 -> L.ByteString        -- ^ Input text (a lazy ByteString)
-                 -> [SAXEvent tag text]
-parseSAXThrowing mEnc bs = map freakOut $ parseSAX mEnc bs
-  where
-    freakOut (FailDocument err) = Exc.throw $ XMLParseException err
-    freakOut other = other
-
--- | A variant of parseSAX that gives a document location with each SAX event.
--- In the event of an error, throw 'XMLParseException'.
-parseSAXLocationsThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                             Maybe Encoding      -- ^ Optional encoding override
-                          -> L.ByteString        -- ^ Input text (a lazy ByteString)
-                          -> [(SAXEvent tag text, XMLParseLocation)]
-parseSAXLocationsThrowing mEnc bs = map freakOut $ parseSAXLocations mEnc bs
-  where
-    freakOut (FailDocument err, _) = Exc.throw $ XMLParseException err
-    freakOut other = other
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 saxToTree :: GenericXMLString tag =>
@@ -472,6 +377,17 @@ saxToTree events =
     ptl (FailDocument err:_) = ([], Just err, [])
     ptl [] = ([], Nothing, [])
 
+
+-- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
+-- will force the entire parse.  Therefore, to ensure lazy operation, don't
+-- check the error status until you have processed the tree.
+parse :: (GenericXMLString tag, GenericXMLString text) =>
+         ParserOptions tag text   -- ^ Parser options
+      -> L.ByteString             -- ^ Input text (a lazy ByteString)
+      -> (Node tag text, Maybe XMLParseError)
+parse opts bs = saxToTree $ SAX.parse opts bs
+
+
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
@@ -479,11 +395,22 @@ parseTree :: (GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> (Node tag text, Maybe XMLParseError)
-parseTree mEnc bs = saxToTree $ parseSAX mEnc bs
+{-# DEPRECATED parseTree "use Text.XML.Expat.Tree.parse instead" #-}
+parseTree mEnc = parse (ParserOptions mEnc Nothing)
+
+
+-- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
+parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
+         ParserOptions tag text -- ^ Parser options
+      -> L.ByteString           -- ^ Input text (a lazy ByteString)
+      -> Node tag text
+parseThrowing opts bs = fst $ saxToTree $ SAX.parseThrowing opts bs
+
 
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
 parseTreeThrowing :: (GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> Node tag text
-parseTreeThrowing mEnc bs = fst $ saxToTree $ parseSAXThrowing mEnc bs
+{-# DEPRECATED parseTreeThrowing "use Text.XML.Expat.Tree.parseThrowing instead" #-}
+parseTreeThrowing mEnc = parseThrowing (ParserOptions mEnc Nothing)

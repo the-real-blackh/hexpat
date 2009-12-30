@@ -19,13 +19,19 @@ Description:
 Category: XML
 License: BSD3
 License-File: LICENSE
-Author: Stephen Blackheath (blackh), Evan Martin, Matthew Pocock (drdozer)
+Author:
+  Doug Beardsley,
+  Stephen Blackheath (blackh),
+  Gregory Collins,
+  Evan Martin,
+  Matthew Pocock (drdozer)
 Maintainer: http://blacksapphire.com/antispam/
 Copyright:
+  (c) 2009 Doug Beardsley <mightybyte@gmail.com>,
   (c) 2009 Stephen Blackheath <http://blacksapphire.com/antispam/>,
+  (c) 2009 Gregory Collins,
   (c) 2008 Evan Martin <martine@danga.com>,
-  (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>,
-  (c) 2009 Doug Beardsley <mightybyte@gmail.com>
+  (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>
 Homepage: http://haskell.org/haskellwiki/Hexpat/
 Build-Type: Simple
 Stability: beta
@@ -49,5 +55,6 @@ Library
     Text.XML.Expat.Namespaced,
     Text.XML.Expat.Proc,
     Text.XML.Expat.Qualified,
+    Text.XML.Expat.SAX,
     Text.XML.Expat.Tree
   Extra-Libraries: expat
