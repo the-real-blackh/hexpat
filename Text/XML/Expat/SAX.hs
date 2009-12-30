@@ -43,7 +43,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Internal as I
 import Data.IORef
-import System.IO.Unsafe (unsafePerformIO)
 import Data.ByteString.Internal (c2w, w2c, c_strlen)
 import qualified Data.Monoid as M
 import qualified Data.Text as T
@@ -53,12 +52,9 @@ import Data.Monoid
 import Data.Typeable
 import Control.Exception.Extensible as Exc
 import Control.Applicative
-import Control.Concurrent
-import Control.Concurrent.MVar
 import Control.Parallel.Strategies
 import Control.Monad
 import System.IO.Unsafe
-import System.Mem.Weak
 import Foreign.C.String
 import Foreign.Ptr
 
@@ -173,6 +169,7 @@ setEntityDecoder parser queueRef decoder = do
                    modifyIORef queueRef (CharacterData t:)
                    return True)
               mbt
+    skip _ _ = undefined
 
     eh p ctx _ systemID publicID =
         if systemID == nullPtr && publicID == nullPtr
@@ -202,6 +199,7 @@ setEntityDecoderLoc parser queueRef decoder = do
                    modifyIORef queueRef ((CharacterData t,loc):)
                    return True)
               mbt
+    skip _ _ = undefined
 
     eh p ctx _ systemID publicID =
         if systemID == nullPtr && publicID == nullPtr
@@ -246,26 +244,28 @@ parse opts input = unsafePerformIO $ do
         modifyIORef queueRef (CharacterData txt:)
         return True
 
-    let runParser input = unsafeInterleaveIO $ do
-            rem <- case input of
+    let runParser inp = unsafeInterleaveIO $ do
+            rema <- case inp of
                 (c:cs) -> do
                     mError <- parseChunk parser c False
                     case mError of
-                        Just error -> return [FailDocument error]
+                        Just err -> return [FailDocument err]
                         Nothing -> runParser cs
                 [] -> do
                     mError <- parseChunk parser B.empty True
                     case mError of
-                        Just error -> return [FailDocument error]
+                        Just err -> return [FailDocument err]
                         Nothing -> return []
             queue <- readIORef queueRef
             writeIORef queueRef []
-            return $ reverse queue ++ rem
+            return $ reverse queue ++ rema
 
     runParser $ L.toChunks input
 
 
--- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
+-- | DEPRECATED: Use 'parse' instead.
+--
+-- Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list. Deprecated in favour of new
 -- 'Text.XML.Expat.SAX.parse'
 parseSAX :: (GenericXMLString tag, GenericXMLString text) =>
@@ -327,17 +327,19 @@ parseLocations opts input = unsafePerformIO $ do
             mError <- parseChunk parser c (null cs)
             queue <- readIORef queueRef
             writeIORef queueRef []
-            rem <- case mError of
-                Just error -> do
+            rema <- case mError of
+                Just err -> do
                     loc <- getParseLocation parser
-                    return [(FailDocument error, loc)]
+                    return [(FailDocument err, loc)]
                 Nothing -> runParser cs
-            return $ reverse queue ++ rem
+            return $ reverse queue ++ rema
 
     runParser $ L.toChunks input
 
 
--- | A variant of parseSAX that gives a document location with each SAX event.
+-- | DEPRECATED: Use 'parseLocations' instead.
+--
+-- A variant of parseSAX that gives a document location with each SAX event.
 parseSAXLocations :: (GenericXMLString tag, GenericXMLString text) =>
             Maybe Encoding      -- ^ Optional encoding override
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
@@ -348,6 +350,12 @@ parseSAXLocations enc = parseLocations (ParserOptions enc Nothing)
 
 -- | Lazily parse XML to SAX events. In the event of an error, throw
 -- 'XMLParseException'.
+--
+-- @parseThrowing@ can throw an exception from pure code, which is generally a bad
+-- way to handle errors, because Haskell\'s lazy evaluation means it\'s hard to
+-- predict where it will be thrown from.  However, it may be acceptable in
+-- situations where it's not expected during normal operation, depending on the
+-- design of your program.
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
                  ParserOptions tag text  -- ^ Parser options
               -> L.ByteString            -- ^ input text (a lazy ByteString)
@@ -358,7 +366,9 @@ parseThrowing opts bs = map freakOut $ parse opts bs
     freakOut other = other
 
 
--- | Lazily parse XML to SAX events. In the event of an error, throw
+-- | DEPRECATED: Use 'parseThrowing' instead.
+--
+-- Lazily parse XML to SAX events. In the event of an error, throw
 -- 'XMLParseException'.
 parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
                     Maybe Encoding      -- ^ Optional encoding override
@@ -370,6 +380,12 @@ parseSAXThrowing mEnc = parseThrowing (ParserOptions mEnc Nothing)
 
 -- | A variant of parseSAX that gives a document location with each SAX event.
 -- In the event of an error, throw 'XMLParseException'.
+--
+-- @parseLocationsThrowing@ can throw an exception from pure code, which is generally a bad
+-- way to handle errors, because Haskell\'s lazy evaluation means it\'s hard to
+-- predict where it will be thrown from.  However, it may be acceptable in
+-- situations where it's not expected during normal operation, depending on the
+-- design of your program.
 parseLocationsThrowing :: (GenericXMLString tag, GenericXMLString text) =>
                           ParserOptions tag text  -- ^ Optional encoding override
                        -> L.ByteString            -- ^ Input text (a lazy ByteString)
@@ -380,7 +396,9 @@ parseLocationsThrowing opts bs = map freakOut $ parseLocations opts bs
     freakOut other = other
 
 
--- | A variant of parseSAX that gives a document location with each SAX event.
+-- | DEPRECATED: Used 'parseLocationsThrowing' instead.
+--
+-- A variant of parseSAX that gives a document location with each SAX event.
 -- In the event of an error, throw 'XMLParseException'.
 parseSAXLocationsThrowing :: (GenericXMLString tag, GenericXMLString text) =>
                              Maybe Encoding      -- ^ Optional encoding override

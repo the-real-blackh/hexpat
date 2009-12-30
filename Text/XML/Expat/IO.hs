@@ -56,7 +56,6 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Internal as BSI
 import Data.Maybe (maybe)
 import Data.IORef
-import Data.Int
 import Foreign
 import CForeign
 
@@ -188,6 +187,7 @@ unsafeParseChunk parser xml final = do
         then return Nothing
         else Just `fmap` getError parser
 
+getError :: Parser -> IO XMLParseError
 getError parser = withParser parser $ \p -> do
     code <- xmlGetErrorCode p
     cerr <- xmlErrorString code
@@ -203,7 +203,7 @@ data ExpatHandlers = ExpatHandlers
     (Maybe (FunPtr CSkippedEntityHandler))
 
 unsafeSetHandlers :: Parser -> IO ExpatHandlers
-unsafeSetHandlers parser@(Parser fp startRef endRef charRef extRef skipRef) =
+unsafeSetHandlers parser@(Parser _ startRef endRef charRef extRef skipRef) =
   do
     cStartH <- mkCStartElementHandler =<< readIORef startRef
     cEndH   <- mkCEndElementHandler =<< readIORef endRef
@@ -280,6 +280,7 @@ data XMLParseLocation = XMLParseLocation {
 instance NFData XMLParseLocation where
     rnf (XMLParseLocation lin col ind cou) = rnf (lin, col, ind, cou)
 
+getParseLocation :: Parser -> IO XMLParseLocation
 getParseLocation parser = withParser parser $ \p -> do
     line <- xmlGetCurrentLineNumber p
     col <- xmlGetCurrentColumnNumber p
@@ -330,6 +331,7 @@ type SkippedEntityHandler =  CString  -- entityName
 
 type CStartElementHandler = Ptr () -> CString -> Ptr CString -> IO ()
 
+nullCStartElementHandler :: CStartElementHandler
 nullCStartElementHandler _ _ _ = return ()
 
 foreign import ccall safe "wrapper"
@@ -339,7 +341,7 @@ foreign import ccall safe "wrapper"
 wrapStartElementHandler :: Parser -> StartElementHandler -> CStartElementHandler
 wrapStartElementHandler parser handler = h
   where
-    h ptr cname cattrs = do
+    h _ cname cattrs = do
         cattrlist <- peekArray0 nullPtr cattrs
         stillRunning <- handler cname (pairwise cattrlist)
         unless stillRunning $ stopParser parser
@@ -350,6 +352,8 @@ setStartElementHandler parser@(Parser _ startRef _ _ _ _) handler =
     writeIORef startRef $ wrapStartElementHandler parser handler
 
 type CEndElementHandler = Ptr () -> CString -> IO ()
+
+nullCEndElementHandler :: CEndElementHandler
 nullCEndElementHandler _ _ = return ()
 
 foreign import ccall safe "wrapper"
@@ -358,7 +362,7 @@ foreign import ccall safe "wrapper"
 wrapEndElementHandler :: Parser -> EndElementHandler -> CEndElementHandler
 wrapEndElementHandler parser handler = h
   where
-    h ptr cname = do
+    h _ cname = do
         stillRunning <- handler cname
         unless stillRunning $ stopParser parser
 
@@ -368,6 +372,8 @@ setEndElementHandler parser@(Parser _ _ endRef _ _ _) handler =
     writeIORef endRef $ wrapEndElementHandler parser handler
 
 type CCharacterDataHandler = Ptr () -> CString -> CInt -> IO ()
+
+nullCCharacterDataHandler :: CCharacterDataHandler
 nullCCharacterDataHandler _ _ _ = return ()
 
 foreign import ccall safe "wrapper"
@@ -376,7 +382,7 @@ foreign import ccall safe "wrapper"
 wrapCharacterDataHandler :: Parser -> CharacterDataHandler -> CCharacterDataHandler
 wrapCharacterDataHandler parser handler = h
   where
-    h ptr cdata len = do
+    h _ cdata len = do
         stillRunning <- handler (cdata, fromIntegral len)
         unless stillRunning $ stopParser parser
 
@@ -385,6 +391,7 @@ setCharacterDataHandler :: Parser -> CharacterDataHandler -> IO ()
 setCharacterDataHandler parser@(Parser _ _ _ charRef _ _) handler =
     writeIORef charRef $ wrapCharacterDataHandler parser handler
 
+pairwise :: [a] -> [(a,a)]
 pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
 pairwise _          = []
 

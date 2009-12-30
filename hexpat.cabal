@@ -3,19 +3,26 @@ Name: hexpat
 Version: 0.11
 Synopsis: wrapper for expat, the fast XML parser
 Description:
-  Expat (<http://expat.sourceforge.net/>) is a stream-oriented XML parser
-  written in C.
+  This package provides a general purpose Haskell XML library using the Expat do
+  do its parsing (<http://expat.sourceforge.net/> - a fast stream-oriented XML
+  parser written in C).  It is extensible to any string type, with @String@,
+  @ByteString@ and @Text@ provided out of the box.
   .
-  This package provides a Haskell binding for Expat, with a choice of /tree/ or
-  /SAX-style/ representation, and it includes an /XML formatter/.  It is extensible
-  to any string type, with @String@, @ByteString@ and @Text@ provided out of the box.
+  Basic usage: Parsing a tree (/Tree/), formatting a tree (/Format/).
   .
-  The emphasis is on speed and simplicity. If you want more complete and powerful
-  XML libraries, consider using /HaXml/ or /HXT/ instead.
+  Other features: Helpers for processing XML trees (/Proc/), trees annotated with
+  XML source location (/Annotated/), XML cursors (/Cursor/), more intelligent
+  handling of qualified tag names (/Qualified/), tags qualified with namespaces
+  (/Namespaced/), SAX-style parse (/SAX/), and access to the low-level interface
+  in case speed is paramount (/IO/).
+  .
+  The design goals are speed, speed, speed, interface simplicity and modular design.
   .
   Examples and benchmarks: <http://haskell.org/haskellwiki/Hexpat/>
   .
   DARCS repository: <http://code.haskell.org/hexpat/>
+  .
+  Credits to the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -58,3 +65,4 @@ Library
     Text.XML.Expat.SAX,
     Text.XML.Expat.Tree
   Extra-Libraries: expat
+  --ghc-options: -Wall

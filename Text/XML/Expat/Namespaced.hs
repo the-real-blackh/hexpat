@@ -35,8 +35,11 @@ data NName text =
 instance NFData text => NFData (NName text) where
     rnf (NName ns loc) = rnf (ns, loc)
 
--- | Type shortcut for nodes where namespaced names are used for tags
-type NNodes text = Nodes (NName text) text
+-- | DEPRECATED: Use [NNode text] instead.
+--
+-- Type shortcut for nodes where namespaced names are used for tags.
+{-# DEPRECATED NNodes "use [NNode text] instead" #-}
+type NNodes text = [Node (NName text) text]
 
 -- | Type shortcut for a single node where namespaced names are used for tags
 type NNode text = Node (NName text) text

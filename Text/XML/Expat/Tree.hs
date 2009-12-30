@@ -15,7 +15,7 @@
 -- > -- | A "hello world" example of hexpat that lazily parses a document, printing
 -- > -- it to standard out.
 -- >
--- > import qualified Text.XML.Expat.Tree as Tree
+-- > import Text.XML.Expat.Tree
 -- > import Text.XML.Expat.Format
 -- > import System.Environment
 -- > import System.Exit
@@ -35,9 +35,9 @@
 -- >     inputText <- L.readFile filename
 -- >     -- Note: Because we're not using the tree, Haskell can't infer the type of
 -- >     -- strings we're using so we need to tell it explicitly with a type signature.
--- >     let (xml, mErr) = Tree.parse defaultParserOptions inputText :: (UNode String, Maybe XMLParseError)
+-- >     let (xml, mErr) = parse defaultParserOptions inputText :: (UNode String, Maybe XMLParseError)
 -- >     -- Process document before handling error, so we get lazy processing.
--- >     L.hPutStr stdout $ formatTree xml
+-- >     L.hPutStr stdout $ format xml
 -- >     putStrLn ""
 -- >     case mErr of
 -- >         Nothing -> return ()
@@ -51,14 +51,13 @@
 --
 -- Way no. 1 - Using a Maybe value
 --
--- > import qualified Text.XML.Expat.Tree as Tree
+-- > import Text.XML.Expat.Tree
 -- > import qualified Data.ByteString.Lazy as L
 -- > import Data.ByteString.Internal (c2w)
 -- >
 -- > -- This is the recommended way to handle errors in lazy parses
 -- > main = do
--- >     let (tree, mError) =
--- >         Tree.parse defaultParserOptions
+-- >     let (tree, mError) = parse defaultParserOptions
 -- >                    (L.pack $ map c2w $ "<top><banana></apple></top>")
 -- >     print (tree :: UNode String)
 -- >
@@ -70,7 +69,11 @@
 --
 -- Way no. 2 - Using exceptions
 --
--- Unless exceptions fit in with the design of your program, this way is less preferred.
+-- 'parseThrowing' can throw an exception from pure code, which is generally a bad
+-- way to handle errors, because Haskell\'s lazy evaluation means it\'s hard to
+-- predict where it will be thrown from.  However, it may be acceptable in
+-- situations where it's not expected during normal operation, depending on the
+-- design of your program.
 --
 -- > ...
 -- > import Control.Exception.Extensible as E
@@ -78,8 +81,7 @@
 -- > -- This is not the recommended way to handle errors.
 -- > main = do
 -- >     do
--- >         let tree = Tree.parseThrowing
--- >                        defaultParserOptions
+-- >         let tree = parseThrowing defaultParserOptions
 -- >                        (L.pack $ map c2w $ "<top><banana></apple></top>")
 -- >         print (tree :: UNode String)
 -- >         -- Because of lazy evaluation, you should not process the tree outside
@@ -98,7 +100,6 @@ module Text.XML.Expat.Tree (
   UNodes,
   UAttributes,
   textContent,
-  extractText,
   isElement,
   isNamed,
   isText,
@@ -123,6 +124,8 @@ module Text.XML.Expat.Tree (
   parseTreeThrowing,
   parseSAXThrowing,
   parseSAXLocationsThrowing,
+
+  extractText,
 
   -- * Parse to tree
   Encoding(..),
@@ -161,26 +164,14 @@ import qualified Text.XML.Expat.SAX as SAX
 
 ------------------------------------------------------------------------------
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Internal as I
 import Data.IORef
-import System.IO.Unsafe (unsafePerformIO)
-import Data.ByteString.Internal (c2w, w2c, c_strlen)
 import qualified Data.Monoid as M
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
-import qualified Codec.Binary.UTF8.String as U8
 import Data.Monoid
-import Data.Typeable
-import Control.Exception.Extensible as Exc
-import Control.Applicative
-import Control.Concurrent
-import Control.Concurrent.MVar
 import Control.Parallel.Strategies
 import Control.Monad
 import System.IO.Unsafe
-import System.Mem.Weak
 import Foreign.C.String
 import Foreign.Ptr
 
@@ -202,14 +193,18 @@ instance (NFData tag, NFData text) => NFData (Node tag text) where
 -- | Type shortcut for attributes
 type Attributes tag text = [(tag, text)]
 
--- | Type shortcut for nodes. Deprecated
+-- | DEPRECATED: Use [Node tag text] instead.
+--
+-- Type shortcut for nodes.
 type Nodes tag text = [Node tag text]
 {-# DEPRECATED Nodes "use [Node tag text] instead" #-}
 
--- | Type shortcut for nodes with unqualified tag names where tag and
+-- | DEPRECATED: Use [UNode text] instead.
+--
+-- Type shortcut for nodes with unqualified tag names where tag and
 -- text are the same string type. Deprecated
 type UNodes text = Nodes text text
-{-# DEPRECATED UNodes "use [UNode tag text] instead" #-}
+{-# DEPRECATED UNodes "use [UNode text] instead" #-}
 
 -- | Type shortcut for a single node with unqualified tag names where tag and
 -- text are the same string type.
@@ -225,7 +220,7 @@ textContent :: Monoid text => Node tag text -> text
 textContent (Element _ _ children) = mconcat $ map textContent children
 textContent (Text txt) = txt
 
--- | Deprecated - renamed to textContent.
+-- | DEPRECATED: Renamed to 'textContent'.
 extractText :: Monoid text => Node tag text -> text
 {-# DEPRECATED extractText "renamed to textContent" #-}
 extractText = textContent
@@ -258,7 +253,7 @@ getChildren (Element _ _ ch) = ch
 modifyChildren :: ([Node tag text] -> [Node tag text])
                -> Node tag text
                -> Node tag text
-modifyChildren f node@(Text _) = node
+modifyChildren _ node@(Text _) = node
 modifyChildren f (Element n a c) = Element n a (f c)
 
 
@@ -285,6 +280,7 @@ setEntityDecoder parser queueRef decoder = do
                    modifyIORef queueRef $ text t
                    return True)
               mbt
+    skip _ _ = undefined
 
     eh p ctx _ systemID publicID =
         if systemID == nullPtr && publicID == nullPtr
@@ -322,7 +318,7 @@ parse' opts doc = unsafePerformIO $ runParse where
             return (attrName, attrValue)
         modifyIORef stack (start name attrs)
         return True
-    setEndElementHandler parser $ \cName -> do
+    setEndElementHandler parser $ \_ -> do
         modifyIORef stack end
         return True
     setCharacterDataHandler parser $ \cText -> do
@@ -331,7 +327,7 @@ parse' opts doc = unsafePerformIO $ runParse where
         return True
     mError <- IO.parse' parser doc
     case mError of
-        Just error -> return $ Left error
+        Just err -> return $ Left err
         Nothing -> do
             [Element _ _ [root]] <- readIORef stack
             return $ Right root
@@ -346,7 +342,9 @@ parse' opts doc = unsafePerformIO $ runParse where
   impossible = error "parse' impossible"
 
 
--- | Strictly parse XML to tree. Returns error message or valid parsed tree.
+-- | DEPRECATED: use 'parse' instead.
+--
+-- Strictly parse XML to tree. Returns error message or valid parsed tree.
 parseTree' :: (GenericXMLString tag, GenericXMLString text) =>
               Maybe Encoding      -- ^ Optional encoding override
            -> ByteString          -- ^ Input text (a strict ByteString)
@@ -365,15 +363,15 @@ saxToTree events =
   where
     safeHead (a:_) = a
     safeHead [] = Element (gxFromString "") [] []
-    ptl (StartElement name attrs:rem) =
-        let (children, err1, rem') = ptl rem
+    ptl (StartElement name attrs:rema) =
+        let (children, err1, rema') = ptl rema
             elt = Element name attrs children
-            (out, err2, rem'') = ptl rem'
-        in  (elt:out, err1 `mplus` err2, rem'')
-    ptl (EndElement name:rem) = ([], Nothing, rem)
-    ptl (CharacterData txt:rem) =
-        let (out, err, rem') = ptl rem
-        in  (Text txt:out, err, rem')
+            (out, err2, rema'') = ptl rema'
+        in  (elt:out, err1 `mplus` err2, rema'')
+    ptl (EndElement _:rema) = ([], Nothing, rema)
+    ptl (CharacterData txt:rema) =
+        let (out, err, rema') = ptl rema
+        in  (Text txt:out, err, rema')
     ptl (FailDocument err:_) = ([], Just err, [])
     ptl [] = ([], Nothing, [])
 
@@ -388,7 +386,9 @@ parse :: (GenericXMLString tag, GenericXMLString text) =>
 parse opts bs = saxToTree $ SAX.parse opts bs
 
 
--- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
+-- | DEPREACTED: Use 'parse' instead.
+--
+-- Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
 parseTree :: (GenericXMLString tag, GenericXMLString text) =>
@@ -400,6 +400,12 @@ parseTree mEnc = parse (ParserOptions mEnc Nothing)
 
 
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
+--
+-- @parseThrowing@ can throw an exception from pure code, which is generally a bad
+-- way to handle errors, because Haskell\'s lazy evaluation means it\'s hard to
+-- predict where it will be thrown from.  However, it may be acceptable in
+-- situations where it's not expected during normal operation, depending on the
+-- design of your program.
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
          ParserOptions tag text -- ^ Parser options
       -> L.ByteString           -- ^ Input text (a lazy ByteString)
@@ -407,7 +413,9 @@ parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
 parseThrowing opts bs = fst $ saxToTree $ SAX.parseThrowing opts bs
 
 
--- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
+-- | DEPRECATED: Use 'parseThrowing' instead.
+--
+-- Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
 parseTreeThrowing :: (GenericXMLString tag, GenericXMLString text) =>
              Maybe Encoding      -- ^ Optional encoding override
           -> L.ByteString        -- ^ Input text (a lazy ByteString)

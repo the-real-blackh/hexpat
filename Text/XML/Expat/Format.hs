@@ -9,10 +9,13 @@
 
 module Text.XML.Expat.Format (
         -- * High level
-        formatTree,
-        formatTree',
+        format,
+        format',
         formatNode,
         formatNode',
+        -- * Deprecated names
+        formatTree,
+        formatTree',
         -- * Low level
         xmlHeader,
         treeToSAX,
@@ -29,17 +32,29 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Word
 
--- | Format document with <?xml.. header - lazy variant that returns lazy ByteString.
+-- | DEPRECATED: Renamed to 'format'.
 formatTree :: (GenericXMLString tag, GenericXMLString text) =>
               Node tag text
            -> L.ByteString
-formatTree node = xmlHeader `L.append` formatNode node
+formatTree = format
 
--- | Format document with <?xml.. header - strict variant that returns strict ByteString.
+-- | Format document with <?xml.. header - lazy variant that returns lazy ByteString.
+format :: (GenericXMLString tag, GenericXMLString text) =>
+              Node tag text
+           -> L.ByteString
+format node = xmlHeader `L.append` formatNode node
+
+-- | DEPRECATED: Renamed to 'format''.
 formatTree' :: (GenericXMLString tag, GenericXMLString text) =>
                Node tag text
             -> B.ByteString
 formatTree' = B.concat . L.toChunks . formatTree
+
+-- | Format document with <?xml.. header - strict variant that returns strict ByteString.
+format' :: (GenericXMLString tag, GenericXMLString text) =>
+               Node tag text
+            -> B.ByteString
+format' = B.concat . L.toChunks . formatTree
 
 -- | Format XML node with no header - lazy variant that returns lazy ByteString.
 formatNode :: (GenericXMLString tag, GenericXMLString text) =>

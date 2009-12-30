@@ -53,8 +53,10 @@ data QName text =
 instance NFData text => NFData (QName text) where
     rnf (QName pre loc) = rnf (pre, loc)
 
--- | Type shortcut for nodes where qualified names are used for tags
-{-# DEPRECATED QNodes "use [Node (QName text) text] instead" #-}
+-- | DEPRECATED: Use [QNode text] instead.
+--
+-- Type shortcut for nodes where qualified names are used for tags
+{-# DEPRECATED QNodes "use [QNode text] instead" #-}
 type QNodes text = [Node (QName text) text]
 
 -- | Type shortcut for a single node where qualified names are used for tags
