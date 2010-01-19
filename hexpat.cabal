@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.4
 Name: hexpat
-Version: 0.11
+Version: 0.11.1
 Synopsis: wrapper for expat, the fast XML parser
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -38,7 +38,8 @@ Copyright:
   (c) 2009 Stephen Blackheath <http://blacksapphire.com/antispam/>,
   (c) 2009 Gregory Collins,
   (c) 2008 Evan Martin <martine@danga.com>,
-  (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>
+  (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>,
+  (c) 2007-2009 Galois Inc.
 Homepage: http://haskell.org/haskellwiki/Hexpat/
 Build-Type: Simple
 Stability: beta
