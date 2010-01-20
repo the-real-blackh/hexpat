@@ -2,7 +2,7 @@
 -- |
 -- Module    : Text.XML.Expat.Cursor
 --
--- This module ported from Text.XML.Light.Proc
+-- This module ported from Text.XML.Light.Cursor
 --
 -- XML cursors for working XML content withing the context of
 -- an XML document.  This implementation is based on the general
