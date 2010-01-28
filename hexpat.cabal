@@ -22,7 +22,8 @@ Description:
   .
   DARCS repository: <http://code.haskell.org/hexpat/>
   .
-  Credits to the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
+  Credits to Iavor Diatchki <iavor.diatchki@gmail.com> and the @xml@ (XML.Light)
+  package for /Proc/ and /Cursor/.
 Category: XML
 License: BSD3
 License-File: LICENSE
