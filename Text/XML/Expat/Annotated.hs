@@ -168,6 +168,9 @@ instance NodeClass (Node a) where
         let (n', a', c') = f (n, a, c)
         in  Element n' a' c' ann
 
+-- | Convert an annotated tree (/Annotated/ module) into a non-annotated
+-- tree (/Tree/ module).  Needed, for example, when you @format@ your tree to
+-- XML, since @format@ takes a non-annotated tree.
 unannotate :: Node a tag text -> Tree.Node tag text
 unannotate (Element na at ch _) = (Tree.Element na at (map unannotate ch))
 unannotate (Text t) = Tree.Text t
