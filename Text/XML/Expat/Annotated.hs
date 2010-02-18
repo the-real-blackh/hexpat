@@ -1,10 +1,9 @@
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 -- | A variant of /Node/ in which Element nodes have an annotation of any type,
 -- and some concrete functions that annotate with the XML parse location.
--- It is assumed you will usually want /Tree/ or /Annotated/, not both, so many
--- of the names conflict.
 --
--- Support for qualified and namespaced trees annotated with location information
--- is not complete.
+-- The names conflict with those in /Tree/ so you must use qualified import
+-- if you want to use both modules.
 module Text.XML.Expat.Annotated (
   -- * Tree structure
   Node(..),
@@ -17,16 +16,30 @@ module Text.XML.Expat.Annotated (
   isElement,
   isNamed,
   isText,
+  getName,
+  getAttributes,
   getAttribute,
   getChildren,
+  modifyName,
+  modifyAttributes,
+  setAttribute,
+  deleteAttribute,
+  alterAttribute,
   modifyChildren,
+  mapAllTags,
+
+  -- * Annotation-specific
   unannotate,
+  modifyAnnotation,
+  mapAnnotation,
 
   -- * Qualified nodes
   QName(..),
   QNode,
   QAttributes,
   QLNode,
+  toQualified,
+  fromQualified,
 
   -- * Namespaced nodes
   NName (..),
@@ -35,6 +48,8 @@ module Text.XML.Expat.Annotated (
   NLNode,
   mkNName,
   mkAnNName,
+  toNamespaced,
+  fromNamespaced,
   xmlnsUri,
   xmlns,
 
@@ -59,6 +74,7 @@ module Text.XML.Expat.Annotated (
   GenericXMLString(..),
 
   -- * Deprecated
+  eAttrs,
   parseSAX,
   parseSAXThrowing,
   parseSAXLocations,
@@ -68,6 +84,7 @@ module Text.XML.Expat.Annotated (
   parseTreeThrowing
 ) where
 
+import Control.Arrow
 import Text.XML.Expat.Tree ( Attributes, UAttributes )
 import qualified Text.XML.Expat.Tree as Tree
 import Text.XML.Expat.SAX ( Encoding(..)
@@ -81,10 +98,10 @@ import Text.XML.Expat.SAX ( Encoding(..)
                           , parseSAXThrowing
                           , parseSAXLocations
                           , parseSAXLocationsThrowing )
-
 import qualified Text.XML.Expat.SAX as SAX
 import Text.XML.Expat.Qualified hiding (QNode, QNodes)
 import Text.XML.Expat.Namespaced hiding (NNode, NNodes)
+import Text.XML.Expat.NodeClass
 
 import Control.Monad (mplus)
 import Control.Parallel.Strategies
@@ -94,93 +111,105 @@ import Data.Monoid
 
 
 -- | Annotated variant of the tree representation of the XML document.
-data Node tag text a =
+data Node a tag text =
     Element {
-        eName     :: !tag,
-        eAttrs    :: ![(tag,text)],
-        eChildren :: [Node tag text a],
-        eAnn      :: a
+        eName       :: !tag,
+        eAttributes :: ![(tag,text)],
+        eChildren   :: [Node a tag text],
+        eAnn        :: a
     } |
     Text !text
     deriving (Eq, Show)
 
-instance (NFData tag, NFData text, NFData a) => NFData (Node tag text a) where
+eAttrs :: Node a tag text -> [(tag, text)]
+{-# DEPRECATED eAttrs "use eAttributes instead" #-}
+eAttrs = eAttributes
+
+instance (NFData tag, NFData text, NFData a) => NFData (Node a tag text) where
     rnf (Element nam att chi ann) = rnf (nam, att, chi, ann)
     rnf (Text txt) = rnf txt
 
-unannotate :: Node tag text a -> Tree.Node tag text
+instance NodeClass (Node a) where
+    textContent (Element _ _ children _) = mconcat $ map textContent children
+    textContent (Text txt) = txt
+    
+    isElement (Element _ _ _ _) = True
+    isElement _                 = False
+    
+    isText (Text _) = True
+    isText _        = False
+    
+    isNamed _  (Text _) = False
+    isNamed nm (Element nm' _ _ _) = nm == nm'
+
+    getName (Text _)             = gxFromString ""
+    getName (Element name _ _ _) = name
+
+    getAttributes (Text _)              = []
+    getAttributes (Element _ attrs _ _) = attrs
+
+    getChildren (Text _)           = []
+    getChildren (Element _ _ ch _) = ch
+
+    modifyName _ node@(Text _) = node
+    modifyName f (Element n a c ann) = Element (f n) a c ann
+
+    modifyAttributes _ node@(Text _) = node
+    modifyAttributes f (Element n a c ann) = Element n (f a) c ann
+
+    modifyChildren _ node@(Text _) = node
+    modifyChildren f (Element n a c ann) = Element n a (f c) ann
+
+    mapAllTags _ (Text t) = Text t
+    mapAllTags f (Element n a c ann) = Element (f n) (map (first f) a) (map (mapAllTags f) c) ann
+
+    mapElement _ (Text t) = Text t
+    mapElement f (Element n a c ann) =
+        let (n', a', c') = f (n, a, c)
+        in  Element n' a' c' ann
+
+unannotate :: Node a tag text -> Tree.Node tag text
 unannotate (Element na at ch _) = (Tree.Element na at (map unannotate ch))
 unannotate (Text t) = Tree.Text t
 
--- | Extract all text content from inside a tag into a single string, including
--- any text contained in children.
-textContent :: Monoid text => Node tag text a -> text
-textContent (Element _ _ children _) = mconcat $ map textContent children
-textContent (Text txt) = txt
-
--- | Is the given node an element?
-isElement :: Node tag text a -> Bool
-isElement (Element _ _ _ _) = True
-isElement _                 = False
-
--- | Is the given node text?
-isText :: Node tag text a -> Bool
-isText (Text _) = True
-isText _        = False
-
--- | Is the given node a tag with the given name?
-isNamed :: (Eq tag) => tag -> Node tag text a -> Bool
-isNamed _  (Text _) = False
-isNamed nm (Element nm' _ _ _) = nm == nm'
-
--- | Get the value of the attribute having the specified name.
-getAttribute :: GenericXMLString tag => Node tag text a -> tag -> Maybe text
-getAttribute n t = lookup t $ eAttrs n
-
--- | Get children of a node if it's an element, return empty list otherwise.
-getChildren :: Node tag text a -> [Node tag text a]
-getChildren (Text _)           = []
-getChildren (Element _ _ ch _) = ch
-
--- | Modify a node's children using the specified function.
-modifyChildren :: ([Node tag text a] -> [Node tag text a])
-               -> Node tag text a
-               -> Node tag text a
-modifyChildren _ node@(Text _) = node
-modifyChildren f (Element n a c ann) = Element n a (f c) ann
-
 -- | Type shortcut for a single annotated node with unqualified tag names where
 -- tag and text are the same string type
-type UNode text a = Node text text a
+type UNode a text = Node a text text
 
 -- | Type shortcut for a single annotated node, annotated with parse location
-type LNode tag text = Node tag text XMLParseLocation
+type LNode tag text = Node XMLParseLocation tag text
 
 -- | Type shortcut for a single node with unqualified tag names where
 -- tag and text are the same string type, annotated with parse location
 type ULNode text = LNode text text 
 
 -- | Type shortcut for a single annotated node where qualified names are used for tags
-type QNode text a = Node (QName text) text a
+type QNode a text = Node a (QName text) text
 
 -- | Type shortcut for a single node where qualified names are used for tags, annotated with parse location
 type QLNode text = LNode (QName text) text
 
 -- | Type shortcut for a single annotated node where namespaced names are used for tags
-type NNode text a = Node (NName text) text a
+type NNode text a = Node a (NName text) text
 
 -- | Type shortcut for a single node where namespaced names are used for tags, annotated with parse location
 type NLNode text = LNode (NName text) text
 
-instance Functor (Node tag text) where
-    f `fmap` Element na at ch an = Element na at (map (f `fmap`) ch) (f an)
-    _ `fmap` Text t = Text t
+-- | Modify this node's annotation (non-recursively) if it's an element, otherwise no-op.
+modifyAnnotation :: (a -> a) -> Node a tag text -> Node a tag text
+f `modifyAnnotation` Element na at ch an = Element na at ch (f an)
+_ `modifyAnnotation` Text t = Text t
+
+-- | Modify this node's annotation and all its children recursively if it's an element, otherwise no-op.
+mapAnnotation :: (a -> b) -> Node a tag text -> Node b tag text
+f `mapAnnotation` Element na at ch an = Element na at (map (f `mapAnnotation`) ch) (f an)
+_ `mapAnnotation` Text t = Text t
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 -- Variant that takes annotations for start tags.
 saxToTree :: GenericXMLString tag =>
              [(SAXEvent tag text, a)]
-          -> (Node tag text a, Maybe XMLParseError)
+          -> (Node a tag text, Maybe XMLParseError)
 saxToTree events =
     let (nodes, mError, _) = ptl events
     in  (safeHead nodes, mError)

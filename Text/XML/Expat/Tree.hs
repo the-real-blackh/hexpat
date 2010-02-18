@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances #-}
+{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances, FlexibleInstances,
+        MultiParamTypeClasses #-}
 
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
@@ -101,9 +102,17 @@ module Text.XML.Expat.Tree (
   isElement,
   isNamed,
   isText,
+  getName,
+  getAttributes,
   getAttribute,
   getChildren,
+  modifyName,
+  modifyAttributes,
+  setAttribute,
+  deleteAttribute,
+  alterAttribute,
   modifyChildren,
+  mapAllTags,
 
   -- * Parse to tree
   ParserOptions(..),
@@ -126,6 +135,7 @@ module Text.XML.Expat.Tree (
   GenericXMLString(..),
 
   -- * Deprecated
+  eAttrs,
   Nodes,
   UNodes,
   parseTree,
@@ -134,14 +144,12 @@ module Text.XML.Expat.Tree (
   parseSAXLocations,
   parseTreeThrowing,
   parseSAXThrowing,
-  parseSAXLocationsThrowing,
-  extractText
+  parseSAXLocationsThrowing
 ) where
 
 ------------------------------------------------------------------------------
 import Text.XML.Expat.IO hiding (parse,parse')
 import qualified Text.XML.Expat.IO as IO
-
 import Text.XML.Expat.SAX ( ParserOptions(..)
                           , XMLParseException(..)
                           , SAXEvent(..)
@@ -153,8 +161,10 @@ import Text.XML.Expat.SAX ( ParserOptions(..)
                           , parseSAXThrowing
                           , GenericXMLString(..) )
 import qualified Text.XML.Expat.SAX as SAX
+import Text.XML.Expat.NodeClass
 
 ------------------------------------------------------------------------------
+import Control.Arrow
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.IORef
@@ -170,12 +180,16 @@ import Foreign.Ptr
 -- | The tree representation of the XML document.
 data Node tag text =
     Element {
-        eName     :: !tag,
-        eAttrs    :: ![(tag,text)],
-        eChildren :: [Node tag text]
+        eName       :: !tag,
+        eAttributes :: ![(tag,text)],
+        eChildren   :: [Node tag text]
     } |
     Text !text
     deriving (Eq, Show)
+
+eAttrs :: Node tag text -> [(tag, text)]
+{-# DEPRECATED eAttrs "use eAttributes instead" #-}
+eAttrs = eAttributes
 
 instance (NFData tag, NFData text) => NFData (Node tag text) where
     rnf (Element nam att chi) = rnf (nam, att, chi)
@@ -205,48 +219,44 @@ type UNode text = Node text text
 -- text are the same string type.
 type UAttributes text = Attributes text text
 
--- | Extract all text content from inside a tag into a single string, including
--- any text contained in children.
-textContent :: Monoid text => Node tag text -> text
-textContent (Element _ _ children) = mconcat $ map textContent children
-textContent (Text txt) = txt
+instance NodeClass Node where
+    textContent (Element _ _ children) = mconcat $ map textContent children
+    textContent (Text txt) = txt
+    
+    isElement (Element _ _ _) = True
+    isElement _               = False
+    
+    isText (Text _) = True
+    isText _        = False
+    
+    isNamed _  (Text _) = False
+    isNamed nm (Element nm' _ _) = nm == nm'
 
--- | DEPRECATED: Renamed to 'textContent'.
-extractText :: Monoid text => Node tag text -> text
-{-# DEPRECATED extractText "renamed to textContent" #-}
-extractText = textContent
+    getName (Text _)             = gxFromString ""
+    getName (Element name _ _)   = name
 
--- | Is the given node an element?
-isElement :: Node tag text -> Bool
-isElement (Element _ _ _) = True
-isElement _               = False
+    getAttributes (Text _)            = []
+    getAttributes (Element _ attrs _) = attrs
 
--- | Is the given node text?
-isText :: Node tag text -> Bool
-isText (Text _) = True
-isText _        = False
+    getChildren (Text _)         = []
+    getChildren (Element _ _ ch) = ch
 
--- | Is the given node a tag with the given name?
-isNamed :: (Eq tag) => tag -> Node tag text -> Bool
-isNamed _  (Text _) = False
-isNamed nm (Element nm' _ _) = nm == nm'
+    modifyName _ node@(Text _) = node
+    modifyName f (Element n a c) = Element (f n) a c
 
--- | Get the value of the attribute having the specified name.
-getAttribute :: GenericXMLString tag => Node tag text -> tag -> Maybe text
-getAttribute n t = lookup t $ eAttrs n
+    modifyAttributes _ node@(Text _) = node
+    modifyAttributes f (Element n a c) = Element n (f a) c
 
--- | Get children of a node if it's an element, return empty list otherwise.
-getChildren :: Node tag text -> [Node tag text]
-getChildren (Text _)         = []
-getChildren (Element _ _ ch) = ch
+    modifyChildren _ node@(Text _) = node
+    modifyChildren f (Element n a c) = Element n a (f c)
 
--- | Modify a node's children using the specified function.
-modifyChildren :: ([Node tag text] -> [Node tag text])
-               -> Node tag text
-               -> Node tag text
-modifyChildren _ node@(Text _) = node
-modifyChildren f (Element n a c) = Element n a (f c)
+    mapAllTags _ (Text t) = Text t
+    mapAllTags f (Element n a c) = Element (f n) (map (first f) a) (map (mapAllTags f) c)
 
+    mapElement _ (Text t) = Text t
+    mapElement f (Element n a c) =
+        let (n', a', c') = f (n, a, c)
+        in  Element n' a' c'
 
 setEntityDecoder :: (GenericXMLString tag, GenericXMLString text)
                  => Parser

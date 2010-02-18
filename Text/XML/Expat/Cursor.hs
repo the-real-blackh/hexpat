@@ -85,9 +85,9 @@ setTag t e = fromTag t (elContent e)
 -}
 
 fromTag :: Tag tag text -> [Node tag text] -> Node tag text
-fromTag t cs = Element { eName     = tagName t
-                       , eAttrs    = tagAttribs t
-                       , eChildren = cs
+fromTag t cs = Element { eName       = tagName t
+                       , eAttributes = tagAttribs t
+                       , eChildren   = cs
                        }
 
 type Path tag text = [([Node tag text],Tag tag text,[Node tag text])]
@@ -197,7 +197,7 @@ downParents loc =
 
 getTag :: Node tag text -> Tag tag text
 getTag e = Tag { tagName = eName e
-               , tagAttribs = eAttrs e
+               , tagAttribs = eAttributes e
                }
 
 

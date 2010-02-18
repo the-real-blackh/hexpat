@@ -20,6 +20,7 @@ module Text.XML.Expat.Qualified (
         fromQualified
     ) where
 
+import Text.XML.Expat.NodeClass
 import Text.XML.Expat.Tree
 import Control.Monad.Writer
 import Control.Parallel.Strategies
@@ -62,14 +63,9 @@ mkQName prefix localPart = QName (Just prefix) localPart
 mkAnQName :: text -> QName text
 mkAnQName localPart = QName Nothing localPart
 
-toQualified :: (GenericXMLString text) => UNode text -> QNode text
-toQualified (Text text) = Text text
-toQualified (Element uname uatts uchldrn) = Element qname qatts qchldrn
+toQualified :: (NodeClass n, GenericXMLString text) => n text text -> n (QName text) text
+toQualified = mapAllTags qual
   where
-    qname   = qual uname
-    qatts   = map (\(tag, text) -> (qual tag, text)) uatts
-    qchldrn = map toQualified uchldrn
-
     qual ident =
         case gxBreakOn ':' ident of
              (prefix, _local) | not (gxNullString _local)
@@ -77,14 +73,9 @@ toQualified (Element uname uatts uchldrn) = Element qname qatts qchldrn
                                  -> QName (Just prefix) (gxTail _local)
              _                   -> QName Nothing ident
 
-fromQualified :: (GenericXMLString text) => QNode text -> UNode text
-fromQualified (Text text) = Text text
-fromQualified (Element qname qatts qchldrn) = Element uname uatts uchldrn
+fromQualified :: (NodeClass n, GenericXMLString text) => n (QName text) text -> n text text
+fromQualified = mapAllTags tag
   where
-    uname   = tag qname
-    uatts   = map (\(qual, text) -> (tag qual, text)) qatts
-    uchldrn = map fromQualified qchldrn
-
     tag (QName (Just prefix) local) = prefix `mappend` gxFromChar ':' `mappend` local
     tag (QName Nothing       local) = local
 

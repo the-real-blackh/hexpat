@@ -12,6 +12,7 @@ module Text.XML.Expat.Namespaced
       ) where
 
 import Text.XML.Expat.Tree
+import Text.XML.Expat.NodeClass
 import Text.XML.Expat.Qualified
 import Control.Parallel.Strategies
 import qualified Data.Map as M
@@ -84,75 +85,80 @@ basePfBindings = M.fromList
    , (Just xmlnsUri, Just xmlns)
    ]
 
-toNamespaced :: (GenericXMLString text, Ord text, Show text)
-               => QNode text -> NNode text
+toNamespaced :: (NodeClass n, GenericXMLString text, Ord text, Show text)
+               => n (QName text) text -> n (NName text) text
 toNamespaced = nodeWithNamespaces baseNsBindings
 
-nodeWithNamespaces :: (GenericXMLString text, Ord text, Show text)
-                   => NsPrefixMap text -> QNode text -> NNode text
-nodeWithNamespaces _ (Text t) = Text t
-nodeWithNamespaces bindings (Element qname qattrs qchildren) = Element nname nattrs nchildren
+nodeWithNamespaces :: (NodeClass n, GenericXMLString text, Ord text, Show text)
+                   => NsPrefixMap text -> n (QName text) text -> n (NName text) text
+nodeWithNamespaces bindings = mapElement namespaceify
   where
-    for = flip map
-    (nsAtts, otherAtts) = L.partition ((== Just xmlns) . qnPrefix . fst) qattrs
-    (dfAtt, normalAtts) = L.partition ((== QName Nothing xmlns) . fst) otherAtts
-    nsMap  = M.fromList $ for nsAtts $ \((QName _ lp), uri) -> (Just lp, Just uri)
-    -- fixme: when snd q is null, use Nothing
-    dfMap  = M.fromList $ for dfAtt $ \q -> (Nothing, Just $ snd q)
-    chldBs = M.unions [dfMap, nsMap, bindings]
+    namespaceify (qname, qattrs, qchildren) = (nname, nattrs, nchildren)
+      where
+        for = flip map
+        (nsAtts, otherAtts) = L.partition ((== Just xmlns) . qnPrefix . fst) qattrs
+        (dfAtt, normalAtts) = L.partition ((== QName Nothing xmlns) . fst) otherAtts
+        nsMap  = M.fromList $ for nsAtts $ \((QName _ lp), uri) -> (Just lp, Just uri)
+        -- fixme: when snd q is null, use Nothing
+        dfMap  = M.fromList $ for dfAtt $ \q -> (Nothing, Just $ snd q)
+        chldBs = M.unions [dfMap, nsMap, bindings]
+    
+        trans bs (QName pref qual) = case pref `M.lookup` bs of
+          Nothing -> error 
+                  $  "Namespace prefix referenced but never bound: '"
+                  ++ (show . DM.fromJust) pref
+                  ++ "'"
+          Just mUri -> NName mUri qual
+        nname       = trans chldBs qname
+    
+        -- attributes with no prefix are in the same namespace as the element
+        attBs = M.insert Nothing (nnNamespace nname) chldBs
+    
+        transAt (qn, v) = (trans attBs qn, v)
+    
+        nNsAtts     = map transAt nsAtts
+        nDfAtt      = map transAt dfAtt
+        nNormalAtts = map transAt normalAtts
+        nattrs      = concat [nNsAtts, nDfAtt, nNormalAtts]
+    
+        nchildren   = for qchildren $ nodeWithNamespaces chldBs
 
-    trans bs (QName pref qual) = case pref `M.lookup` bs of
-      Nothing -> error 
-              $  "Namespace prefix referenced but never bound: '"
-              ++ (show . DM.fromJust) pref
-              ++ "'"
-      Just mUri -> NName mUri qual
-    nname       = trans chldBs qname
-
-    -- attributes with no prefix are in the same namespace as the element
-    attBs = M.insert Nothing (nnNamespace nname) chldBs
-
-    transAt (qn, v) = (trans attBs qn, v)
-
-    nNsAtts     = map transAt nsAtts
-    nDfAtt      = map transAt dfAtt
-    nNormalAtts = map transAt normalAtts
-    nattrs      = concat [nNsAtts, nDfAtt, nNormalAtts]
-
-    nchildren   = for qchildren $ nodeWithNamespaces chldBs
-
-fromNamespaced :: (GenericXMLString text, Ord text) => NNode text -> QNode text
+fromNamespaced :: (NodeClass n, GenericXMLString text, Ord text) =>
+                  n (NName text) text -> n (QName text) text
 fromNamespaced = nodeWithQualifiers 1 basePfBindings
 
-nodeWithQualifiers :: (GenericXMLString text, Ord text)
-                   => Int -> PrefixNsMap text -> NNode text -> QNode text
-nodeWithQualifiers _ _ (Text text) = Text text
-nodeWithQualifiers cntr bindings (Element nname nattrs nchildren) = Element qname qattrs qchildren
+nodeWithQualifiers :: (NodeClass n, GenericXMLString text, Ord text) =>
+                      Int
+                   -> PrefixNsMap text
+                   -> n (NName text) text -> n (QName text) text
+nodeWithQualifiers cntr bindings = mapElement namespaceify
   where
-    for = flip map
-    (nsAtts, otherAtts) = L.partition ((== Just xmlnsUri) . nnNamespace . fst) nattrs
-    (dfAtt, normalAtts) = L.partition ((== NName Nothing xmlns) . fst) otherAtts
-    nsMap = M.fromList $ for nsAtts $ \((NName _ lp), uri) -> (Just uri, Just lp)
-    dfMap = M.fromList $ for dfAtt  $ \(_, uri) -> (Just uri, Just xmlns)
-    chldBs = M.unions [dfMap, nsMap, bindings]
-
-    trans (i, bs, as) (NName nspace qual) =
-      case nspace `M.lookup` bs of
-           Nothing -> let
-                        pfx = gxFromString $ "ns" ++ show i
-                        bsN = M.insert nspace (Just pfx) bs
-                        asN = (NName (Just xmlnsUri) pfx, DM.fromJust nspace) : as
-                      in trans (i+1, bsN, asN) (NName nspace qual)
-           Just pfx -> ((i, bs, as), QName pfx qual)
-    transAt ibs (nn, v) = let (ibs', qn) = trans ibs nn
-                          in  (ibs', (qn, v))
-
-    ((i', bs', as'), qname) = trans (cntr, chldBs, []) nname
-
-    ((i'',   bs'',   as''),   qNsAtts)     = L.mapAccumL transAt (i',    bs',    as')    nsAtts
-    ((i''',  bs''',  as'''),  qDfAtt)      = L.mapAccumL transAt (i'',   bs'',   as'')   dfAtt
-    ((i'''', bs'''', as''''), qNormalAtts) = L.mapAccumL transAt (i''',  bs''',  as''')  normalAtts
-    (_,                       qas)         = L.mapAccumL transAt (i'''', bs'''', as'''') as''''
-    qattrs = concat [qNsAtts, qDfAtt, qNormalAtts, qas]
-
-    qchildren = for nchildren $ nodeWithQualifiers i'''' bs''''
+    namespaceify (nname, nattrs, nchildren) = (qname, qattrs, qchildren) 
+      where
+        for = flip map
+        (nsAtts, otherAtts) = L.partition ((== Just xmlnsUri) . nnNamespace . fst) nattrs
+        (dfAtt, normalAtts) = L.partition ((== NName Nothing xmlns) . fst) otherAtts
+        nsMap = M.fromList $ for nsAtts $ \((NName _ lp), uri) -> (Just uri, Just lp)
+        dfMap = M.fromList $ for dfAtt  $ \(_, uri) -> (Just uri, Just xmlns)
+        chldBs = M.unions [dfMap, nsMap, bindings]
+    
+        trans (i, bs, as) (NName nspace qual) =
+          case nspace `M.lookup` bs of
+               Nothing -> let
+                            pfx = gxFromString $ "ns" ++ show i
+                            bsN = M.insert nspace (Just pfx) bs
+                            asN = (NName (Just xmlnsUri) pfx, DM.fromJust nspace) : as
+                          in trans (i+1, bsN, asN) (NName nspace qual)
+               Just pfx -> ((i, bs, as), QName pfx qual)
+        transAt ibs (nn, v) = let (ibs', qn) = trans ibs nn
+                              in  (ibs', (qn, v))
+    
+        ((i', bs', as'), qname) = trans (cntr, chldBs, []) nname
+    
+        ((i'',   bs'',   as''),   qNsAtts)     = L.mapAccumL transAt (i',    bs',    as')    nsAtts
+        ((i''',  bs''',  as'''),  qDfAtt)      = L.mapAccumL transAt (i'',   bs'',   as'')   dfAtt
+        ((i'''', bs'''', as''''), qNormalAtts) = L.mapAccumL transAt (i''',  bs''',  as''')  normalAtts
+        (_,                       qas)         = L.mapAccumL transAt (i'''', bs'''', as'''') as''''
+        qattrs = concat [qNsAtts, qDfAtt, qNormalAtts, qas]
+    
+        qchildren = for nchildren $ nodeWithQualifiers i'''' bs''''

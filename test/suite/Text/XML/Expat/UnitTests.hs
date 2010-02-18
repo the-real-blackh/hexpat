@@ -74,7 +74,7 @@ test_error1 = do
 test_error2 :: IO ()
 test_error2 = do
     assertEqual "error2" (
-            Element {eName = "hello", eAttrs = [], eChildren = []},
+            Element {eName = "hello", eAttributes = [], eChildren = []},
             Just (XMLParseError "mismatched tag" (XMLParseLocation 1 9 9 0))
         ) (Tree.parse defaultParserOptions
               (toByteStringL "<hello></goodbye>") :: (UNode String, Maybe XMLParseError))
@@ -82,9 +82,9 @@ test_error2 = do
 test_error3 :: IO ()
 test_error3 =
     assertEqual "error3" (
-            Element {eName = "open", eAttrs = [], eChildren = [
-                Element {eName = "test1", eAttrs = [], eChildren = [Text "Hello"]},
-                Element {eName = "hello", eAttrs = [], eChildren = []}
+            Element {eName = "open", eAttributes = [], eChildren = [
+                Element {eName = "test1", eAttributes = [], eChildren = [Text "Hello"]},
+                Element {eName = "hello", eAttributes = [], eChildren = []}
             ]},
             Just (XMLParseError "mismatched tag" (XMLParseLocation 1 35 35 0))
         ) $ Tree.parse defaultParserOptions
@@ -145,6 +145,12 @@ test_textContent = do
              Text ", do you?"]
     assertEqual "textContent" "You don't actually have any cheese at all, do you?" (textContent tree)
 
+testXMLFile :: IO String
+testXMLFile = do
+    s <- map w2c . B.unpack <$> B.readFile "test.xml"
+    -- Remove trailing newline
+    return (reverse . dropWhile (== '\n') . reverse $ s)
+
 test_indent = do
     let tests = [
                 ("#1",
@@ -185,12 +191,29 @@ test_indent = do
                 let outIS = format' (indent 2 tree)
                 assertEqual name outSB outIS
 
-testXMLFile :: IO String
-testXMLFile = do
-    s <- map w2c . B.unpack <$> B.readFile "test.xml"
-    -- Remove trailing newline
-    return (reverse . dropWhile (== '\n') . reverse $ s)
-
+test_setAttribute :: IO ()
+test_setAttribute = do
+    assertEqual "#1" [("abc", "def")] $ getAttributes $
+            setAttribute "abc" "def"
+                (Element "test" [] [])
+    assertEqual "#2" [("abc", "def")] $ getAttributes $
+            setAttribute "abc" "def"
+                (Element "test" [("abc", "xyzzy")] [])
+    assertEqual "#2" [("abc", "def"), ("abc", "xyzzy")] $ getAttributes $
+            setAttribute "abc" "def"
+                (Element "test" [("abc", "zapf"), ("abc", "xyzzy")] [])
+    assertEqual "#3" [("zanzi", "zapf"), ("bar", "xyzzy"), ("abc", "def")] $ getAttributes $
+            setAttribute "abc" "def"
+                (Element "test" [("zanzi", "zapf"), ("bar", "xyzzy")] [])
+    assertEqual "#4" [("zanzi", "zapf"), ("bar", "xyzzy")] $ getAttributes $
+            deleteAttribute "abc"
+                (Element "test" [("zanzi", "zapf"), ("bar", "xyzzy"), ("abc", "def")] [])
+    assertEqual "#5" [("zanzi", "zapf"), ("abc", "def")] $ getAttributes $
+            deleteAttribute "bar"
+                (Element "test" [("zanzi", "zapf"), ("bar", "xyzzy"), ("abc", "def")] [])
+    assertEqual "#6" [("zanzi", "zapf"), ("bar", "xyzzy"), ("abc", "def")] $ getAttributes $
+            deleteAttribute "bumpf"
+                (Element "test" [("zanzi", "zapf"), ("bar", "xyzzy"), ("abc", "def")] [])
 
 simpleDocs = [
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
@@ -242,7 +265,8 @@ tests = hUnitTestToTests $
         TestLabel "parse" $ TestCase $ test_parse,
         TestLabel "entities" $ TestCase $ test_entities,
         TestLabel "textContent" $ TestCase $ test_textContent,
-        TestLabel "indent" $ TestCase $ test_indent
+        TestLabel "indent" $ TestCase $ test_indent,
+        TestLabel "setAttribute" $ TestCase $ test_setAttribute
       ]
 
   where
