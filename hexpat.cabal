@@ -36,7 +36,7 @@ Author:
 Maintainer: http://blacksapphire.com/antispam/
 Copyright:
   (c) 2009 Doug Beardsley <mightybyte@gmail.com>,
-  (c) 2009 Stephen Blackheath <http://blacksapphire.com/antispam/>,
+  (c) 2009-2010 Stephen Blackheath <http://blacksapphire.com/antispam/>,
   (c) 2009 Gregory Collins,
   (c) 2008 Evan Martin <martine@danga.com>,
   (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>,
@@ -67,4 +67,4 @@ Library
     Text.XML.Expat.SAX,
     Text.XML.Expat.Tree
   Extra-Libraries: expat
-  --ghc-options: -Wall
+  ghc-options: -Wall

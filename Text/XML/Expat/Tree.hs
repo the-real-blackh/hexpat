@@ -94,10 +94,8 @@
 module Text.XML.Expat.Tree (
   -- * Tree structure
   Node(..),
-  Nodes,
   Attributes,
   UNode,
-  UNodes,
   UAttributes,
   textContent,
   isElement,
@@ -107,51 +105,45 @@ module Text.XML.Expat.Tree (
   getChildren,
   modifyChildren,
 
-  -- * Parse functions
+  -- * Parse to tree
   ParserOptions(..),
   defaultParserOptions,
+  Encoding(..),
   parse,
   parse',
-  parseThrowing,
-
-  -- * Deprecated parse functions
-  parseTree,
-  parseTree',
-
-  parseSAX,
-  parseSAXLocations,
-
-  parseTreeThrowing,
-  parseSAXThrowing,
-  parseSAXLocationsThrowing,
-
-  extractText,
-
-  -- * Parse to tree
-  Encoding(..),
   XMLParseError(..),
   XMLParseLocation(..),
+
+  -- * Variant that throws exceptions
+  parseThrowing,
+  XMLParseException(..),
 
   -- * SAX-style parse
   SAXEvent(..),
   saxToTree,
 
-  -- * Variants that throw exceptions
-  XMLParseException(..),
-
   -- * Abstraction of string types
-  GenericXMLString(..)
+  GenericXMLString(..),
+
+  -- * Deprecated
+  Nodes,
+  UNodes,
+  parseTree,
+  parseTree',
+  parseSAX,
+  parseSAXLocations,
+  parseTreeThrowing,
+  parseSAXThrowing,
+  parseSAXLocationsThrowing,
+  extractText
 ) where
 
 ------------------------------------------------------------------------------
 import Text.XML.Expat.IO hiding (parse,parse')
 import qualified Text.XML.Expat.IO as IO
 
-import Text.XML.Expat.SAX ( Encoding(..)
-                          , ParserOptions(..)
+import Text.XML.Expat.SAX ( ParserOptions(..)
                           , XMLParseException(..)
-                          , XMLParseError(..)
-                          , XMLParseLocation(..)
                           , SAXEvent(..)
                           , defaultParserOptions
                           , mkText
@@ -165,10 +157,9 @@ import qualified Text.XML.Expat.SAX as SAX
 ------------------------------------------------------------------------------
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Internal as I
 import Data.IORef
 import qualified Data.Monoid as M
-import Data.Monoid
+import Data.Monoid (Monoid,mconcat)
 import Control.Parallel.Strategies
 import Control.Monad
 import System.IO.Unsafe

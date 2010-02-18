@@ -140,9 +140,9 @@ nodeWithQualifiers cntr bindings (Element nname nattrs nchildren) = Element qnam
       case nspace `M.lookup` bs of
            Nothing -> let
                         pfx = gxFromString $ "ns" ++ show i
-                        bs' = M.insert nspace (Just pfx) bs
-                        as' = (NName (Just xmlnsUri) pfx, DM.fromJust nspace) : as
-                      in trans (i+1, bs', as') (NName nspace qual)
+                        bsN = M.insert nspace (Just pfx) bs
+                        asN = (NName (Just xmlnsUri) pfx, DM.fromJust nspace) : as
+                      in trans (i+1, bsN, asN) (NName nspace qual)
            Just pfx -> ((i, bs, as), QName pfx qual)
     transAt ibs (nn, v) = let (ibs', qn) = trans ibs nn
                           in  (ibs', (qn, v))

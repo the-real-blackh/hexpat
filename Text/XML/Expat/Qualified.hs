@@ -20,20 +20,9 @@ module Text.XML.Expat.Qualified (
         fromQualified
     ) where
 
-import Text.XML.Expat.IO
 import Text.XML.Expat.Tree
-import Text.XML.Expat.Format
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Internal as I
-import Data.ByteString.Internal (c2w, w2c)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
-import Control.Applicative
 import Control.Monad.Writer
 import Control.Parallel.Strategies
-import Data.Monoid
-import qualified Codec.Binary.UTF8.String as U8
 
 -- | A qualified name.
 --
@@ -86,7 +75,7 @@ toQualified (Element uname uatts uchldrn) = Element qname qatts qchldrn
              (prefix, _local) | not (gxNullString _local)
                               && gxHead _local == ':'
                                  -> QName (Just prefix) (gxTail _local)
-             otherwise           -> QName Nothing ident
+             _                   -> QName Nothing ident
 
 fromQualified :: (GenericXMLString text) => QNode text -> UNode text
 fromQualified (Text text) = Text text

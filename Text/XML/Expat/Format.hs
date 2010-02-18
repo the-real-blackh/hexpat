@@ -20,16 +20,18 @@ module Text.XML.Expat.Format (
         xmlHeader,
         treeToSAX,
         formatSAX,
-        formatSAX'
+        formatSAX',
+        -- * Indentation
+        indent,
+        indent_
     ) where
 
-import Text.XML.Expat.IO
 import Text.XML.Expat.Tree
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Internal (c2w, w2c)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
+import Data.Char (isSpace)
+import Data.List
 import Data.Word
 
 -- | DEPRECATED: Renamed to 'format'.
@@ -52,8 +54,8 @@ formatTree' = B.concat . L.toChunks . formatTree
 
 -- | Format document with <?xml.. header - strict variant that returns strict ByteString.
 format' :: (GenericXMLString tag, GenericXMLString text) =>
-               Node tag text
-            -> B.ByteString
+           Node tag text
+        -> B.ByteString
 format' = B.concat . L.toChunks . formatTree
 
 -- | Format XML node with no header - lazy variant that returns lazy ByteString.
@@ -109,7 +111,7 @@ startTagHelper name atts =
 putSAX :: (GenericXMLString tag, GenericXMLString text) =>
            [SAXEvent tag text]
         -> [B.ByteString]
-putSAX (StartElement name attrs:EndElement name2:elts) =
+putSAX (StartElement name attrs:EndElement _:elts) =
     B.concat (startTagHelper name attrs ++ [pack "/>"]):putSAX elts
 putSAX (StartElement name attrs:elts) =
     B.concat (startTagHelper name attrs ++ [B.singleton (c2w '>')]):putSAX elts
@@ -132,12 +134,52 @@ escapeText str =
     let (good, bad) = B.span (`notElem` escapees) str
     in  if B.null good
             then case w2c $ B.head str of
-                '&'  -> pack "&amp;":escapeText rem
-                '<'  -> pack "&lt;":escapeText rem
-                '"'  -> pack "&quot;":escapeText rem
-                '\'' -> pack "&apos;":escapeText rem
+                '&'  -> pack "&amp;":escapeText rema
+                '<'  -> pack "&lt;":escapeText rema
+                '"'  -> pack "&quot;":escapeText rema
+                '\'' -> pack "&apos;":escapeText rema
                 _        -> error "hexpat: impossible"
             else good:escapeText bad
   where
-    rem = B.tail str
+    rema = B.tail str
+
+-- | Make the output prettier by adding indentation.
+indent :: (GenericXMLString tag, GenericXMLString text) =>
+          Int   -- ^ Number of indentation spaces per nesting level
+       -> Node tag text
+       -> Node tag text
+indent = indent_ 0
+
+-- | Make the output prettier by adding indentation, specifying initial indent.
+indent_ :: (GenericXMLString tag, GenericXMLString text) =>
+           Int   -- ^ Initial indent (spaces)
+        -> Int   -- ^ Number of indentation spaces per nesting level
+        -> Node tag text
+        -> Node tag text
+indent_ _ _ t@(Text _) = t
+indent_ cur perLevel elt@(Element name attrs chs) =
+    if any isElement chs
+        then Element name attrs $
+                let (_, chs') = mapAccumL (\startOfText ch -> case ch of
+                            Element _ _ _ ->
+                                let cur' = cur + perLevel
+                                in  (
+                                        True,
+                                        [
+                                            Text (gxFromString ('\n':replicate cur' ' ')),
+                                            indent_ cur' perLevel ch
+                                        ]
+                                    )
+                            Text t | startOfText ->
+                                case strip t of
+                                    Nothing -> (True, [])
+                                    Just t' -> (False, [Text t'])
+                            Text _ -> (False, [ch])
+                        ) True chs
+                in  concat chs' ++ [Text $ gxFromString ('\n':replicate cur ' ')]
+        else elt
+  where
+    strip t | gxNullString t = Nothing
+    strip t | isSpace (gxHead t) = strip (gxTail t)
+    strip t = Just t
 

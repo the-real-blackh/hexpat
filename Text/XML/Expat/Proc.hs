@@ -64,7 +64,7 @@ filterElements       :: (Node tag text -> Bool) -> Node tag text -> [Node tag te
 filterElements p e
  | p e        = [e]
  | otherwise  = case e of
-                  Element n a c -> concatMap (filterElements p) $ onlyElems c
+                  Element _ _ c -> concatMap (filterElements p) $ onlyElems c
                   _             -> []
 
 -- | Find all non-nested occurences of an element wrt a predicate over element names.

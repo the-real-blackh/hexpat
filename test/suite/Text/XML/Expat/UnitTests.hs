@@ -145,6 +145,45 @@ test_textContent = do
              Text ", do you?"]
     assertEqual "textContent" "You don't actually have any cheese at all, do you?" (textContent tree)
 
+test_indent = do
+    let tests = [
+                ("#1",
+                 toByteString "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test/>",
+                 toByteString "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test/>"),
+                ("#2",
+                 toByteString "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test>With some text in it</test>",
+                 toByteString "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test>With some text in it</test>"),
+                ("#3",
+                 toByteString $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
+                     "<test><ignorance/><freedom/><war/></test>",
+                 toByteString $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
+                     "<test>\n  <ignorance/>\n  <freedom/>\n  <war/>\n</test>"),
+                ("#4",
+                 toByteString $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
+                     "<test><ignorance>strength</ignorance><freedom>Slavery</freedom><war>Peace</war></test>",
+                 toByteString $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
+                     "<test>\n  <ignorance>strength</ignorance>\n  <freedom>Slavery</freedom>\n  <war>Peace</war>\n</test>"),
+                ("#5",
+                 toByteString $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
+                     "<test><ministries><mini name=\"minitrue\">Ministry of Truth</mini>In between"++
+                     "<mini name=\"minilove\">Ministry of Love</mini>\n  And some more"++
+                     "<mini name=\"miniplenty\">Ministry of Plenty</mini>"++
+                     "<mini name=\"minipax\">Ministry of Peace<at-war-with>Eurasia</at-war-with></mini></ministries>"++
+                     "<wisdom><ignorance>strength</ignorance></wisdom></test>",
+                 toByteString $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
+                     "<test>\n  <ministries>\n    <mini name=\"minitrue\">Ministry of Truth</mini>In between"++
+                     "\n    <mini name=\"minilove\">Ministry of Love</mini>And some more"++
+                     "\n    <mini name=\"miniplenty\">Ministry of Plenty</mini>"++
+                     "\n    <mini name=\"minipax\">Ministry of Peace\n      <at-war-with>Eurasia</at-war-with>\n    </mini>\n  </ministries>"++
+                     "\n  <wisdom>\n    <ignorance>strength</ignorance>\n  </wisdom>\n</test>")
+            ]
+    forM_ tests $ \(name, inp, outSB) -> do
+        let eree = Tree.parse' defaultParserOptions inp :: Either XMLParseError (UNode String)
+        case eree of
+            Left err -> assertFailure $ show err
+            Right tree -> do
+                let outIS = format' (indent 2 tree)
+                assertEqual name outSB outIS
 
 testXMLFile :: IO String
 testXMLFile = do
@@ -202,7 +241,8 @@ tests = hUnitTestToTests $
         TestLabel "error4" $ TestCase $ test_error4,
         TestLabel "parse" $ TestCase $ test_parse,
         TestLabel "entities" $ TestCase $ test_entities,
-        TestLabel "textContent" $ TestCase $ test_textContent
+        TestLabel "textContent" $ TestCase $ test_textContent,
+        TestLabel "indent" $ TestCase $ test_indent
       ]
 
   where

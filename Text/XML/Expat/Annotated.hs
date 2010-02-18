@@ -6,58 +6,67 @@
 -- Support for qualified and namespaced trees annotated with location information
 -- is not complete.
 module Text.XML.Expat.Annotated (
-        -- * Tree structure
-        Node(..),
-        Attributes,  -- re-export from Tree
-        UNode,
-        UAttributes,
-        LNode,
-        ULNode,
-        textContent,
-        unannotate,
+  -- * Tree structure
+  Node(..),
+  Attributes,  -- re-export from Tree
+  UNode,
+  UAttributes,
+  LNode,
+  ULNode,
+  textContent,
+  isElement,
+  isNamed,
+  isText,
+  getAttribute,
+  getChildren,
+  modifyChildren,
+  unannotate,
 
-        -- * Qualified nodes
-        QName(..),
-        QNode,
-        QAttributes,
-        QLNode,
+  -- * Qualified nodes
+  QName(..),
+  QNode,
+  QAttributes,
+  QLNode,
 
-        -- * Namespaced nodes
-        NName (..),
-        NNode,
-        NAttributes,
-        NLNode,
-        mkNName,
-        mkAnNName,
-        xmlnsUri,
-        xmlns,
+  -- * Namespaced nodes
+  NName (..),
+  NNode,
+  NAttributes,
+  NLNode,
+  mkNName,
+  mkAnNName,
+  xmlnsUri,
+  xmlns,
 
-        -- * Deprecated parse functions
-        parseSAX,
-        parseSAXThrowing,
-        parseSAXLocations,
-        parseSAXLocationsThrowing,
-        parseTree,
-        parseTree',
-        parseTreeThrowing,
+  -- * Parse to tree
+  Tree.ParserOptions(..),
+  Tree.defaultParserOptions,
+  Encoding(..),
+  parse,
+  parse',
+  XMLParseError(..),
+  XMLParseLocation(..),
 
-        -- * Parse to tree
-        Encoding(..),
-        XMLParseError(..),
-        XMLParseLocation(..),
-        parse,
-        parse',
-        parseThrowing,
+  -- * Variant that throws exceptions
+  parseThrowing,
+  XMLParseException(..),
 
-        -- * SAX-style parse
-        SAXEvent(..),
-        saxToTree,
+  -- * SAX-style parse
+  SAXEvent(..),
+  saxToTree,
 
-        -- * Variants that throw exceptions
-        XMLParseException(..),
-        -- * Abstraction of string types
-        GenericXMLString(..)
-    ) where
+  -- * Abstraction of string types
+  GenericXMLString(..),
+
+  -- * Deprecated
+  parseSAX,
+  parseSAXThrowing,
+  parseSAXLocations,
+  parseSAXLocationsThrowing,
+  parseTree,
+  parseTree',
+  parseTreeThrowing
+) where
 
 import Text.XML.Expat.Tree ( Attributes, UAttributes )
 import qualified Text.XML.Expat.Tree as Tree
@@ -109,6 +118,37 @@ textContent :: Monoid text => Node tag text a -> text
 textContent (Element _ _ children _) = mconcat $ map textContent children
 textContent (Text txt) = txt
 
+-- | Is the given node an element?
+isElement :: Node tag text a -> Bool
+isElement (Element _ _ _ _) = True
+isElement _                 = False
+
+-- | Is the given node text?
+isText :: Node tag text a -> Bool
+isText (Text _) = True
+isText _        = False
+
+-- | Is the given node a tag with the given name?
+isNamed :: (Eq tag) => tag -> Node tag text a -> Bool
+isNamed _  (Text _) = False
+isNamed nm (Element nm' _ _ _) = nm == nm'
+
+-- | Get the value of the attribute having the specified name.
+getAttribute :: GenericXMLString tag => Node tag text a -> tag -> Maybe text
+getAttribute n t = lookup t $ eAttrs n
+
+-- | Get children of a node if it's an element, return empty list otherwise.
+getChildren :: Node tag text a -> [Node tag text a]
+getChildren (Text _)           = []
+getChildren (Element _ _ ch _) = ch
+
+-- | Modify a node's children using the specified function.
+modifyChildren :: ([Node tag text a] -> [Node tag text a])
+               -> Node tag text a
+               -> Node tag text a
+modifyChildren _ node@(Text _) = node
+modifyChildren f (Element n a c ann) = Element n a (f c) ann
+
 -- | Type shortcut for a single annotated node with unqualified tag names where
 -- tag and text are the same string type
 type UNode text a = Node text text a
@@ -134,7 +174,7 @@ type NLNode text = LNode (NName text) text
 
 instance Functor (Node tag text) where
     f `fmap` Element na at ch an = Element na at (map (f `fmap`) ch) (f an)
-    f `fmap` Text t = Text t
+    _ `fmap` Text t = Text t
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 -- Variant that takes annotations for start tags.
@@ -147,15 +187,15 @@ saxToTree events =
   where
     safeHead (a:_) = a
     safeHead [] = Element (gxFromString "") [] [] (error "saxToTree null annotation")
-    ptl ((StartElement name attrs, ann):rem) =
-        let (children, err1, rem') = ptl rem
+    ptl ((StartElement name attrs, ann):rema) =
+        let (children, err1, rema') = ptl rema
             elt = Element name attrs children ann
-            (out, err2, rem'') = ptl rem'
-        in  (elt:out, err1 `mplus` err2, rem'')
-    ptl ((EndElement name, _):rem) = ([], Nothing, rem)
-    ptl ((CharacterData txt, _):rem) =
-        let (out, err, rem') = ptl rem
-        in  (Text txt:out, err, rem')
+            (out, err2, rema'') = ptl rema'
+        in  (elt:out, err1 `mplus` err2, rema'')
+    ptl ((EndElement _, _):rema) = ([], Nothing, rema)
+    ptl ((CharacterData txt, _):rema) =
+        let (out, err, rema') = ptl rema
+        in  (Text txt:out, err, rema')
     ptl ((FailDocument err, _):_) = ([], Just err, [])
     ptl [] = ([], Nothing, [])
 

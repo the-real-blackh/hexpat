@@ -6,8 +6,6 @@
 
 -- | This module provides functions to parse an XML document to a lazy
 -- stream of SAX events.
---
-
 module Text.XML.Expat.SAX (
   -- * XML primitives
   Encoding(..),
@@ -48,7 +46,6 @@ import qualified Data.Monoid as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Codec.Binary.UTF8.String as U8
-import Data.Monoid
 import Data.Typeable
 import Control.Exception.Extensible as Exc
 import Control.Applicative

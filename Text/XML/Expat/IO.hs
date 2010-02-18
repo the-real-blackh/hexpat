@@ -53,8 +53,6 @@ import Control.Parallel.Strategies
 import Control.Monad
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Internal as BSI
-import Data.Maybe (maybe)
 import Data.IORef
 import Foreign
 import CForeign
