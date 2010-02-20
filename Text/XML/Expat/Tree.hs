@@ -168,7 +168,6 @@ import Control.Arrow
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.IORef
-import qualified Data.Monoid as M
 import Data.Monoid (Monoid,mconcat)
 import Control.Parallel.Strategies
 import Control.Monad
