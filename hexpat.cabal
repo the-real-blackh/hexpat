@@ -48,7 +48,6 @@ Stability: beta
 Library
   Build-Depends:
     base >= 3 && < 5,
-    haskell98,
     bytestring,
     mtl >= 1.1.0.0,
     text >= 0.5,

@@ -55,7 +55,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import Data.IORef
 import Foreign
-import CForeign
+import Foreign.C
 
 
 -- |Opaque parser type.
