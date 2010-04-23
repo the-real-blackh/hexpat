@@ -18,12 +18,18 @@ Description:
   .
   The design goals are speed, speed, speed, interface simplicity and modular design.
   .
-  Examples and benchmarks: <http://haskell.org/haskellwiki/Hexpat/>
+  For examples, see /Text.XML.Expat.Tree/ module. For benchmarks, <http://haskell.org/haskellwiki/Hexpat/>
   .
-  DARCS repository: <http://code.haskell.org/hexpat/>
+  Credits to Iavor Diatchki and the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
   .
-  Credits to Iavor Diatchki <iavor.diatchki@gmail.com> and the @xml@ (XML.Light)
-  package for /Proc/ and /Cursor/.
+  INSTALLATION: Unix install requires an OS package called something like @libexpat-dev@.
+  On MacOSX, expat comes with Apple's optional X11 package, or you can install it from source.
+  To install on Windows, first install the Windows binary that's available from
+  <http://expat.sourceforge.net/>, then type (assuming you're using v2.0.1):
+  .
+  @cabal install hexpat --extra-lib-dirs="C:\\Program Files\\Expat 2.0.1\\Bin" --extra-include-dirs="C:\\Program Files\\Expat 2.0.1\\Source\\Lib"@
+  .
+  Ensure @libexpat.dll@ can be found in your system PATH (or copy it into your executable's directory).
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -44,6 +50,9 @@ Copyright:
 Homepage: http://haskell.org/haskellwiki/Hexpat/
 Build-Type: Simple
 Stability: beta
+ource-repository head
+    type:     darcs
+    location: http://code.haskell.org/hexpat/
 
 Library
   Build-Depends:
