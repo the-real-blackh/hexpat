@@ -50,7 +50,7 @@ Copyright:
 Homepage: http://haskell.org/haskellwiki/Hexpat/
 Build-Type: Simple
 Stability: beta
-ource-repository head
+source-repository head
     type:     darcs
     location: http://code.haskell.org/hexpat/
 
