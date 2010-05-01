@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Text.XML.Expat.Namespaced
       ( NName (..)
       , NNode
@@ -85,17 +86,20 @@ basePfBindings = M.fromList
    , (Just xmlnsUri, Just xmlns)
    ]
 
-toNamespaced :: (NodeClass n, GenericXMLString text, Ord text, Show text)
+toNamespaced :: (NodeClass n, GenericXMLString text, Ord text, Show text,
+                    Functor (NodeContainer n))
                => n (QName text) text -> n (NName text) text
 toNamespaced = nodeWithNamespaces baseNsBindings
 
-nodeWithNamespaces :: (NodeClass n, GenericXMLString text, Ord text, Show text)
+nodeWithNamespaces :: (NodeClass n, GenericXMLString text, Ord text, Show text,
+                          Functor (NodeContainer n))
                    => NsPrefixMap text -> n (QName text) text -> n (NName text) text
 nodeWithNamespaces bindings = mapElement namespaceify
   where
     namespaceify (qname, qattrs, qchildren) = (nname, nattrs, nchildren)
       where
         for = flip map
+        ffor = flip fmap
         (nsAtts, otherAtts) = L.partition ((== Just xmlns) . qnPrefix . fst) qattrs
         (dfAtt, normalAtts) = L.partition ((== QName Nothing xmlns) . fst) otherAtts
         nsMap  = M.fromList $ for nsAtts $ \((QName _ lp), uri) -> (Just lp, Just uri)
@@ -120,14 +124,16 @@ nodeWithNamespaces bindings = mapElement namespaceify
         nDfAtt      = map transAt dfAtt
         nNormalAtts = map transAt normalAtts
         nattrs      = concat [nNsAtts, nDfAtt, nNormalAtts]
-    
-        nchildren   = for qchildren $ nodeWithNamespaces chldBs
 
-fromNamespaced :: (NodeClass n, GenericXMLString text, Ord text) =>
+        nchildren   = ffor qchildren $ nodeWithNamespaces chldBs
+
+fromNamespaced :: (NodeClass n, GenericXMLString text, Ord text,
+                      Functor (NodeContainer n)) =>
                   n (NName text) text -> n (QName text) text
 fromNamespaced = nodeWithQualifiers 1 basePfBindings
 
-nodeWithQualifiers :: (NodeClass n, GenericXMLString text, Ord text) =>
+nodeWithQualifiers :: (NodeClass n, GenericXMLString text, Ord text,
+                          Functor (NodeContainer n)) =>
                       Int
                    -> PrefixNsMap text
                    -> n (NName text) text -> n (QName text) text
@@ -136,6 +142,7 @@ nodeWithQualifiers cntr bindings = mapElement namespaceify
     namespaceify (nname, nattrs, nchildren) = (qname, qattrs, qchildren) 
       where
         for = flip map
+        ffor = flip fmap
         (nsAtts, otherAtts) = L.partition ((== Just xmlnsUri) . nnNamespace . fst) nattrs
         (dfAtt, normalAtts) = L.partition ((== NName Nothing xmlns) . fst) otherAtts
         nsMap = M.fromList $ for nsAtts $ \((NName _ lp), uri) -> (Just uri, Just lp)
@@ -161,4 +168,4 @@ nodeWithQualifiers cntr bindings = mapElement namespaceify
         (_,                       qas)         = L.mapAccumL transAt (i'''', bs'''', as'''') as''''
         qattrs = concat [qNsAtts, qDfAtt, qNormalAtts, qas]
     
-        qchildren = for nchildren $ nodeWithQualifiers i'''' bs''''
+        qchildren = ffor nchildren $ nodeWithQualifiers i'''' bs''''

@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances, FlexibleInstances,
-        MultiParamTypeClasses #-}
+        MultiParamTypeClasses, TypeFamilies #-}
 
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
@@ -94,7 +94,8 @@
 
 module Text.XML.Expat.Tree (
   -- * Tree structure
-  Node(..),
+  NodeG(..),
+  Node,
   Attributes,
   UNode,
   UAttributes,
@@ -165,32 +166,47 @@ import Text.XML.Expat.NodeClass
 
 ------------------------------------------------------------------------------
 import Control.Arrow
+import Control.Monad (forM, mplus)
+import Control.Monad.Identity
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.IORef
 import Data.Monoid (Monoid,mconcat)
 import Control.Parallel.Strategies
-import Control.Monad
 import System.IO.Unsafe
 import Foreign.C.String
 import Foreign.Ptr
 
 
 -- | The tree representation of the XML document.
-data Node tag text =
+data NodeG c tag text =
     Element {
         eName       :: !tag,
         eAttributes :: ![(tag,text)],
-        eChildren   :: [Node tag text]
+        eChildren   :: c (NodeG c tag text)
     } |
     Text !text
-    deriving (Eq, Show)
+
+instance (Show tag, Show text) => Show (NodeG [] tag text) where
+    show (Element na at ch) = "Element "++show na++" "++show at++" "++show ch
+    show (Text t) = "Text "++show t
+
+instance (Eq tag, Eq text) => Eq (NodeG [] tag text) where
+    Element na1 at1 ch1 == Element na2 at2 ch2 =
+        na1 == na2 &&
+        at1 == at2 &&
+        ch1 == ch2
+    Text t1 == Text t2 = t1 == t2
+    _ == _ = False
+
+-- | A pure Node that uses a list as its container type.
+type Node = NodeG []
 
 eAttrs :: Node tag text -> [(tag, text)]
 {-# DEPRECATED eAttrs "use eAttributes instead" #-}
 eAttrs = eAttributes
 
-instance (NFData tag, NFData text) => NFData (Node tag text) where
+instance (NFData tag, NFData text) => NFData (NodeG [] tag text) where
     rnf (Element nam att chi) = rnf (nam, att, chi)
     rnf (Text txt) = rnf txt
 
@@ -218,7 +234,10 @@ type UNode text = Node text text
 -- text are the same string type.
 type UAttributes text = Attributes text text
 
-instance NodeClass Node where
+instance NodeClass (NodeG []) where
+    type NodeMonad (NodeG []) = Identity
+    type NodeContainer (NodeG []) = []
+
     textContent (Element _ _ children) = mconcat $ map textContent children
     textContent (Text txt) = txt
     

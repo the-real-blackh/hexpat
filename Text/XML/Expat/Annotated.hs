@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeFamilies,
+        FlexibleContexts #-}
 -- | A variant of /Node/ in which Element nodes have an annotation of any type,
 -- and some concrete functions that annotate with the XML parse location.
 --
@@ -6,7 +7,8 @@
 -- if you want to use both modules.
 module Text.XML.Expat.Annotated (
   -- * Tree structure
-  Node(..),
+  NodeG(..),
+  Node,
   Attributes,  -- re-export from Tree
   UNode,
   UAttributes,
@@ -104,6 +106,7 @@ import Text.XML.Expat.Namespaced hiding (NNode, NNodes)
 import Text.XML.Expat.NodeClass
 
 import Control.Monad (mplus)
+import Control.Monad.Identity
 import Control.Parallel.Strategies
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
@@ -111,25 +114,43 @@ import Data.Monoid
 
 
 -- | Annotated variant of the tree representation of the XML document.
-data Node a tag text =
+data NodeG c a tag text =
     Element {
         eName       :: !tag,
         eAttributes :: ![(tag,text)],
-        eChildren   :: [Node a tag text],
+        eChildren   :: c (NodeG c a tag text),
         eAnn        :: a
     } |
     Text !text
-    deriving (Eq, Show)
+
+-- | A pure Node that uses a list as its container type.
+type Node = NodeG []
+
+instance (Show tag, Show text, Show a) => Show (NodeG [] a tag text) where
+    show (Element na at ch an) = "Element "++show na++" "++show at++" "++show ch++" "++show an
+    show (Text t) = "Text "++show t
+
+instance (Eq tag, Eq text, Eq a) => Eq (NodeG [] a tag text) where
+    Element na1 at1 ch1 an1 == Element na2 at2 ch2 an2 =
+        na1 == na2 &&
+        at1 == at2 &&
+        ch1 == ch2 &&
+        an1 == an2
+    Text t1 == Text t2 = t1 == t2
+    _ == _ = False
 
 eAttrs :: Node a tag text -> [(tag, text)]
 {-# DEPRECATED eAttrs "use eAttributes instead" #-}
 eAttrs = eAttributes
 
-instance (NFData tag, NFData text, NFData a) => NFData (Node a tag text) where
+instance (NFData tag, NFData text, NFData a) => NFData (NodeG [] a tag text) where
     rnf (Element nam att chi ann) = rnf (nam, att, chi, ann)
     rnf (Text txt) = rnf txt
 
-instance NodeClass (Node a) where
+instance NodeClass (NodeG [] a) where
+    type NodeMonad (NodeG [] a) = Identity
+    type NodeContainer (NodeG [] a) = []
+
     textContent (Element _ _ children _) = mconcat $ map textContent children
     textContent (Text txt) = txt
     
@@ -171,8 +192,8 @@ instance NodeClass (Node a) where
 -- | Convert an annotated tree (/Annotated/ module) into a non-annotated
 -- tree (/Tree/ module).  Needed, for example, when you @format@ your tree to
 -- XML, since @format@ takes a non-annotated tree.
-unannotate :: Node a tag text -> Tree.Node tag text
-unannotate (Element na at ch _) = (Tree.Element na at (map unannotate ch))
+unannotate :: Functor c => NodeG c a tag text -> Tree.NodeG c tag text
+unannotate (Element na at ch _) = (Tree.Element na at (fmap unannotate ch))
 unannotate (Text t) = Tree.Text t
 
 -- | Type shortcut for a single annotated node with unqualified tag names where
