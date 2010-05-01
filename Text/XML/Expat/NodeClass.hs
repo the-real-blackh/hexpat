@@ -3,13 +3,18 @@
 -- such as the ones defined in /Tree/ and /Annotated/.
 module Text.XML.Expat.NodeClass where
 
+import Control.Monad.Identity
+import Data.List.Class
 import Data.Monoid (Monoid)
 import Text.XML.Expat.SAX (GenericXMLString)
 
 
-class NodeClass n c where
-    type NodeMonad n c :: * -> *
+-- | Extract all text content from inside a tag into a single string, including
+-- any text contained in children.
+textContent :: (NodeClass n [], Monoid text) => n [] tag text -> text
+textContent node = runIdentity $ textContentM node
 
+class List c => NodeClass n c where
     -- | Is the given node an element?
     isElement :: n c tag text -> Bool
 
@@ -18,19 +23,22 @@ class NodeClass n c where
 
     -- | Extract all text content from inside a tag into a single string, including
     -- any text contained in children.
-    textContent :: Monoid text => n c tag text -> text
+    textContentM :: Monoid text => n c tag text -> ItemM c text
 
     -- | Is the given node a tag with the given name?
     isNamed :: Eq tag => tag -> n c tag text -> Bool
 
     -- | Get the name of this node if it's an element, return empty string otherwise.
-    getName :: GenericXMLString tag => n c tag text -> tag
+    getName :: Monoid tag => n c tag text -> tag
 
     -- | Get the attributes of a node if it's an element, return empty list otherwise.
     getAttributes :: n c tag text -> [(tag,text)]
 
     -- | Get children of a node if it's an element, return empty list otherwise.
     getChildren :: n c tag text -> c (n c tag text)
+
+    -- | Get this node's text if it's a text node, return empty text otherwise.
+    getText :: Monoid text => n c tag text -> text
 
     -- | Modify name if it's an element, no-op otherwise.
     modifyName :: (tag -> tag)
@@ -59,9 +67,9 @@ class NodeClass n c where
                   -> n c tag' text
 
     -- | Change a node from one container type to another.
-    mapNodeContainer :: (c (n c tag text) -> NodeMonad n c (c' (n c' tag text)))
+    mapNodeContainer :: (c (n c tag text) -> ItemM c (c' (n c' tag text)))
                      -> n c tag text
-                     -> NodeMonad n c (n c' tag text)
+                     -> ItemM c (n c' tag text)
 
 -- | Get the value of the attribute having the specified name.
 getAttribute :: (NodeClass n c, GenericXMLString tag) => n c tag text -> tag -> Maybe text

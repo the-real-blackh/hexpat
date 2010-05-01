@@ -1,4 +1,4 @@
-Cabal-Version: >= 1.4
+Cabal-Version: >= 1.6
 Name: hexpat
 Version: 0.13
 Synopsis: wrapper for expat, the fast XML parser
@@ -58,12 +58,13 @@ Library
   Build-Depends:
     base >= 3 && < 5,
     bytestring,
-    monads-fd,
+    mtl,
     text >= 0.5,
     utf8-string >= 0.3.3,
     parallel,
     containers,
-    extensible-exceptions >= 0.1 && < 0.2
+    extensible-exceptions >= 0.1 && < 0.2,
+    List >= 0.2
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,

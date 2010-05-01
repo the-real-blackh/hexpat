@@ -166,12 +166,12 @@ import Text.XML.Expat.NodeClass
 
 ------------------------------------------------------------------------------
 import Control.Arrow
-import Control.Monad (forM, mplus)
-import Control.Monad.Identity
+import Control.Monad (forM, mplus, mzero)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.IORef
-import Data.Monoid (Monoid,mconcat)
+import Data.List.Class
+import Data.Monoid (Monoid,mempty,mappend)
 import Control.Parallel.Strategies
 import System.IO.Unsafe
 import Foreign.C.String
@@ -234,12 +234,10 @@ type UNode text = Node text text
 -- text are the same string type.
 type UAttributes text = Attributes text text
 
-instance NodeClass NodeG [] where
-    type NodeMonad NodeG [] = Identity
+instance (Functor c, List c) => NodeClass NodeG c where
+    textContentM (Element _ _ children) = foldlL mappend mempty $ joinM $ fmap textContentM children
+    textContentM (Text txt) = return txt
 
-    textContent (Element _ _ children) = mconcat $ map textContent children
-    textContent (Text txt) = txt
-    
     isElement (Element _ _ _) = True
     isElement _               = False
     
@@ -249,14 +247,17 @@ instance NodeClass NodeG [] where
     isNamed _  (Text _) = False
     isNamed nm (Element nm' _ _) = nm == nm'
 
-    getName (Text _)             = gxFromString ""
+    getName (Text _)             = mempty
     getName (Element name _ _)   = name
 
     getAttributes (Text _)            = []
     getAttributes (Element _ attrs _) = attrs
 
-    getChildren (Text _)         = []
+    getChildren (Text _)         = mzero
     getChildren (Element _ _ ch) = ch
+    
+    getText (Text txt) = txt
+    getText (Element _ _ _) = mempty
 
     modifyName _ node@(Text _) = node
     modifyName f (Element n a c) = Element (f n) a c
@@ -268,7 +269,7 @@ instance NodeClass NodeG [] where
     modifyChildren f (Element n a c) = Element n a (f c)
 
     mapAllTags _ (Text t) = Text t
-    mapAllTags f (Element n a c) = Element (f n) (map (first f) a) (map (mapAllTags f) c)
+    mapAllTags f (Element n a c) = Element (f n) (map (first f) a) (fmap (mapAllTags f) c)
 
     mapElement _ (Text t) = Text t
     mapElement f (Element n a c) =

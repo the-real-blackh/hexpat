@@ -26,12 +26,17 @@ module Text.XML.Expat.Format (
         indent_
     ) where
 
+import Text.XML.Expat.NodeClass
 import Text.XML.Expat.Tree
+
+import Control.Monad
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Internal (c2w, w2c)
 import Data.Char (isSpace)
 import Data.List
+import Data.List.Class
+import Data.Monoid
 import Data.Word
 
 -- | DEPRECATED: Renamed to 'format'.
@@ -73,11 +78,24 @@ formatNode' = B.concat . L.toChunks . formatNode
 xmlHeader :: L.ByteString
 xmlHeader = L.pack $ map c2w "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 
--- | Flatten a tree structure into SAX events.
-treeToSAX :: Node tag text -> [SAXEvent tag text]
-treeToSAX (Element name atts children) =
-        StartElement name atts : concatMap treeToSAX children ++ [EndElement name]
-treeToSAX (Text txt) = [CharacterData txt]
+-- | Flatten a tree structure into SAX events, monadic version.
+treeToSAX :: (GenericXMLString tag, GenericXMLString text, Monoid text, NodeClass n c,
+              Functor c) =>
+             n c tag text -> c (SAXEvent tag text)
+treeToSAX node
+    | isElement node =
+        let name = getName node
+            atts = getAttributes node
+            children = getChildren node
+        in  cons (StartElement name atts) $
+            concatL (fmap treeToSAX children)
+            `mplus`
+            cons (EndElement name) mzero
+    | otherwise =
+        cons (CharacterData $ getText node) mzero
+  where
+    concatL :: List l => l (l a) -> l a
+    concatL xs = joinL $ foldlL mplus mzero xs
 
 -- | Format SAX events with no header - lazy variant that returns lazy ByteString.
 formatSAX :: (GenericXMLString tag, GenericXMLString text) =>
