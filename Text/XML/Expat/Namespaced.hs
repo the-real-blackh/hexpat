@@ -86,14 +86,14 @@ basePfBindings = M.fromList
    , (Just xmlnsUri, Just xmlns)
    ]
 
-toNamespaced :: (NodeClass n, GenericXMLString text, Ord text, Show text,
-                    Functor (NodeContainer n))
-               => n (QName text) text -> n (NName text) text
+toNamespaced :: (NodeClass n c, GenericXMLString text, Ord text, Show text,
+                    Functor c)
+               => n c (QName text) text -> n c (NName text) text
 toNamespaced = nodeWithNamespaces baseNsBindings
 
-nodeWithNamespaces :: (NodeClass n, GenericXMLString text, Ord text, Show text,
-                          Functor (NodeContainer n))
-                   => NsPrefixMap text -> n (QName text) text -> n (NName text) text
+nodeWithNamespaces :: (NodeClass n c, GenericXMLString text, Ord text, Show text,
+                          Functor c)
+                   => NsPrefixMap text -> n c (QName text) text -> n c (NName text) text
 nodeWithNamespaces bindings = mapElement namespaceify
   where
     namespaceify (qname, qattrs, qchildren) = (nname, nattrs, nchildren)
@@ -127,16 +127,17 @@ nodeWithNamespaces bindings = mapElement namespaceify
 
         nchildren   = ffor qchildren $ nodeWithNamespaces chldBs
 
-fromNamespaced :: (NodeClass n, GenericXMLString text, Ord text,
-                      Functor (NodeContainer n)) =>
-                  n (NName text) text -> n (QName text) text
+fromNamespaced :: (NodeClass n c, GenericXMLString text, Ord text,
+                      Functor c) =>
+                  n c (NName text) text -> n c (QName text) text
 fromNamespaced = nodeWithQualifiers 1 basePfBindings
 
-nodeWithQualifiers :: (NodeClass n, GenericXMLString text, Ord text,
-                          Functor (NodeContainer n)) =>
+nodeWithQualifiers :: (NodeClass n c, GenericXMLString text, Ord text,
+                          Functor c) =>
                       Int
                    -> PrefixNsMap text
-                   -> n (NName text) text -> n (QName text) text
+                   -> n c (NName text) text
+                   -> n c (QName text) text
 nodeWithQualifiers cntr bindings = mapElement namespaceify
   where
     namespaceify (nname, nattrs, nchildren) = (qname, qattrs, qchildren) 

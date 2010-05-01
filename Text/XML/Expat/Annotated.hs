@@ -114,23 +114,23 @@ import Data.Monoid
 
 
 -- | Annotated variant of the tree representation of the XML document.
-data NodeG c a tag text =
+data NodeG a c tag text =
     Element {
         eName       :: !tag,
         eAttributes :: ![(tag,text)],
-        eChildren   :: c (NodeG c a tag text),
+        eChildren   :: c (NodeG a c tag text),
         eAnn        :: a
     } |
     Text !text
 
 -- | A pure Node that uses a list as its container type.
-type Node = NodeG []
+type Node a = NodeG a []
 
-instance (Show tag, Show text, Show a) => Show (NodeG [] a tag text) where
+instance (Show tag, Show text, Show a) => Show (NodeG a [] tag text) where
     show (Element na at ch an) = "Element "++show na++" "++show at++" "++show ch++" "++show an
     show (Text t) = "Text "++show t
 
-instance (Eq tag, Eq text, Eq a) => Eq (NodeG [] a tag text) where
+instance (Eq tag, Eq text, Eq a) => Eq (NodeG a [] tag text) where
     Element na1 at1 ch1 an1 == Element na2 at2 ch2 an2 =
         na1 == na2 &&
         at1 == at2 &&
@@ -143,13 +143,12 @@ eAttrs :: Node a tag text -> [(tag, text)]
 {-# DEPRECATED eAttrs "use eAttributes instead" #-}
 eAttrs = eAttributes
 
-instance (NFData tag, NFData text, NFData a) => NFData (NodeG [] a tag text) where
+instance (NFData tag, NFData text, NFData a) => NFData (NodeG a [] tag text) where
     rnf (Element nam att chi ann) = rnf (nam, att, chi, ann)
     rnf (Text txt) = rnf txt
 
-instance NodeClass (NodeG [] a) where
-    type NodeMonad (NodeG [] a) = Identity
-    type NodeContainer (NodeG [] a) = []
+instance NodeClass (NodeG a) [] where
+    type NodeMonad (NodeG a) [] = Identity
 
     textContent (Element _ _ children _) = mconcat $ map textContent children
     textContent (Text txt) = txt
@@ -189,10 +188,15 @@ instance NodeClass (NodeG [] a) where
         let (n', a', c') = f (n, a, c)
         in  Element n' a' c' ann
 
+    mapNodeContainer f (Element n a ch an) = do
+        ch' <- f ch
+        return $ Element n a ch' an
+    mapNodeContainer _ (Text t) = return $ Text t
+
 -- | Convert an annotated tree (/Annotated/ module) into a non-annotated
 -- tree (/Tree/ module).  Needed, for example, when you @format@ your tree to
 -- XML, since @format@ takes a non-annotated tree.
-unannotate :: Functor c => NodeG c a tag text -> Tree.NodeG c tag text
+unannotate :: Functor c => NodeG a c tag text -> Tree.NodeG c tag text
 unannotate (Element na at ch _) = (Tree.Element na at (fmap unannotate ch))
 unannotate (Text t) = Tree.Text t
 

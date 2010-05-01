@@ -63,7 +63,7 @@ mkQName prefix localPart = QName (Just prefix) localPart
 mkAnQName :: text -> QName text
 mkAnQName localPart = QName Nothing localPart
 
-toQualified :: (NodeClass n, GenericXMLString text) => n text text -> n (QName text) text
+toQualified :: (NodeClass n c, GenericXMLString text) => n c text text -> n c (QName text) text
 toQualified = mapAllTags qual
   where
     qual ident =
@@ -73,7 +73,7 @@ toQualified = mapAllTags qual
                                  -> QName (Just prefix) (gxTail _local)
              _                   -> QName Nothing ident
 
-fromQualified :: (NodeClass n, GenericXMLString text) => n (QName text) text -> n text text
+fromQualified :: (NodeClass n c, GenericXMLString text) => n c (QName text) text -> n c text text
 fromQualified = mapAllTags tag
   where
     tag (QName (Just prefix) local) = prefix `mappend` gxFromChar ':' `mappend` local

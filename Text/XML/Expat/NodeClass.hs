@@ -7,65 +7,69 @@ import Data.Monoid (Monoid)
 import Text.XML.Expat.SAX (GenericXMLString)
 
 
-class NodeClass n where
-    type NodeMonad n :: * -> *
-    type NodeContainer n :: * -> *
+class NodeClass n c where
+    type NodeMonad n c :: * -> *
 
     -- | Is the given node an element?
-    isElement :: n tag text -> Bool
+    isElement :: n c tag text -> Bool
 
     -- | Is the given node text?
-    isText :: n tag text -> Bool
+    isText :: n c tag text -> Bool
 
     -- | Extract all text content from inside a tag into a single string, including
     -- any text contained in children.
-    textContent :: Monoid text => n tag text -> text
+    textContent :: Monoid text => n c tag text -> text
 
     -- | Is the given node a tag with the given name?
-    isNamed :: Eq tag => tag -> n tag text -> Bool
+    isNamed :: Eq tag => tag -> n c tag text -> Bool
 
     -- | Get the name of this node if it's an element, return empty string otherwise.
-    getName :: GenericXMLString tag => n tag text -> tag
+    getName :: GenericXMLString tag => n c tag text -> tag
 
     -- | Get the attributes of a node if it's an element, return empty list otherwise.
-    getAttributes :: n tag text -> [(tag,text)]
+    getAttributes :: n c tag text -> [(tag,text)]
 
     -- | Get children of a node if it's an element, return empty list otherwise.
-    getChildren :: n tag text -> NodeContainer n (n tag text)
+    getChildren :: n c tag text -> c (n c tag text)
 
     -- | Modify name if it's an element, no-op otherwise.
     modifyName :: (tag -> tag)
-               -> n tag text
-               -> n tag text
+               -> n c tag text
+               -> n c tag text
 
     -- | Modify attributes if it's an element, no-op otherwise.
     modifyAttributes :: ([(tag, text)] -> [(tag, text)])
-                     -> n tag text
-                     -> n tag text
+                     -> n c tag text
+                     -> n c tag text
 
     -- | Modify children (non-recursively) if it's an element, no-op otherwise.
-    modifyChildren :: (NodeContainer n (n tag text) -> NodeContainer n (n tag text))
-                   -> n tag text
-                   -> n tag text
+    modifyChildren :: (c (n c tag text) -> c (n c tag text))
+                   -> n c tag text
+                   -> n c tag text
 
     -- | Map all tags (both tag names and attribute names) recursively.
     mapAllTags :: (tag -> tag')
-               -> n tag text
-               -> n tag' text
+               -> n c tag text
+               -> n c tag' text
 
     -- | Map an element non-recursively, allowing the tag type to be changed.
-    mapElement :: ((tag, [(tag, text)], NodeContainer n (n tag text))
-                       -> (tag', [(tag', text)], NodeContainer n (n tag' text)))
-                  -> n tag text
-                  -> n tag' text
+    mapElement :: ((tag, [(tag, text)], c (n c tag text))
+                       -> (tag', [(tag', text)], c (n c tag' text)))
+                  -> n c tag text
+                  -> n c tag' text
+
+    -- | Change a node from one container type to another.
+    mapNodeContainer :: (c (n c tag text) -> NodeMonad n c (c' (n c' tag text)))
+                     -> n c tag text
+                     -> NodeMonad n c (n c' tag text)
 
 -- | Get the value of the attribute having the specified name.
-getAttribute :: (NodeClass n, GenericXMLString tag) => n tag text -> tag -> Maybe text
+getAttribute :: (NodeClass n c, GenericXMLString tag) => n c tag text -> tag -> Maybe text
 getAttribute n t = lookup t $ getAttributes n
 
 -- | Set the value of the attribute with the specified name to the value, overwriting
 -- the first existing attribute with that name if present.
-setAttribute :: (Eq tag, NodeClass n, GenericXMLString tag) => tag -> text -> n tag text -> n tag text
+setAttribute :: (Eq tag, NodeClass n c, GenericXMLString tag) => tag -> text -> n c tag text -> n c tag text
 setAttribute t newValue = modifyAttributes set
   where
     set [] = [(t, newValue)]
@@ -73,7 +77,7 @@ setAttribute t newValue = modifyAttributes set
     set (att:atts) = att:set atts
 
 -- | Delete the first attribute matching the specified name.
-deleteAttribute :: (Eq tag, NodeClass n, GenericXMLString tag) => tag -> n tag text -> n tag text
+deleteAttribute :: (Eq tag, NodeClass n c, GenericXMLString tag) => tag -> n c tag text -> n c tag text
 deleteAttribute t = modifyAttributes del
   where
     del [] = []
@@ -81,7 +85,7 @@ deleteAttribute t = modifyAttributes del
     del (att:atts) = att:del atts
 
 -- | setAttribute if /Just/, deleteAttribute if /Nothing/.
-alterAttribute :: (Eq tag, NodeClass n, GenericXMLString tag) => tag -> Maybe text -> n tag text -> n tag text
+alterAttribute :: (Eq tag, NodeClass n c, GenericXMLString tag) => tag -> Maybe text -> n c tag text -> n c tag text
 alterAttribute t (Just newValue) = setAttribute t newValue
 alterAttribute t Nothing = deleteAttribute t
 

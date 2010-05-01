@@ -234,9 +234,8 @@ type UNode text = Node text text
 -- text are the same string type.
 type UAttributes text = Attributes text text
 
-instance NodeClass (NodeG []) where
-    type NodeMonad (NodeG []) = Identity
-    type NodeContainer (NodeG []) = []
+instance NodeClass NodeG [] where
+    type NodeMonad NodeG [] = Identity
 
     textContent (Element _ _ children) = mconcat $ map textContent children
     textContent (Text txt) = txt
@@ -275,6 +274,11 @@ instance NodeClass (NodeG []) where
     mapElement f (Element n a c) =
         let (n', a', c') = f (n, a, c)
         in  Element n' a' c'
+
+    mapNodeContainer f (Element n a ch) = do
+        ch' <- f ch
+        return $ Element n a ch'
+    mapNodeContainer _ (Text t) = return $ Text t
 
 setEntityDecoder :: (GenericXMLString tag, GenericXMLString text)
                  => Parser
