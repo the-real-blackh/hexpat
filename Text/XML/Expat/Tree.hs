@@ -155,7 +155,7 @@ import Text.XML.Expat.SAX ( ParserOptions(..)
                           , XMLParseException(..)
                           , SAXEvent(..)
                           , defaultParserOptions
-                          , mkText
+                          , textFromCString
                           , parseSAX
                           , parseSAXLocations
                           , parseSAXLocationsThrowing
@@ -281,6 +281,8 @@ instance (Functor c, List c) => NodeClass NodeG c where
         return $ Element n a ch'
     mapNodeContainer _ (Text t) = return $ Text t
 
+    mkText = Text
+
 setEntityDecoder :: (GenericXMLString tag, GenericXMLString text)
                  => Parser
                  -> IORef [Node tag text]
@@ -297,7 +299,7 @@ setEntityDecoder parser queueRef decoder = do
 
     skip _ 1 = return False
     skip entityName 0 = do
-        en <- mkText entityName
+        en <- textFromCString entityName
         let mbt = decoder en
         maybe (return False)
               (\t -> do
@@ -335,10 +337,10 @@ parse' opts doc = unsafePerformIO $ runParse where
           mEntityDecoder
 
     setStartElementHandler parser $ \cName cAttrs -> do
-        name <- mkText cName
+        name <- textFromCString cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-            attrName <- mkText cAttrName
-            attrValue <- mkText cAttrValue
+            attrName <- textFromCString cAttrName
+            attrValue <- textFromCString cAttrValue
             return (attrName, attrValue)
         modifyIORef stack (start name attrs)
         return True

@@ -194,6 +194,8 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
         return $ Element n a ch' an
     mapNodeContainer _ (Text t) = return $ Text t
 
+    mkText = Text
+
 -- | Convert an annotated tree (/Annotated/ module) into a non-annotated
 -- tree (/Tree/ module).  Needed, for example, when you @format@ your tree to
 -- XML, since @format@ takes a non-annotated tree.

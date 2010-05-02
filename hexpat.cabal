@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.13
+Version: 0.14
 Synopsis: wrapper for expat, the fast XML parser
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -77,4 +77,4 @@ Library
     Text.XML.Expat.SAX,
     Text.XML.Expat.Tree
   Extra-Libraries: expat
-  ghc-options: -Wall
+  ghc-options: -Wall -fno-warn-name-shadowing

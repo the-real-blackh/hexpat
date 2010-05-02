@@ -16,7 +16,7 @@ module Text.XML.Expat.SAX (
   ParserOptions(..),
   SAXEvent(..),
 
-  mkText,
+  textFromCString,
   parse,
   parseLocations,
   parseLocationsThrowing,
@@ -139,9 +139,9 @@ instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
 
 
 -- | Converts a 'CString' to a 'GenericXMLString' type.
-mkText :: GenericXMLString text => CString -> IO text
-{-# INLINE mkText #-}
-mkText cstr = do
+textFromCString :: GenericXMLString text => CString -> IO text
+{-# INLINE textFromCString #-}
+textFromCString cstr = do
     len <- c_strlen cstr
     gxFromCStringLen (cstr, fromIntegral len)
 
@@ -159,7 +159,7 @@ setEntityDecoder parser queueRef decoder = do
   where
     skip _ 1 = return False
     skip entityName 0 = do
-        en <- mkText entityName
+        en <- textFromCString entityName
         let mbt = decoder en
         maybe (return False)
               (\t -> do
@@ -188,7 +188,7 @@ setEntityDecoderLoc parser queueRef decoder = do
   where
     skip _ 1 = return False
     skip entityName 0 = do
-        en <- mkText entityName
+        en <- textFromCString entityName
         let mbt = decoder en
         maybe (return False)
               (\t -> do
@@ -223,16 +223,16 @@ parse opts input = unsafePerformIO $ do
           mEntityDecoder
 
     setStartElementHandler parser $ \cName cAttrs -> do
-        name <- mkText cName
+        name <- textFromCString cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-            attrName <- mkText cAttrName
-            attrValue <- mkText cAttrValue
+            attrName <- textFromCString cAttrName
+            attrValue <- textFromCString cAttrValue
             return (attrName, attrValue)
         modifyIORef queueRef (StartElement name attrs:)
         return True
 
     setEndElementHandler parser $ \cName -> do
-        name <- mkText cName
+        name <- textFromCString cName
         modifyIORef queueRef (EndElement name:)
         return True
 
@@ -298,17 +298,17 @@ parseLocations opts input = unsafePerformIO $ do
           mEntityDecoder
 
     setStartElementHandler parser $ \cName cAttrs -> do
-        name <- mkText cName
+        name <- textFromCString cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-            attrName <- mkText cAttrName
-            attrValue <- mkText cAttrValue
+            attrName <- textFromCString cAttrName
+            attrValue <- textFromCString cAttrValue
             return (attrName, attrValue)
         loc <- getParseLocation parser
         modifyIORef queueRef ((StartElement name attrs,loc):)
         return True
 
     setEndElementHandler parser $ \cName -> do
-        name <- mkText cName
+        name <- textFromCString cName
         loc <- getParseLocation parser
         modifyIORef queueRef ((EndElement name, loc):)
         return True

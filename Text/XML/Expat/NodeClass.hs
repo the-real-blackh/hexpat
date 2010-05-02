@@ -71,6 +71,9 @@ class List c => NodeClass n c where
                      -> n c tag text
                      -> ItemM c (n c' tag text)
 
+    -- | Create a text node
+    mkText :: text -> n c tag text
+
 -- | Get the value of the attribute having the specified name.
 getAttribute :: (NodeClass n c, GenericXMLString tag) => n c tag text -> tag -> Maybe text
 getAttribute n t = lookup t $ getAttributes n

@@ -1,0 +1,3 @@
+^Text/XML/Expat/IO_stub.c$
+^Text/XML/Expat/IO_stub.h$
+dist/.*
