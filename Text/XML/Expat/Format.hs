@@ -93,23 +93,38 @@ xmlHeader :: B.ByteString
 xmlHeader = B.pack $ map c2w "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 
 -- | Flatten a tree structure into SAX events, monadic version.
-treeToSAX :: (GenericXMLString tag, GenericXMLString text, Monoid text, NodeClass n c,
-              Functor c) =>
+treeToSAX :: forall tag text n c . (GenericXMLString tag, GenericXMLString text,
+                 Monoid text, NodeClass n c, Functor c) =>
              n c tag text -> c (SAXEvent tag text)
 treeToSAX node
     | isElement node =
         let name = getName node
             atts = getAttributes node
             children = getChildren node
+            postpend :: c (SAXEvent tag text) -> c (SAXEvent tag text)
+            postpend l = joinL $ do
+                li <- runList l
+                return $ case li of
+                    Nil -> cons (EndElement name) mzero
+                    Cons n l' -> cons n (postpend l')
         in  cons (StartElement name atts) $
-            concatL (fmap treeToSAX children)
-            `mplus`
-            cons (EndElement name) mzero
-    | otherwise =
+            postpend (concatL $ fmap treeToSAX children)
+    | isText node =
         cons (CharacterData $ getText node) mzero
-  where
-    concatL :: List l => l (l a) -> l a
-    concatL xs = joinL $ foldlL mplus mzero xs
+    | otherwise = mzero
+
+concatL :: List l => l (l a) -> l a
+concatL l1 = joinL $ do
+    li1 <- runList l1
+    return $ case li1 of
+        Nil -> mzero
+        Cons l2 l1' ->
+            let concat2L l2 = joinL $ do
+                    li2 <- runList l2
+                    return $ case li2 of
+                        Nil -> concatL l1'
+                        Cons elt l2' -> cons elt $ concat2L l2'
+            in  concat2L l2
 
 -- | Format SAX events with no header - lazy variant that returns lazy ByteString.
 formatSAX :: (GenericXMLString tag, GenericXMLString text) =>
