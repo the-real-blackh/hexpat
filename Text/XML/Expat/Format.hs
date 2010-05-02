@@ -105,13 +105,15 @@ treeToSAX node
             postpend l = joinL $ do
                 li <- runList l
                 return $ case li of
-                    Nil -> cons (EndElement name) mzero
+                    Nil -> singleton (EndElement name)
                     Cons n l' -> cons n (postpend l')
         in  cons (StartElement name atts) $
             postpend (concatL $ fmap treeToSAX children)
     | isText node =
-        cons (CharacterData $ getText node) mzero
+        singleton (CharacterData $ getText node)
     | otherwise = mzero
+  where
+    singleton = return
 
 concatL :: List l => l (l a) -> l a
 concatL l1 = joinL $ do
@@ -235,7 +237,7 @@ indent_ cur perLevel elt | isElement elt =
     addSpace startOfText l = do
         ch <- runList l
         case ch of
-            Nil -> return $ cons (mkText $ gxFromString ('\n':replicate cur ' ')) mzero
+            Nil -> return $ singleton (mkText $ gxFromString ('\n':replicate cur ' '))
             Cons elt l' | isElement elt -> do
                 let cur' = cur + perLevel
                 return $
@@ -264,5 +266,7 @@ indent_ cur perLevel elt | isElement elt =
     strip t | gxNullString t = Nothing
     strip t | isSpace (gxHead t) = strip (gxTail t)
     strip t = Just t
+
+    singleton = return
 indent_ _ _ n = n
 
