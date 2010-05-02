@@ -48,6 +48,14 @@ Copyright:
   (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>,
   (c) 2007-2009 Galois Inc.
 Homepage: http://haskell.org/haskellwiki/Hexpat/
+Extra-Source-Files:
+  test/hexpat-tests.cabal,
+  test/test.xml,
+  test/suite/TestSuite.hs,
+  test/suite/Text/XML/Expat/Proc/Tests.hs,
+  test/suite/Text/XML/Expat/UnitTests.hs,
+  test/suite/Text/XML/Expat/Tests.hs,
+  test/suite/Text/XML/Expat/Cursor/Tests.hs
 Build-Type: Simple
 Stability: beta
 source-repository head

@@ -1,3 +1,6 @@
 ^Text/XML/Expat/IO_stub.c$
 ^Text/XML/Expat/IO_stub.h$
+test/.hpc/.*
+test/.hpc
+dist
 dist/.*
