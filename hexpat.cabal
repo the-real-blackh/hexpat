@@ -42,11 +42,11 @@ Category: XML
 License: BSD3
 License-File: LICENSE
 Author:
-  Stephen Blackheath (blackh) - primary author,
+  Stephen Blackheath [blackh] (the primary author),
   Doug Beardsley,
   Gregory Collins,
-  Evan Martin,
-  Matthew Pocock (drdozer)
+  Evan Martin (who started the project),
+  Matthew Pocock [drdozer]
 Maintainer: http://blacksapphire.com/antispam/
 Copyright:
   (c) 2009 Doug Beardsley <mightybyte@gmail.com>,
