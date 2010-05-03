@@ -85,7 +85,7 @@ prop_invertible n = p
 prop_invertible2 :: [TNode] -> Property
 prop_invertible2 n = not (null n) ==> p
   where
-    p = toForest (fromJust $ fromForest n) == n
+    p = toForest (fromJust $ fromForest n :: TCursor) == n
 
 
 -- this is stupid because the function is so trivial, but I lust after the
@@ -95,7 +95,7 @@ prop_fromTag n = isElement n ==> fromTag (getTag n) (eChildren n) == n
 
 
 prop_fromForest :: Bool
-prop_fromForest = isNothing $ fromForest []
+prop_fromForest = isNothing (fromForest [] :: Maybe TCursor)
 
 prop_firstChild :: TNode -> Property
 prop_firstChild node = isElement node ==> p1 && p2
@@ -383,7 +383,7 @@ prop_nextDF3 = forAll gen $ uncurry currentsEq
         let node2 = Element "subtree2" [] (ch2:nodes)
         let node = Element "root" [] [node1, node2]
 
-        let cn = fromJust $ fromForest [node]
+        let cn = fromJust $ fromForest [node] :: TCursor
         let cc = fromJust (firstChild cn >>= firstChild)
         let c1 = fromJust $ nextDF cc
         let c2 = fromJust (firstChild cn >>= right)
