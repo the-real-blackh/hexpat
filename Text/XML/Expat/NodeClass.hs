@@ -14,7 +14,7 @@ import Text.XML.Expat.SAX (GenericXMLString)
 textContent :: (NodeClass n [], Monoid text) => n [] tag text -> text
 textContent node = runIdentity $ textContentM node
 
-class List c => NodeClass n c where
+class (Functor c, List c) => NodeClass n c where
     -- | Is the given node an element?
     isElement :: n c tag text -> Bool
 

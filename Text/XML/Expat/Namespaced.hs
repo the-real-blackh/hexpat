@@ -86,13 +86,11 @@ basePfBindings = M.fromList
    , (Just xmlnsUri, Just xmlns)
    ]
 
-toNamespaced :: (NodeClass n c, GenericXMLString text, Ord text, Show text,
-                    Functor c)
+toNamespaced :: (NodeClass n c, GenericXMLString text, Ord text, Show text)
                => n c (QName text) text -> n c (NName text) text
 toNamespaced = nodeWithNamespaces baseNsBindings
 
-nodeWithNamespaces :: (NodeClass n c, GenericXMLString text, Ord text, Show text,
-                          Functor c)
+nodeWithNamespaces :: (NodeClass n c, GenericXMLString text, Ord text, Show text)
                    => NsPrefixMap text -> n c (QName text) text -> n c (NName text) text
 nodeWithNamespaces bindings = mapElement namespaceify
   where
@@ -127,13 +125,11 @@ nodeWithNamespaces bindings = mapElement namespaceify
 
         nchildren   = ffor qchildren $ nodeWithNamespaces chldBs
 
-fromNamespaced :: (NodeClass n c, GenericXMLString text, Ord text,
-                      Functor c) =>
+fromNamespaced :: (NodeClass n c, GenericXMLString text, Ord text, Functor c) =>
                   n c (NName text) text -> n c (QName text) text
 fromNamespaced = nodeWithQualifiers 1 basePfBindings
 
-nodeWithQualifiers :: (NodeClass n c, GenericXMLString text, Ord text,
-                          Functor c) =>
+nodeWithQualifiers :: (NodeClass n c, GenericXMLString text, Ord text, Functor c) =>
                       Int
                    -> PrefixNsMap text
                    -> n c (NName text) text

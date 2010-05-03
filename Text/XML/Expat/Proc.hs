@@ -1,76 +1,96 @@
+{-# LANGUAGE FlexibleContexts #-}
 -- | This module ported from Text.XML.Light.Proc
 module Text.XML.Expat.Proc where
 
-import Text.XML.Expat.Tree
+import Text.XML.Expat.NodeClass
+import Text.XML.Expat.SAX
 
+import Control.Monad
+import Data.List.Class
 import Data.Maybe(listToMaybe)
+import Data.Monoid
+import Prelude hiding (filter)
+
 
 -- | Select only the elements from a list of XML content.
-onlyElems          :: [Node tag text] -> [Node tag text]
-onlyElems xs        = [ x | x@(Element _ _ _) <- xs ]
+onlyElems          :: NodeClass n c => c (n c tag text) -> c (n c tag text)
+onlyElems           = filter isElement
 
 -- | Select only the text from a list of XML content.
-onlyText           :: [Node tag text] -> [text]
-onlyText xs         = [ x | Text x <- xs ]
+onlyText           :: (NodeClass n c, Monoid text) => c (n c tag text) -> c text
+onlyText            = fmap getText . filter isText
 
 -- | Find all immediate children with the given name.
-findChildren       :: (GenericXMLString tag) => tag -> Node tag text -> [Node tag text]
-findChildren q e    = filterChildren ((q ==) . eName) e
+findChildren       :: (NodeClass n c, Eq tag, Monoid tag) => tag -> n c tag text -> c (n c tag text)
+findChildren q e    = filterChildren ((q ==) . getName) e
 
 -- | Filter all immediate children wrt a given predicate.
-filterChildren       :: (Node tag text -> Bool) -> Node tag text -> [Node tag text]
-filterChildren _ (Text _) = []
-filterChildren p e    = filter p (onlyElems (eChildren e))
+filterChildren       :: NodeClass n c => (n c tag text -> Bool) -> n c tag text -> c (n c tag text)
+filterChildren p e | isElement e = filter p (onlyElems (getChildren e))
+filterChildren _ _               = mzero
 
 -- | Filter all immediate children wrt a given predicate over their names.
-filterChildrenName      :: (tag -> Bool) -> Node tag text -> [Node tag text]
-filterChildrenName _ (Text _) = []
-filterChildrenName p e   = filter (p . eName) (onlyElems (eChildren e))
+filterChildrenName      :: (NodeClass n c, Monoid tag) => (tag -> Bool) -> n c tag text -> c (n c tag text)
+filterChildrenName p e | isElement e = filter (p . getName) (onlyElems (getChildren e))
+filterChildrenName _ _               = mzero
 
 -- | Find an immediate child with the given name.
-findChild          :: (GenericXMLString tag) => tag -> Node tag text -> Maybe (Node tag text)
+findChild          :: (NodeClass n [], GenericXMLString tag) => tag -> n [] tag text -> Maybe (n [] tag text)
 findChild q e       = listToMaybe (findChildren q e)
 
 -- | Find an immediate child with the given name.
-filterChild          :: (Node tag text -> Bool) -> Node tag text -> Maybe (Node tag text)
+filterChild          :: NodeClass n [] => (n [] tag text -> Bool) -> n [] tag text -> Maybe (n [] tag text)
 filterChild p e       = listToMaybe (filterChildren p e)
 
 -- | Find an immediate child with name matching a predicate.
-filterChildName      :: (tag -> Bool) -> Node tag text -> Maybe (Node tag text)
+filterChildName      :: (NodeClass n [], Monoid tag) => (tag -> Bool) -> n [] tag text -> Maybe (n [] tag text)
 filterChildName p e   = listToMaybe (filterChildrenName p e)
 
 -- | Find the left-most occurrence of an element matching given name.
-findElement        :: (GenericXMLString tag) => tag -> Node tag text -> Maybe (Node tag text)
+findElement        :: (NodeClass n [], Eq tag, Monoid tag) => tag -> n [] tag text -> Maybe (n [] tag text)
 findElement q e     = listToMaybe (findElements q e)
 
 -- | Filter the left-most occurrence of an element wrt. given predicate.
-filterElement        :: (Node tag text -> Bool) -> Node tag text -> Maybe (Node tag text)
+filterElement        :: NodeClass n [] => (n [] tag text -> Bool) -> n [] tag text -> Maybe (n [] tag text)
 filterElement p e     = listToMaybe (filterElements p e)
 
 -- | Filter the left-most occurrence of an element wrt. given predicate.
-filterElementName     :: (tag -> Bool) -> Node tag text -> Maybe (Node tag text)
+filterElementName     :: (NodeClass n [], Monoid tag) => (tag -> Bool) -> n [] tag text -> Maybe (n [] tag text)
 filterElementName p e  = listToMaybe (filterElementsName p e)
 
 -- | Find all non-nested occurances of an element.
 -- (i.e., once we have found an element, we do not search
 -- for more occurances among the element's children).
-findElements       :: (GenericXMLString tag) => tag -> Node tag text -> [Node tag text]
+findElements       :: (NodeClass n c, Eq tag, Monoid tag) => tag -> n c tag text -> c (n c tag text)
 findElements qn e = filterElementsName (qn==) e
 
 -- | Find all non-nested occurrences of an element wrt. given predicate.
 -- (i.e., once we have found an element, we do not search
 -- for more occurances among the element's children).
-filterElements       :: (Node tag text -> Bool) -> Node tag text -> [Node tag text]
+filterElements       :: NodeClass n c => (n c tag text -> Bool) -> n c tag text -> c (n c tag text)
 filterElements p e
- | p e        = [e]
- | otherwise  = case e of
-                  Element _ _ c -> concatMap (filterElements p) $ onlyElems c
-                  _             -> []
+    | p e         = return e
+    | isElement e = concatL $ fmap (filterElements p) $ onlyElems $ getChildren e
+    | otherwise   = mzero
+  where
+    -- Remove here if this gets added to List package.
+    concatL :: List l => l (l a) -> l a
+    concatL l1 = joinL $ do
+        li1 <- runList l1
+        return $ case li1 of
+            Nil -> mzero
+            Cons l2 l1' ->
+                let concat2L l2 = joinL $ do
+                        li2 <- runList l2
+                        return $ case li2 of
+                            Nil -> concatL l1'
+                            Cons elt l2' -> cons elt $ concat2L l2'
+                in  concat2L l2
 
 -- | Find all non-nested occurences of an element wrt a predicate over element names.
 -- (i.e., once we have found an element, we do not search
 -- for more occurances among the element's children).
-filterElementsName       :: (tag -> Bool) -> Node tag text -> [Node tag text]
-filterElementsName _ (Text _) = []
-filterElementsName p e = filterElements (p.eName) e
+filterElementsName       :: (NodeClass n c, Monoid tag) => (tag -> Bool) -> n c tag text -> c (n c tag text)
+filterElementsName p e | isElement e = filterElements (p . getName) e
+filterElementsName _ _               = mzero
 

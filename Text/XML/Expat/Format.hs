@@ -53,7 +53,7 @@ format node = L.fromChunks (xmlHeader : formatNodeG node)
 
 -- | Format document with <?xml.. header - generalized variant that returns a generic
 -- list of strict ByteStrings.
-formatG :: (NodeClass n c, GenericXMLString tag, GenericXMLString text, Functor c) =>
+formatG :: (NodeClass n c, GenericXMLString tag, GenericXMLString text) =>
           n c tag text
        -> c B.ByteString
 formatG node = cons xmlHeader $ formatNodeG node
@@ -84,7 +84,7 @@ formatNode' = B.concat . L.toChunks . formatNode
 
 -- | Format XML node with no header - generalized variant that returns a generic
 -- list of strict ByteStrings.
-formatNodeG :: (NodeClass n c, GenericXMLString tag, GenericXMLString text, Functor c) =>
+formatNodeG :: (NodeClass n c, GenericXMLString tag, GenericXMLString text) =>
               n c tag text
            -> c B.ByteString
 formatNodeG = formatSAXG . treeToSAX
@@ -94,7 +94,7 @@ xmlHeader = B.pack $ map c2w "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 
 -- | Flatten a tree structure into SAX events, monadic version.
 treeToSAX :: forall tag text n c . (GenericXMLString tag, GenericXMLString text,
-                 Monoid text, NodeClass n c, Functor c) =>
+                 Monoid text, NodeClass n c) =>
              n c tag text -> c (SAXEvent tag text)
 treeToSAX node
     | isElement node =
