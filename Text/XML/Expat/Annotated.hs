@@ -7,8 +7,8 @@
 -- if you want to use both modules.
 module Text.XML.Expat.Annotated (
   -- * Tree structure
-  NodeG(..),
   Node,
+  NodeG(..),
   Attributes,  -- re-export from NodeClass
   UNode,
   UAttributes, -- re-export from NodeClass
@@ -112,7 +112,27 @@ import Data.List.Class
 import Data.Monoid
 
 
--- | Annotated variant of the tree representation of the XML document.
+-- | Annotated variant of the tree representation of the XML document, meaning
+-- that it has an extra piece of information of your choice attached to each
+-- Element.
+--
+-- @c@ is the container type for the element's children, which is usually [],
+-- except when you are using chunked I\/O with the @hexpat-iteratee@ package.
+--
+-- @tag@ is the tag type, which can either be one of several string types,
+-- or a special type from the @Text.XML.Expat.Namespaced@ or
+-- @Text.XML.Expat.Qualified@ modules.
+--
+-- @text@ is the string type for text content.
+--
+-- @a@ is the type of the annotation.  One of the things this can be used for
+-- is to store the XML parse location, which is useful for error handling.
+--
+-- Note that some functions in the @Text.XML.Expat.Cursor@ module need to create
+-- new nodes through the 'MkElementClass' type class. Normally this can only be done
+-- if @a@ is a Maybe type (so it can provide the Nothing value for the annotation
+-- on newly created nodes).  Or, you can write your own 'MkElementClass' instance.
+-- Apart from that, there is no requirement for @a@ to be a Maybe type.
 data NodeG a c tag text =
     Element {
         eName       :: !tag,
@@ -122,7 +142,8 @@ data NodeG a c tag text =
     } |
     Text !text
 
--- | A pure Node that uses a list as its container type.
+-- | A pure tree representation that uses a list as its container type,
+-- annotated variant.
 type Node a = NodeG a []
 
 instance (Show tag, Show text, Show a) => Show (NodeG a [] tag text) where

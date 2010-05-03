@@ -94,8 +94,8 @@
 
 module Text.XML.Expat.Tree (
   -- * Tree structure
-  NodeG(..),
   Node,
+  NodeG(..),
   Attributes,
   UNode,
   UAttributes,
@@ -179,6 +179,15 @@ import Foreign.Ptr
 
 
 -- | The tree representation of the XML document.
+--
+-- @c@ is the container type for the element's children, which is usually [],
+-- except when you are using chunked I\/O with the @hexpat-iteratee@ package.
+--
+-- @tag@ is the tag type, which can either be one of several string types,
+-- or a special type from the @Text.XML.Expat.Namespaced@ or
+-- @Text.XML.Expat.Qualified@ modules.
+--
+-- @text@ is the string type for text content.
 data NodeG c tag text =
     Element {
         eName       :: !tag,
@@ -199,7 +208,7 @@ instance (Eq tag, Eq text) => Eq (NodeG [] tag text) where
     Text t1 == Text t2 = t1 == t2
     _ == _ = False
 
--- | A pure Node that uses a list as its container type.
+-- | A pure tree representation that uses a list as its container type.
 type Node = NodeG []
 
 eAttrs :: Node tag text -> [(tag, text)]

@@ -9,10 +9,16 @@
 -- an XML document.  This implementation is based on the general
 -- tree zipper written by Krasimir Angelov and Iavor S. Diatchki.
 --
+-- With the exception of 'modifyContentM', then M-suffixed functions are
+-- for use with monadic node types, as used when dealing with chunked I\/O
+-- with the /hexpat-iteratee/ package.  In the more common pure case, you
+-- wouldn't need these *M functions.
 
 module Text.XML.Expat.Cursor
-  ( Tag(..), getTag, fromTag
-  , CursorG(..), Cursor, PathG, Path
+  ( 
+  -- * Types
+    Cursor, CursorG(..), Path, PathG
+  , Tag(..), getTag, fromTag
 
   -- * Conversions
   , fromTree
@@ -112,6 +118,8 @@ type PathG n c tag text = [(c (n c tag text),Tag tag text,c (n c tag text))]
 type Path tag text = PathG NodeG [] tag text
 
 -- | Generalized cursor: The position of a piece of content in an XML document.
+-- @n@ is the Node type and @c@ is the list type, which would usually be [],
+-- except when you're using chunked I\/O.
 data CursorG n c tag text = Cur
   { current :: n c tag text       -- ^ The currently selected content.
   , lefts   :: c (n c tag text)   -- ^ Siblings on the left, closest first.
@@ -126,7 +134,7 @@ instance (Show (n c tag text), Show (c (n c tag text)), Show tag, Show text)
                          ", rights="++show r++
                          ", parents="++show p++" }"
 
--- A cursor specific to @Text.XML.Expat.Tree.Node@ trees.
+-- | A cursor specific to @Text.XML.Expat.Tree.Node@ trees.
 type Cursor tag text = CursorG NodeG [] tag text
 
 -- Moving around ---------------------------------------------------------------

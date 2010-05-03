@@ -16,14 +16,16 @@ Description:
   (/Namespaced/), SAX-style parse (/SAX/), and access to the low-level interface
   in case speed is paramount (/IO/).
   .
-  The design goals are speed, speed, speed, interface simplicity and modular design.
+  The design goals are speed, speed, speed, interface simplicity and modularity
+  (in that order).
   .
-  For examples, see /Text.XML.Expat.Tree/ module. For benchmarks, <http://haskell.org/haskellwiki/Hexpat/>
+  For introduction and examples, see the /Text.XML.Expat.Tree/ module. For benchmarks,
+  <http://haskell.org/haskellwiki/Hexpat/>
   .
   This package provides pure lazy parsing.  However, Haskell's lazy I\/O is
   problematic in some applications because it doesn't handle I\/O errors properly
   and can give no guarantee of timely resource cleanup.  In these cases, chunked
-  I\/O is a better approach, as provided by the /hexpat-iteratee/ package.
+  I\/O is a better approach: Take a look at the /hexpat-iteratee/ package.
   .
   Credits to Iavor Diatchki and the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
   .
@@ -39,8 +41,8 @@ Category: XML
 License: BSD3
 License-File: LICENSE
 Author:
+  Stephen Blackheath (blackh) - primary author,
   Doug Beardsley,
-  Stephen Blackheath (blackh),
   Gregory Collins,
   Evan Martin,
   Matthew Pocock (drdozer)

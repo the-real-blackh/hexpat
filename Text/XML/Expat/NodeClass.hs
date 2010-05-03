@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, TypeFamilies #-}
--- | A typeclass to allow for functions that work with different node types
--- such as the ones defined in /Tree/ and /Annotated/.
+-- | Type classes to allow for XML handling functions to be generalized to
+-- work with different node types, including the ones defined in /Tree/ and
+-- /Annotated/.
 module Text.XML.Expat.NodeClass where
 
 import Control.Monad.Identity
