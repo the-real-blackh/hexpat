@@ -14,7 +14,8 @@ Description:
   XML source location (/Annotated/), XML cursors (/Cursor/), more intelligent
   handling of qualified tag names (/Qualified/), tags qualified with namespaces
   (/Namespaced/), SAX-style parse (/SAX/), and access to the low-level interface
-  in case speed is paramount (/IO/).
+  in case speed is paramount (/IO/).  And, /NodeClass/ contains type classes for
+  generalized tree processing.
   .
   The design goals are speed, speed, speed, interface simplicity and modularity
   (in that order).
