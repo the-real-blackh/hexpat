@@ -80,7 +80,7 @@ Library
     parallel,
     containers,
     extensible-exceptions >= 0.1 && < 0.2,
-    List == 0.2.*
+    List >= 0.2
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,
