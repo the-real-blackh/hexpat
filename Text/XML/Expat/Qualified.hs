@@ -22,8 +22,8 @@ module Text.XML.Expat.Qualified (
 
 import Text.XML.Expat.NodeClass
 import Text.XML.Expat.Tree
-import Control.Monad.Writer
 import Control.Parallel.Strategies
+import Data.Monoid
 
 -- | A qualified name.
 --

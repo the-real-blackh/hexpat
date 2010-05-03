@@ -31,12 +31,12 @@ import Text.XML.Expat.NodeClass
 import Text.XML.Expat.SAX
 
 import Control.Monad
-import Control.Monad.Writer
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Internal (c2w, w2c)
 import Data.Char (isSpace)
 import Data.List.Class
+import Data.Monoid
 import Data.Word
 
 -- | DEPRECATED: Renamed to 'format'.
@@ -89,6 +89,7 @@ formatNodeG :: (NodeClass n c, GenericXMLString tag, GenericXMLString text) =>
            -> c B.ByteString
 formatNodeG = formatSAXG . treeToSAX
 
+-- | The standard XML header with UTF-8 encoding.
 xmlHeader :: B.ByteString
 xmlHeader = B.pack $ map c2w "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 

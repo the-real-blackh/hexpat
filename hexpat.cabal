@@ -20,6 +20,11 @@ Description:
   .
   For examples, see /Text.XML.Expat.Tree/ module. For benchmarks, <http://haskell.org/haskellwiki/Hexpat/>
   .
+  This package provides pure lazy parsing.  However, Haskell's lazy I\/O is
+  problematic in some applications because it doesn't handle I\/O errors properly
+  and can give no guarantee of timely resource cleanup.  In these cases, chunked
+  I\/O is a better approach, as provided by the /hexpat-iteratee/ package.
+  .
   Credits to Iavor Diatchki and the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
   .
   INSTALLATION: Unix install requires an OS package called something like @libexpat-dev@.
@@ -72,7 +77,7 @@ Library
     parallel,
     containers,
     extensible-exceptions >= 0.1 && < 0.2,
-    List >= 0.2
+    List == 0.2.*
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,
