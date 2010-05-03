@@ -9,9 +9,9 @@ module Text.XML.Expat.Annotated (
   -- * Tree structure
   NodeG(..),
   Node,
-  Attributes,  -- re-export from Tree
+  Attributes,  -- re-export from NodeClass
   UNode,
-  UAttributes,
+  UAttributes, -- re-export from NodeClass
   LNode,
   ULNode,
   textContent,
@@ -87,7 +87,6 @@ module Text.XML.Expat.Annotated (
 ) where
 
 import Control.Arrow
-import Text.XML.Expat.Tree ( Attributes, UAttributes )
 import qualified Text.XML.Expat.Tree as Tree
 import Text.XML.Expat.SAX ( Encoding(..)
                           , GenericXMLString(..)
@@ -195,6 +194,9 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
     mapNodeContainer _ (Text t) = return $ Text t
 
     mkText = Text
+
+instance (Functor c, List c) => MkElementClass (NodeG (Maybe a)) c where
+    mkElement name attrs children = Element name attrs children Nothing
 
 -- | Convert an annotated tree (/Annotated/ module) into a non-annotated
 -- tree (/Tree/ module).  Needed, for example, when you @format@ your tree to

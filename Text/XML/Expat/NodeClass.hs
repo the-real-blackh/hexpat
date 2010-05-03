@@ -9,6 +9,13 @@ import Data.Monoid (Monoid)
 import Text.XML.Expat.SAX (GenericXMLString)
 
 
+-- | Type shortcut for attributes
+type Attributes tag text = [(tag, text)]
+
+-- | Type shortcut for attributes with unqualified names where tag and
+-- text are the same string type.
+type UAttributes text = Attributes text text
+
 -- | Extract all text content from inside a tag into a single string, including
 -- any text contained in children.
 textContent :: (NodeClass n [], Monoid text) => n [] tag text -> text
@@ -73,6 +80,11 @@ class (Functor c, List c) => NodeClass n c where
 
     -- | Create a text node
     mkText :: text -> n c tag text
+
+-- | A class of node types where an Element can be constructed given a tag,
+-- attributes and children.
+class NodeClass n c => MkElementClass n c where
+    mkElement :: tag -> Attributes tag text -> c (n c tag text) -> n c tag text
 
 -- | Get the value of the attribute having the specified name.
 getAttribute :: (NodeClass n c, GenericXMLString tag) => n c tag text -> tag -> Maybe text

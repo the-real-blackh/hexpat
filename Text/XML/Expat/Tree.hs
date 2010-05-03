@@ -210,9 +210,6 @@ instance (NFData tag, NFData text) => NFData (NodeG [] tag text) where
     rnf (Element nam att chi) = rnf (nam, att, chi)
     rnf (Text txt) = rnf txt
 
--- | Type shortcut for attributes
-type Attributes tag text = [(tag, text)]
-
 -- | DEPRECATED: Use [Node tag text] instead.
 --
 -- Type shortcut for nodes.
@@ -229,10 +226,6 @@ type UNodes text = Nodes text text
 -- | Type shortcut for a single node with unqualified tag names where tag and
 -- text are the same string type.
 type UNode text = Node text text
-
--- | Type shortcut for attributes with unqualified names where tag and
--- text are the same string type.
-type UAttributes text = Attributes text text
 
 instance (Functor c, List c) => NodeClass NodeG c where
     textContentM (Element _ _ children) = foldlL mappend mempty $ joinM $ fmap textContentM children
@@ -282,6 +275,9 @@ instance (Functor c, List c) => NodeClass NodeG c where
     mapNodeContainer _ (Text t) = return $ Text t
 
     mkText = Text
+    
+instance (Functor c, List c) => MkElementClass NodeG c where
+    mkElement name attrs children = Element name attrs children
 
 setEntityDecoder :: (GenericXMLString tag, GenericXMLString text)
                  => Parser
