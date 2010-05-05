@@ -13,7 +13,7 @@ module Text.XML.Expat.Annotated (
   LNode,
   ULNode,
 
-  -- * Re-export of /Text.XML.Expat.NodeClass/ for generic node manipulation
+  -- * Generic node manipulation
   module Text.XML.Expat.NodeClass,
 
   -- * Annotation-specific

@@ -98,7 +98,7 @@ module Text.XML.Expat.Tree (
   NodeG(..),
   UNode,
 
-  -- * Re-export of /Text.XML.Expat.NodeClass/ for generic node manipulation
+  -- * Generic node manipulation
   module Text.XML.Expat.NodeClass,
 
   -- * Parse to tree
