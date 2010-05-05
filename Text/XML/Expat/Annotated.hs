@@ -9,26 +9,12 @@ module Text.XML.Expat.Annotated (
   -- * Tree structure
   Node,
   NodeG(..),
-  Attributes,  -- re-export from NodeClass
   UNode,
-  UAttributes, -- re-export from NodeClass
   LNode,
   ULNode,
-  textContent,
-  isElement,
-  isNamed,
-  isText,
-  getName,
-  getAttributes,
-  getAttribute,
-  getChildren,
-  modifyName,
-  modifyAttributes,
-  setAttribute,
-  deleteAttribute,
-  alterAttribute,
-  modifyChildren,
-  mapAllTags,
+
+  -- * Re-export of /Text.XML.Expat.NodeClass/ for generic node manipulation
+  module Text.XML.Expat.NodeClass,
 
   -- * Annotation-specific
   unannotate,

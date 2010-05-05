@@ -96,24 +96,10 @@ module Text.XML.Expat.Tree (
   -- * Tree structure
   Node,
   NodeG(..),
-  Attributes,
   UNode,
-  UAttributes,
-  textContent,
-  isElement,
-  isNamed,
-  isText,
-  getName,
-  getAttributes,
-  getAttribute,
-  getChildren,
-  modifyName,
-  modifyAttributes,
-  setAttribute,
-  deleteAttribute,
-  alterAttribute,
-  modifyChildren,
-  mapAllTags,
+
+  -- * Re-export of /Text.XML.Expat.NodeClass/ for generic node manipulation
+  module Text.XML.Expat.NodeClass,
 
   -- * Parse to tree
   ParserOptions(..),

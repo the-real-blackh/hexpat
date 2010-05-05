@@ -115,19 +115,7 @@ treeToSAX node
     | otherwise = mzero
   where
     singleton = return
-
-concatL :: List l => l (l a) -> l a
-concatL l1 = joinL $ do
-    li1 <- runList l1
-    return $ case li1 of
-        Nil -> mzero
-        Cons l2 l1' ->
-            let concat2L l2 = joinL $ do
-                    li2 <- runList l2
-                    return $ case li2 of
-                        Nil -> concatL l1'
-                        Cons elt l2' -> cons elt $ concat2L l2'
-            in  concat2L l2
+    concatL = join
 
 -- | Format SAX events with no header - lazy variant that returns lazy ByteString.
 formatSAX :: (GenericXMLString tag, GenericXMLString text) =>

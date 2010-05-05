@@ -93,7 +93,6 @@ module Text.XML.Expat.Cursor
   ) where
 
 import Text.XML.Expat.Tree
-import Text.XML.Expat.NodeClass
 import Data.Maybe(isNothing)
 import Data.Monoid
 import Control.Monad.Identity

@@ -13,7 +13,6 @@ module Text.XML.Expat.Namespaced
       ) where
 
 import Text.XML.Expat.Tree
-import Text.XML.Expat.NodeClass
 import Text.XML.Expat.Qualified
 import Control.Parallel.Strategies
 import qualified Data.Map as M
