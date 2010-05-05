@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
 
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
@@ -19,7 +19,11 @@ module Text.XML.Expat.IO (
   Parser, newParser,
 
   -- ** Parsing
-  parse, parse', parseChunk, Encoding(..), XMLParseError(..),
+  parse, parse',
+  withParser,
+  parseChunk,
+  Encoding(..),
+  XMLParseError(..),
   getParseLocation,
   XMLParseLocation(..),
 
@@ -38,10 +42,6 @@ module Text.XML.Expat.IO (
 
   -- ** Lower-level interface
   parseExternalEntityReference,
-  unsafeParseChunk,
-  withHandlers,
-  unsafeSetHandlers,
-  unsafeReleaseHandlers,
   ExpatHandlers,
 
   -- ** Helpers
@@ -59,9 +59,10 @@ import Foreign.C
 
 
 -- |Opaque parser type.
-type ParserPtr = Ptr ()
+data Parser_struct
+type ParserPtr = Ptr Parser_struct
 data Parser = Parser
-    { _parserObj                :: ForeignPtr ()
+    { _parserObj                :: ForeignPtr Parser_struct
     , _startElementHandler      :: IORef CStartElementHandler
     , _endElementHandler        :: IORef CEndElementHandler
     , _cdataHandler             :: IORef CCharacterDataHandler
@@ -71,9 +72,6 @@ data Parser = Parser
 
 instance Show Parser where
     showsPrec _ (Parser fp _ _ _ _ _) = showsPrec 0 fp
-
-withParser :: Parser -> (ParserPtr -> IO a) -> IO a
-withParser (Parser fp _ _ _ _ _) = withForeignPtr fp
 
 -- |Encoding types available for the document encoding.
 data Encoding = ASCII | UTF8 | UTF16 | ISO88591
@@ -90,10 +88,10 @@ withOptEncoding (Just enc) f = withCString (encodingToString enc) f
 
 parserCreate :: Maybe Encoding -> IO (ParserPtr)
 parserCreate a1 =
-  withOptEncoding a1 $ \a1' ->
-  parserCreate'_ a1' >>= \res ->
-  let {res' = id res} in
-  return (res')
+  withOptEncoding a1 $ \a1' -> do
+      pp <- parserCreate'_ a1'
+      xmlSetUserData pp pp
+      return pp
 
 -- | Create a 'Parser'.
 newParser :: Maybe Encoding -> IO Parser
@@ -105,7 +103,6 @@ newParser enc = do
   nullCharH  <- newIORef nullCCharacterDataHandler
   extH       <- newIORef Nothing
   skipH      <- newIORef Nothing
-
 
   return $ Parser fptr nullStartH nullEndH nullCharH extH skipH
 
@@ -127,36 +124,27 @@ unStatus _ = True
 -- |@parse data@ feeds /lazy/ ByteString data into a 'Parser'. It returns
 -- Nothing on success, or Just the parse error.
 parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
-parse parser bs = withHandlers parser $ do
+parse parser bs = withParser parser $ \pp -> do
+    let
+        doParseChunks [] = doParseChunk pp BS.empty True
+        doParseChunks (c:cs) = do
+            ok <- doParseChunk pp c False
+            if ok
+                then doParseChunks cs
+                else return False
     ok <- doParseChunks (BSL.toChunks bs)
     if ok
         then return Nothing
-        else Just `fmap` getError parser
-  where
-    doParseChunks [] = doParseChunk parser BS.empty True
-    doParseChunks (c:cs) = do
-        ok <- doParseChunk parser c False
-        if ok
-            then doParseChunks cs
-            else return False
+        else Just `fmap` getError pp
 
 -- |@parse data@ feeds /strict/ ByteString data into a 'Parser'. It returns
 -- Nothing on success, or Just the parse error.
 parse' :: Parser -> BS.ByteString -> IO (Maybe XMLParseError)
-parse' parser bs = withHandlers parser $ do
-    ok <- doParseChunk parser bs True
+parse' parser bs = withParser parser $ \pp -> do
+    ok <- doParseChunk pp bs True
     if ok
         then return Nothing
-        else Just `fmap` getError parser
-
--- |@parseChunk data False@ feeds /strict/ ByteString data into a
--- 'Parser'.  The end of the data is indicated by passing @True@ for the
--- final parameter.   It returns Nothing on success, or Just the parse error.
-parseChunk :: Parser
-           -> BS.ByteString
-           -> Bool  -- ^ True if last chunk
-           -> IO (Maybe XMLParseError)
-parseChunk parser xml final = withHandlers parser $ unsafeParseChunk parser xml final
+        else Just `fmap` getError pp
 
 parseExternalEntityReference :: Parser
                              -> CString         -- ^ context
@@ -164,33 +152,32 @@ parseExternalEntityReference :: Parser
                              -> CStringLen      -- ^ text
                              -> IO Bool
 parseExternalEntityReference parser context encoding (text,sz) =
-    withParser parser $ \p -> do
+    withParser parser $ \pp -> do
         extp <- withOptEncoding encoding $
-                xmlExternalEntityParserCreate p context
+                xmlExternalEntityParserCreate pp context
         e <- doParseChunk'_ extp text (fromIntegral sz) 1
         parserFree' extp
         return $ e == 1
 
--- | This variant of 'parseChunk' must either be called inside 'withHandlers'
--- (safest), or between 'unsafeSetHandlers' and 'unsafeReleaseHandlers', and
--- this will give you better performance than 'parseChunk' if you process
--- multiple chunks inside.
-unsafeParseChunk :: Parser
+-- |@parseChunk data False@ feeds /strict/ ByteString data into a
+-- 'Parser'.  The end of the data is indicated by passing @True@ for the
+-- final parameter.   It returns Nothing on success, or Just the parse error.
+parseChunk :: ParserPtr
            -> BS.ByteString
            -> Bool
            -> IO (Maybe XMLParseError)
-unsafeParseChunk parser xml final = do
-    ok <- doParseChunk parser xml final
+parseChunk pp xml final = do
+    ok <- doParseChunk pp xml final
     if ok
         then return Nothing
-        else Just `fmap` getError parser
+        else Just `fmap` getError pp
 
-getError :: Parser -> IO XMLParseError
-getError parser = withParser parser $ \p -> do
-    code <- xmlGetErrorCode p
+getError :: ParserPtr -> IO XMLParseError
+getError pp = do
+    code <- xmlGetErrorCode pp
     cerr <- xmlErrorString code
     err <- peekCString cerr
-    loc <- getParseLocation parser
+    loc <- getParseLocation pp
     return $ XMLParseError err loc
 
 data ExpatHandlers = ExpatHandlers
@@ -200,63 +187,62 @@ data ExpatHandlers = ExpatHandlers
     (Maybe (FunPtr CExternalEntityRefHandler))
     (Maybe (FunPtr CSkippedEntityHandler))
 
-unsafeSetHandlers :: Parser -> IO ExpatHandlers
-unsafeSetHandlers parser@(Parser _ startRef endRef charRef extRef skipRef) =
-  do
-    cStartH <- mkCStartElementHandler =<< readIORef startRef
-    cEndH   <- mkCEndElementHandler =<< readIORef endRef
-    cCharH  <- mkCCharacterDataHandler =<< readIORef charRef
-    mExtH   <- readIORef extRef >>=
-                   maybe (return Nothing)
-                         (\h -> liftM Just $ mkCExternalEntityRefHandler h)
-
-    mSkipH  <- readIORef skipRef >>=
-                   maybe (return Nothing)
-                         (\h -> liftM Just $ mkCSkippedEntityHandler h)
-
-    withParser parser $ \p -> do
-        xmlSetstartelementhandler  p cStartH
-        xmlSetendelementhandler    p cEndH
-        xmlSetcharacterdatahandler p cCharH
+-- | Most of the low-level functions take a ParserPtr so are required to be
+-- called inside @withParser@.
+withParser :: Parser
+           -> (ParserPtr -> IO a)  -- ^ Computation where unsafeParseChunk may be used
+           -> IO a
+withParser parser@(Parser fp _ _ _ _ _) code = withForeignPtr fp $ \pp -> do
+    bracket
+        (unsafeSetHandlers parser pp)
+        unsafeReleaseHandlers
+        (\_ -> code pp)
+  where
+    unsafeSetHandlers :: Parser -> ParserPtr -> IO ExpatHandlers
+    unsafeSetHandlers (Parser _ startRef endRef charRef extRef skipRef) pp =
+      do
+        cStartH <- mkCStartElementHandler =<< readIORef startRef
+        cEndH   <- mkCEndElementHandler =<< readIORef endRef
+        cCharH  <- mkCCharacterDataHandler =<< readIORef charRef
+        mExtH   <- readIORef extRef >>=
+                       maybe (return Nothing)
+                             (\h -> liftM Just $ mkCExternalEntityRefHandler h)
+    
+        mSkipH  <- readIORef skipRef >>=
+                       maybe (return Nothing)
+                             (\h -> liftM Just $ mkCSkippedEntityHandler h)
+    
+        xmlSetstartelementhandler  pp cStartH
+        xmlSetendelementhandler    pp cEndH
+        xmlSetcharacterdatahandler pp cCharH
         maybe (return ())
-              (xmlSetExternalEntityRefHandler p)
+              (xmlSetExternalEntityRefHandler pp)
               mExtH
         maybe (return ())
-              (xmlSetSkippedEntityHandler p)
+              (xmlSetSkippedEntityHandler pp)
               mSkipH
+    
+        return $ ExpatHandlers cStartH cEndH cCharH mExtH mSkipH
+    
+    unsafeReleaseHandlers :: ExpatHandlers -> IO ()
+    unsafeReleaseHandlers (ExpatHandlers cStartH cEndH cCharH mcExtH mcSkipH) = do
+        freeHaskellFunPtr cStartH
+        freeHaskellFunPtr cEndH
+        freeHaskellFunPtr cCharH
+        maybe (return ()) freeHaskellFunPtr mcExtH
+        maybe (return ()) freeHaskellFunPtr mcSkipH
 
-    return $ ExpatHandlers cStartH cEndH cCharH mExtH mSkipH
-
-unsafeReleaseHandlers :: ExpatHandlers -> IO ()
-unsafeReleaseHandlers (ExpatHandlers cStartH cEndH cCharH mcExtH mcSkipH) = do
-    freeHaskellFunPtr cStartH
-    freeHaskellFunPtr cEndH
-    freeHaskellFunPtr cCharH
-    maybe (return ()) freeHaskellFunPtr mcExtH
-    maybe (return ()) freeHaskellFunPtr mcSkipH
-
--- | 'unsafeParseChunk' is required to be called inside @withHandlers@.
--- Safer than using 'unsafeSetHandlers' / 'unsafeReleaseHandlers'.
-withHandlers :: Parser
-             -> IO a  -- ^ Computation where unsafeParseChunk may be used
-             -> IO a
-withHandlers parser code = do
-    bracket
-        (unsafeSetHandlers parser)
-        unsafeReleaseHandlers
-        (\_ -> code)
 
 -- |Obtain C value from Haskell 'Bool'.
 --
 cFromBool :: Num a => Bool -> a
 cFromBool  = fromBool
 
-doParseChunk :: Parser -> BS.ByteString -> Bool -> IO (Bool)
+doParseChunk :: ParserPtr -> BS.ByteString -> Bool -> IO (Bool)
 doParseChunk a1 a2 a3 =
-  withParser a1 $ \a1' ->
   withBStringLen a2 $ \(a2'1, a2'2) ->
   let {a3' = cFromBool a3} in
-  doParseChunk'_ a1' a2'1  a2'2 a3' >>= \res ->
+  doParseChunk'_ a1 a2'1  a2'2 a3' >>= \res ->
   let {res' = unStatus res} in
   return (res')
 
@@ -278,12 +264,12 @@ data XMLParseLocation = XMLParseLocation {
 instance NFData XMLParseLocation where
     rnf (XMLParseLocation lin col ind cou) = rnf (lin, col, ind, cou)
 
-getParseLocation :: Parser -> IO XMLParseLocation
-getParseLocation parser = withParser parser $ \p -> do
-    line <- xmlGetCurrentLineNumber p
-    col <- xmlGetCurrentColumnNumber p
-    index <- xmlGetCurrentByteIndex p
-    count <- xmlGetCurrentByteCount p
+getParseLocation :: ParserPtr -> IO XMLParseLocation
+getParseLocation pp = do
+    line <- xmlGetCurrentLineNumber pp
+    col <- xmlGetCurrentColumnNumber pp
+    index <- xmlGetCurrentByteIndex pp
+    count <- xmlGetCurrentByteCount pp
     return $ XMLParseLocation {
             xmlLineNumber = fromIntegral line,
             xmlColumnNumber = fromIntegral col,
@@ -294,18 +280,18 @@ getParseLocation parser = withParser parser $ \p -> do
 -- | The type of the \"element started\" callback.  The first parameter is the
 -- element name; the second are the (attribute, value) pairs. Return True to
 -- continue parsing as normal, or False to terminate the parse.
-type StartElementHandler  = CString -> [(CString, CString)] -> IO Bool
+type StartElementHandler  = ParserPtr -> CString -> [(CString, CString)] -> IO Bool
 
 -- | The type of the \"element ended\" callback.  The parameter is the element
 -- name. Return True to continue parsing as normal, or False to terminate the
 -- parse.
-type EndElementHandler    = CString -> IO Bool
+type EndElementHandler    = ParserPtr -> CString -> IO Bool
 
 -- | The type of the \"character data\" callback.  The parameter is the
 -- character data processed.  This callback may be called more than once while
 -- processing a single conceptual block of text. Return True to continue
 -- parsing as normal, or False to terminate the parse.
-type CharacterDataHandler = CStringLen -> IO Bool
+type CharacterDataHandler = ParserPtr -> CStringLen -> IO Bool
 
 -- | The type of the \"external entity reference\" callback. See the expat
 -- documentation.
@@ -323,11 +309,12 @@ type ExternalEntityRefHandler =  Parser
 --
 -- 2. An internal entity reference is read, but not expanded, because
 -- @XML_SetDefaultHandler@ has been called.
-type SkippedEntityHandler =  CString  -- entityName
-                          -> Int      -- is a parameter entity?
+type SkippedEntityHandler =  ParserPtr
+                          -> CString   -- entityName
+                          -> Int       -- is a parameter entity?
                           -> IO Bool
 
-type CStartElementHandler = Ptr () -> CString -> Ptr CString -> IO ()
+type CStartElementHandler = ParserPtr -> CString -> Ptr CString -> IO ()
 
 nullCStartElementHandler :: CStartElementHandler
 nullCStartElementHandler _ _ _ = return ()
@@ -339,17 +326,17 @@ foreign import ccall safe "wrapper"
 wrapStartElementHandler :: Parser -> StartElementHandler -> CStartElementHandler
 wrapStartElementHandler parser handler = h
   where
-    h _ cname cattrs = do
+    h pp cname cattrs = do
         cattrlist <- peekArray0 nullPtr cattrs
-        stillRunning <- handler cname (pairwise cattrlist)
-        unless stillRunning $ stopParser parser
+        stillRunning <- handler pp cname (pairwise cattrlist)
+        unless stillRunning $ stopp parser
 
 -- | Attach a StartElementHandler to a Parser.
 setStartElementHandler :: Parser -> StartElementHandler -> IO ()
 setStartElementHandler parser@(Parser _ startRef _ _ _ _) handler =
     writeIORef startRef $ wrapStartElementHandler parser handler
 
-type CEndElementHandler = Ptr () -> CString -> IO ()
+type CEndElementHandler = ParserPtr -> CString -> IO ()
 
 nullCEndElementHandler :: CEndElementHandler
 nullCEndElementHandler _ _ = return ()
@@ -360,16 +347,16 @@ foreign import ccall safe "wrapper"
 wrapEndElementHandler :: Parser -> EndElementHandler -> CEndElementHandler
 wrapEndElementHandler parser handler = h
   where
-    h _ cname = do
-        stillRunning <- handler cname
-        unless stillRunning $ stopParser parser
+    h pp cname = do
+        stillRunning <- handler pp cname
+        unless stillRunning $ stopp parser
 
 -- | Attach an EndElementHandler to a Parser.
 setEndElementHandler :: Parser -> EndElementHandler -> IO ()
 setEndElementHandler parser@(Parser _ _ endRef _ _ _) handler =
     writeIORef endRef $ wrapEndElementHandler parser handler
 
-type CCharacterDataHandler = Ptr () -> CString -> CInt -> IO ()
+type CCharacterDataHandler = ParserPtr -> CString -> CInt -> IO ()
 
 nullCCharacterDataHandler :: CCharacterDataHandler
 nullCCharacterDataHandler _ _ _ = return ()
@@ -380,9 +367,9 @@ foreign import ccall safe "wrapper"
 wrapCharacterDataHandler :: Parser -> CharacterDataHandler -> CCharacterDataHandler
 wrapCharacterDataHandler parser handler = h
   where
-    h _ cdata len = do
-        stillRunning <- handler (cdata, fromIntegral len)
-        unless stillRunning $ stopParser parser
+    h pp cdata len = do
+        stillRunning <- handler pp (cdata, fromIntegral len)
+        unless stillRunning $ stopp parser
 
 -- | Attach an CharacterDataHandler to a Parser.
 setCharacterDataHandler :: Parser -> CharacterDataHandler -> IO ()
@@ -393,26 +380,29 @@ pairwise :: [a] -> [(a,a)]
 pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
 pairwise _          = []
 
-stopParser :: Parser -> IO ()
-stopParser parser = withParser parser $ \p -> xmlStopParser p 0
+stopp :: Parser -> IO ()
+stopp parser = withParser parser $ \p -> xmlStopParser p 0
 
 ------------------------------------------------------------------------------
 -- C imports
 
 foreign import ccall unsafe "XML_ParserCreate"
-  parserCreate'_ :: ((Ptr CChar) -> (IO (Ptr ())))
+  parserCreate'_ :: Ptr CChar -> IO ParserPtr
+  
+foreign import ccall unsafe "XML_SetUserData"
+  xmlSetUserData :: ParserPtr -> ParserPtr -> IO ()
 
 foreign import ccall unsafe "XML_SetStartElementHandler"
-  xmlSetstartelementhandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> ((Ptr (Ptr CChar)) -> (IO ()))))) -> (IO ())))
+  xmlSetstartelementhandler :: ParserPtr -> ((FunPtr (ParserPtr -> ((Ptr CChar) -> ((Ptr (Ptr CChar)) -> (IO ())))) -> (IO ())))
 
 foreign import ccall unsafe "XML_SetEndElementHandler"
-  xmlSetendelementhandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> (IO ())))) -> (IO ())))
+  xmlSetendelementhandler :: ParserPtr -> ((FunPtr (ParserPtr -> ((Ptr CChar) -> (IO ()))) -> (IO ())))
 
 foreign import ccall unsafe "XML_SetCharacterDataHandler"
-  xmlSetcharacterdatahandler :: ((Ptr ()) -> ((FunPtr ((Ptr ()) -> ((Ptr CChar) -> (CInt -> (IO ()))))) -> (IO ())))
+  xmlSetcharacterdatahandler :: ParserPtr -> ((FunPtr (ParserPtr -> ((Ptr CChar) -> (CInt -> (IO ())))) -> (IO ())))
 
 foreign import ccall safe "XML_Parse"
-  doParseChunk'_ :: ((Ptr ()) -> ((Ptr CChar) -> (CInt -> (CInt -> (IO CInt)))))
+  doParseChunk'_ :: ParserPtr -> ((Ptr CChar) -> (CInt -> (CInt -> (IO CInt))))
 
 foreign import ccall unsafe "XML_UseForeignDTD"
   xmlUseForeignDTD :: ParserPtr     -- ^ parser
@@ -452,9 +442,9 @@ foreign import ccall unsafe "XML_ExternalEntityParserCreate"
                                 -> CString   -- ^ encoding
                                 -> IO ParserPtr
 
-type CSkippedEntityHandler =  Ptr ()   -- user data pointer
-                           -> CString  -- entity name
-                           -> CInt     -- is a parameter entity?
+type CSkippedEntityHandler =  ParserPtr -- user data pointer
+                           -> CString   -- entity name
+                           -> CInt      -- is a parameter entity?
                            -> IO ()
 
 foreign import ccall safe "wrapper"
@@ -469,7 +459,7 @@ wrapExternalEntityRefHandler parser handler = h
   where
     h _ context base systemID publicID = do
         stillRunning <- handler parser context base systemID publicID
-        unless stillRunning $ stopParser parser
+        unless stillRunning $ stopp parser
 
 
 wrapSkippedEntityHandler :: Parser
@@ -477,9 +467,9 @@ wrapSkippedEntityHandler :: Parser
                          -> CSkippedEntityHandler
 wrapSkippedEntityHandler parser handler = h
   where
-    h _ entityName i = do
-        stillRunning <- handler entityName (fromIntegral i)
-        unless stillRunning $ stopParser parser
+    h pp entityName i = do
+        stillRunning <- handler pp entityName (fromIntegral i)
+        unless stillRunning $ stopp parser
 
 
 setExternalEntityRefHandler :: Parser -> ExternalEntityRefHandler -> IO ()

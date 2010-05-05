@@ -105,11 +105,11 @@ test_parse = do
             toByteString "1><hello></he",
             toByteString "llo></open>"]
     parser <- newParser Nothing
-    setStartElementHandler parser $ \cname cattrs -> do
+    setStartElementHandler parser $ \_ cname cattrs -> do
         name <- peekCString cname
         ref <- modifyIORef ref $ \l -> ("start "++name):l
         return True
-    setEndElementHandler parser $ \cname -> do
+    setEndElementHandler parser $ \_ cname -> do
         name <- peekCString cname
         ref <- modifyIORef ref $ \l -> ("end "++name):l
         return True

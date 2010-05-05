@@ -288,8 +288,8 @@ setEntityDecoder parser queueRef decoder = do
     text str (cur:rest) = modifyChildren (Text str:) cur : rest
     text _ [] = undefined
 
-    skip _ 1 = return False
-    skip entityName 0 = do
+    skip _ _ 1 = return False
+    skip _ entityName 0 = do
         en <- textFromCString entityName
         let mbt = decoder en
         maybe (return False)
@@ -297,7 +297,7 @@ setEntityDecoder parser queueRef decoder = do
                    modifyIORef queueRef $ text t
                    return True)
               mbt
-    skip _ _ = undefined
+    skip _ _ _ = undefined
 
     eh p ctx _ systemID publicID =
         if systemID == nullPtr && publicID == nullPtr
@@ -327,7 +327,7 @@ parse' opts doc = unsafePerformIO $ runParse where
           (setEntityDecoder parser stack)
           mEntityDecoder
 
-    setStartElementHandler parser $ \cName cAttrs -> do
+    setStartElementHandler parser $ \_ cName cAttrs -> do
         name <- textFromCString cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
             attrName <- textFromCString cAttrName
@@ -335,10 +335,10 @@ parse' opts doc = unsafePerformIO $ runParse where
             return (attrName, attrValue)
         modifyIORef stack (start name attrs)
         return True
-    setEndElementHandler parser $ \_ -> do
+    setEndElementHandler parser $ \_ _ -> do
         modifyIORef stack end
         return True
-    setCharacterDataHandler parser $ \cText -> do
+    setCharacterDataHandler parser $ \_ cText -> do
         txt <- gxFromCStringLen cText
         modifyIORef stack (text txt)
         return True

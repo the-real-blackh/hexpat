@@ -157,8 +157,8 @@ setEntityDecoder parser queueRef decoder = do
     setSkippedEntityHandler parser skip
 
   where
-    skip _ 1 = return False
-    skip entityName 0 = do
+    skip _ _ 1 = return False
+    skip _ entityName 0 = do
         en <- textFromCString entityName
         let mbt = decoder en
         maybe (return False)
@@ -166,7 +166,7 @@ setEntityDecoder parser queueRef decoder = do
                    modifyIORef queueRef (CharacterData t:)
                    return True)
               mbt
-    skip _ _ = undefined
+    skip _ _ _ = undefined
 
     eh p ctx _ systemID publicID =
         if systemID == nullPtr && publicID == nullPtr
@@ -186,17 +186,17 @@ setEntityDecoderLoc parser queueRef decoder = do
     setSkippedEntityHandler parser skip
 
   where
-    skip _ 1 = return False
-    skip entityName 0 = do
+    skip _ _ 1 = return False
+    skip pp entityName 0 = do
         en <- textFromCString entityName
         let mbt = decoder en
         maybe (return False)
               (\t -> do
-                   loc <- getParseLocation parser
+                   loc <- getParseLocation pp
                    modifyIORef queueRef ((CharacterData t,loc):)
                    return True)
               mbt
-    skip _ _ = undefined
+    skip _ _ _ = undefined
 
     eh p ctx _ systemID publicID =
         if systemID == nullPtr && publicID == nullPtr
@@ -222,7 +222,7 @@ parse opts input = unsafePerformIO $ do
           (setEntityDecoder parser queueRef)
           mEntityDecoder
 
-    setStartElementHandler parser $ \cName cAttrs -> do
+    setStartElementHandler parser $ \_ cName cAttrs -> do
         name <- textFromCString cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
             attrName <- textFromCString cAttrName
@@ -231,25 +231,25 @@ parse opts input = unsafePerformIO $ do
         modifyIORef queueRef (StartElement name attrs:)
         return True
 
-    setEndElementHandler parser $ \cName -> do
+    setEndElementHandler parser $ \_ cName -> do
         name <- textFromCString cName
         modifyIORef queueRef (EndElement name:)
         return True
 
-    setCharacterDataHandler parser $ \cText -> do
+    setCharacterDataHandler parser $ \_ cText -> do
         txt <- gxFromCStringLen cText
         modifyIORef queueRef (CharacterData txt:)
         return True
 
     let runParser inp = unsafeInterleaveIO $ do
-            rema <- case inp of
+            rema <- withParser parser $ \pp -> case inp of
                 (c:cs) -> do
-                    mError <- parseChunk parser c False
+                    mError <- parseChunk pp c False
                     case mError of
                         Just err -> return [FailDocument err]
                         Nothing -> runParser cs
                 [] -> do
-                    mError <- parseChunk parser B.empty True
+                    mError <- parseChunk pp B.empty True
                     case mError of
                         Just err -> return [FailDocument err]
                         Nothing -> return []
@@ -297,38 +297,39 @@ parseLocations opts input = unsafePerformIO $ do
           (setEntityDecoderLoc parser queueRef)
           mEntityDecoder
 
-    setStartElementHandler parser $ \cName cAttrs -> do
+    setStartElementHandler parser $ \pp cName cAttrs -> do
         name <- textFromCString cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
             attrName <- textFromCString cAttrName
             attrValue <- textFromCString cAttrValue
             return (attrName, attrValue)
-        loc <- getParseLocation parser
+        loc <- getParseLocation pp
         modifyIORef queueRef ((StartElement name attrs,loc):)
         return True
 
-    setEndElementHandler parser $ \cName -> do
+    setEndElementHandler parser $ \pp cName -> do
         name <- textFromCString cName
-        loc <- getParseLocation parser
+        loc <- getParseLocation pp
         modifyIORef queueRef ((EndElement name, loc):)
         return True
 
-    setCharacterDataHandler parser $ \cText -> do
+    setCharacterDataHandler parser $ \pp cText -> do
         txt <- gxFromCStringLen cText
-        loc <- getParseLocation parser
+        loc <- getParseLocation pp
         modifyIORef queueRef ((CharacterData txt, loc):)
         return True
 
     let runParser [] = return []
         runParser (c:cs) = unsafeInterleaveIO $ do
-            mError <- parseChunk parser c (null cs)
             queue <- readIORef queueRef
             writeIORef queueRef []
-            rema <- case mError of
-                Just err -> do
-                    loc <- getParseLocation parser
-                    return [(FailDocument err, loc)]
-                Nothing -> runParser cs
+            rema <- withParser parser $ \pp -> do
+                mError <- parseChunk pp c (null cs)
+                case mError of
+                    Just err -> do
+                        loc <- getParseLocation pp
+                        return [(FailDocument err, loc)]
+                    Nothing -> runParser cs
             return $ reverse queue ++ rema
 
     runParser $ L.toChunks input
