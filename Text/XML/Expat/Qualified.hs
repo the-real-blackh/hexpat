@@ -20,7 +20,7 @@ module Text.XML.Expat.Qualified (
         fromQualified
     ) where
 
-import Text.XML.Expat.NodeClass
+import Text.XML.Expat.NodeClass ()
 import Text.XML.Expat.Tree
 import Control.Parallel.Strategies
 import Data.Monoid
