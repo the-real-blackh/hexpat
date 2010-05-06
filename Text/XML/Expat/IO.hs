@@ -12,7 +12,8 @@
 --
 -- (2) Set up callbacks on the parser: 'setStartElementHandler', etc.
 --
--- (3) Feed data into the parser: 'parse', 'parse'' or 'parseChunk'.
+-- (3) Feed data into the parser: 'parse', 'parse'' or 'parseChunk'.  Some of
+--     these functions must be wrapped in 'withParser'.
 
 module Text.XML.Expat.IO (
   -- ** Parser Setup
@@ -21,6 +22,7 @@ module Text.XML.Expat.IO (
   -- ** Parsing
   parse, parse',
   withParser,
+  ParserPtr, Parser_struct,
   parseChunk,
   Encoding(..),
   XMLParseError(..),
@@ -190,7 +192,7 @@ data ExpatHandlers = ExpatHandlers
 -- | Most of the low-level functions take a ParserPtr so are required to be
 -- called inside @withParser@.
 withParser :: Parser
-           -> (ParserPtr -> IO a)  -- ^ Computation where unsafeParseChunk may be used
+           -> (ParserPtr -> IO a)  -- ^ Computation where parseChunk and other low-level functions may be used
            -> IO a
 withParser parser@(Parser fp _ _ _ _ _) code = withForeignPtr fp $ \pp -> do
     bracket

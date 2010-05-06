@@ -38,6 +38,9 @@ Description:
   @cabal install hexpat --extra-lib-dirs="C:\\Program Files\\Expat 2.0.1\\Bin" --extra-include-dirs="C:\\Program Files\\Expat 2.0.1\\Source\\Lib"@
   .
   Ensure @libexpat.dll@ can be found in your system PATH (or copy it into your executable's directory).
+  .
+  ChangeLog: 0.15 changes intended to fix a (rare) \"error: a C finalizer called back into Haskell.\"
+    that seemed only to happen only on ghc6.12.X.
 Category: XML
 License: BSD3
 License-File: LICENSE
