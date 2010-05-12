@@ -32,6 +32,9 @@ module Text.XML.Expat.SAX (
   parseSAXLocationsThrowing,
   parseSAXThrowing,
 
+  -- * Helpers
+  setEntityDecoder,
+
   -- * Abstraction of string types
   GenericXMLString(..)
 ) where
@@ -145,65 +148,35 @@ textFromCString cstr = do
     len <- c_strlen cstr
     gxFromCStringLen (cstr, fromIntegral len)
 
-
+-- | A helper for configuring the hexpat parser to use the specified entity
+-- decoder.
 setEntityDecoder :: (GenericXMLString tag, GenericXMLString text)
                  => Parser
-                 -> IORef [SAXEvent tag text]
-                 -> (tag -> Maybe text)
+                 -> (tag -> Maybe text)   -- ^ Entity decoder
+                 -> (ParserPtr -> text -> IO ())       -- ^ Code to insert character data into the document
                  -> IO ()
-setEntityDecoder parser queueRef decoder = do
+setEntityDecoder parser decoder insertText = do
     setUseForeignDTD parser True
     setExternalEntityRefHandler parser eh
     setSkippedEntityHandler parser skip
 
   where
-    skip _ _ 1 = return False
-    skip _ entityName 0 = do
-        en <- textFromCString entityName
-        let mbt = decoder en
-        maybe (return False)
-              (\t -> do
-                   modifyIORef queueRef (CharacterData t:)
-                   return True)
-              mbt
-    skip _ _ _ = undefined
-
-    eh p ctx _ systemID publicID =
-        if systemID == nullPtr && publicID == nullPtr
-           then withCStringLen "" $ \c -> do
-               parseExternalEntityReference p ctx Nothing c
-           else return False
-
-
-setEntityDecoderLoc :: (GenericXMLString tag, GenericXMLString text)
-                    => Parser
-                    -> IORef [(SAXEvent tag text, XMLParseLocation)]
-                    -> (tag -> Maybe text)
-                    -> IO ()
-setEntityDecoderLoc parser queueRef decoder = do
-    setUseForeignDTD parser True
-    setExternalEntityRefHandler parser eh
-    setSkippedEntityHandler parser skip
-
-  where
-    skip _ _ 1 = return False
+    skip _  _ 1 = return False
     skip pp entityName 0 = do
         en <- textFromCString entityName
         let mbt = decoder en
         maybe (return False)
               (\t -> do
-                   loc <- getParseLocation pp
-                   modifyIORef queueRef ((CharacterData t,loc):)
+                   insertText pp t
                    return True)
               mbt
     skip _ _ _ = undefined
 
-    eh p ctx _ systemID publicID =
+    eh pp ctx _ systemID publicID =
         if systemID == nullPtr && publicID == nullPtr
            then withCStringLen "" $ \c -> do
-               parseExternalEntityReference p ctx Nothing c
+               parseExternalEntityReference pp ctx Nothing c
            else return False
-
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list.
@@ -218,9 +191,10 @@ parse opts input = unsafePerformIO $ do
     parser <- newParser enc
     queueRef <- newIORef []
 
-    maybe (return ())
-          (setEntityDecoder parser queueRef)
-          mEntityDecoder
+    case mEntityDecoder of
+        Just deco -> setEntityDecoder parser deco $ \_ txt -> do
+            modifyIORef queueRef (CharacterData txt:)
+        Nothing -> return ()
 
     setStartElementHandler parser $ \_ cName cAttrs -> do
         name <- textFromCString cName
@@ -293,9 +267,11 @@ parseLocations opts input = unsafePerformIO $ do
     parser <- newParser enc
     queueRef <- newIORef []
 
-    maybe (return ())
-          (setEntityDecoderLoc parser queueRef)
-          mEntityDecoder
+    case mEntityDecoder of
+        Just deco -> setEntityDecoder parser deco $ \pp txt -> do
+            loc <- getParseLocation pp
+            modifyIORef queueRef ((CharacterData txt, loc):)
+        Nothing -> return ()
 
     setStartElementHandler parser $ \pp cName cAttrs -> do
         name <- textFromCString cName
@@ -319,17 +295,24 @@ parseLocations opts input = unsafePerformIO $ do
         modifyIORef queueRef ((CharacterData txt, loc):)
         return True
 
-    let runParser [] = return []
-        runParser (c:cs) = unsafeInterleaveIO $ do
+    let runParser inp = unsafeInterleaveIO $ do
+            rema <- withParser parser $ \pp -> case inp of
+                (c:cs) -> do
+                    mError <- parseChunk pp c False
+                    case mError of
+                        Just err -> do
+                            loc <- getParseLocation pp
+                            return [(FailDocument err, loc)]
+                        Nothing -> runParser cs
+                [] -> do
+                    mError <- parseChunk pp B.empty True
+                    case mError of
+                        Just err -> do
+                            loc <- getParseLocation pp
+                            return [(FailDocument err, loc)]
+                        Nothing -> return []
             queue <- readIORef queueRef
             writeIORef queueRef []
-            rema <- withParser parser $ \pp -> do
-                mError <- parseChunk pp c (null cs)
-                case mError of
-                    Just err -> do
-                        loc <- getParseLocation pp
-                        return [(FailDocument err, loc)]
-                    Nothing -> runParser cs
             return $ reverse queue ++ rema
 
     runParser $ L.toChunks input

@@ -146,7 +146,8 @@ import Text.XML.Expat.SAX ( ParserOptions(..)
                           , parseSAXLocations
                           , parseSAXLocationsThrowing
                           , parseSAXThrowing
-                          , GenericXMLString(..) )
+                          , GenericXMLString(..)
+                          , setEntityDecoder )
 import qualified Text.XML.Expat.SAX as SAX
 import Text.XML.Expat.NodeClass
 
@@ -160,8 +161,6 @@ import Data.List.Class
 import Data.Monoid (Monoid,mempty,mappend)
 import Control.Parallel.Strategies
 import System.IO.Unsafe
-import Foreign.C.String
-import Foreign.Ptr
 
 
 -- | The tree representation of the XML document.
@@ -274,38 +273,6 @@ instance (Functor c, List c) => NodeClass NodeG c where
 instance (Functor c, List c) => MkElementClass NodeG c where
     mkElement name attrs children = Element name attrs children
 
-setEntityDecoder :: (GenericXMLString tag, GenericXMLString text)
-                 => Parser
-                 -> IORef [Node tag text]
-                 -> (tag -> Maybe text)
-                 -> IO ()
-setEntityDecoder parser queueRef decoder = do
-    setUseForeignDTD parser True
-    setExternalEntityRefHandler parser eh
-    setSkippedEntityHandler parser skip
-
-  where
-    text str (cur:rest) = modifyChildren (Text str:) cur : rest
-    text _ [] = undefined
-
-    skip _ _ 1 = return False
-    skip _ entityName 0 = do
-        en <- textFromCString entityName
-        let mbt = decoder en
-        maybe (return False)
-              (\t -> do
-                   modifyIORef queueRef $ text t
-                   return True)
-              mbt
-    skip _ _ _ = undefined
-
-    eh p ctx _ systemID publicID =
-        if systemID == nullPtr && publicID == nullPtr
-           then withCStringLen "" $ \c -> do
-               parseExternalEntityReference p ctx Nothing c
-           else return False
-
-
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parse' :: (GenericXMLString tag, GenericXMLString text) =>
           ParserOptions tag text  -- ^ Parser options
@@ -323,9 +290,10 @@ parse' opts doc = unsafePerformIO $ runParse where
     let emptyString = gxFromString ""
     stack <- newIORef [Element emptyString [] []]
 
-    maybe (return ())
-          (setEntityDecoder parser stack)
-          mEntityDecoder
+    case mEntityDecoder of
+        Just deco -> setEntityDecoder parser deco $ \_ txt -> do
+            modifyIORef stack (text txt)
+        Nothing -> return ()
 
     setStartElementHandler parser $ \_ cName cAttrs -> do
         name <- textFromCString cName
