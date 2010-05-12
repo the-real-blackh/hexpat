@@ -17,7 +17,6 @@ module Text.XML.Expat.Annotated (
   module Text.XML.Expat.NodeClass,
 
   -- * Annotation-specific
-  unannotate,
   modifyAnnotation,
   mapAnnotation,
 
@@ -206,13 +205,6 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
 
 instance (Functor c, List c) => MkElementClass (NodeG (Maybe a)) c where
     mkElement name attrs children = Element name attrs children Nothing
-
--- | Convert an annotated tree (/Annotated/ module) into a non-annotated
--- tree (/Tree/ module).  Needed, for example, when you @format@ your tree to
--- XML, since @format@ takes a non-annotated tree.
-unannotate :: Functor c => NodeG a c tag text -> Tree.NodeG c tag text
-unannotate (Element na at ch _) = (Tree.Element na at (fmap unannotate ch))
-unannotate (Text t) = Tree.Text t
 
 -- | Type shortcut for a single annotated node with unqualified tag names where
 -- tag and text are the same string type

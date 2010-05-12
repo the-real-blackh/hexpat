@@ -4,6 +4,7 @@
 -- /Annotated/.
 module Text.XML.Expat.NodeClass where
 
+import Control.Monad (mzero)
 import Data.Functor.Identity
 import Data.List.Class
 import Data.Monoid (Monoid)
@@ -79,12 +80,13 @@ class (Functor c, List c) => NodeClass n c where
                      -> n c tag text
                      -> ItemM c (n c' tag text)
 
-    -- | Create a text node
+    -- | Generic text node constructor.
     mkText :: text -> n c tag text
 
 -- | A class of node types where an Element can be constructed given a tag,
 -- attributes and children.
 class NodeClass n c => MkElementClass n c where
+    -- | Generic element constructor.
     mkElement :: tag -> Attributes tag text -> c (n c tag text) -> n c tag text
 
 -- | Get the value of the attribute having the specified name.
@@ -112,4 +114,43 @@ deleteAttribute t = modifyAttributes del
 alterAttribute :: (Eq tag, NodeClass n c, GenericXMLString tag) => tag -> Maybe text -> n c tag text -> n c tag text
 alterAttribute t (Just newValue) = setAttribute t newValue
 alterAttribute t Nothing = deleteAttribute t
+
+-- | Generically convert an element of one node type to another.  Useful for
+-- adding or removing annotations.
+fromElement :: (NodeClass n c, MkElementClass n' c, Monoid tag, Monoid text) =>
+               n c tag text
+            -> n' c tag text
+fromElement = fromElement_ mkElement
+
+-- | Generically convert an element of one node type to another, using
+-- the specified element constructor.  Useful for adding or removing annotations.
+fromElement_ :: (NodeClass n c, NodeClass n' c, Monoid tag, Monoid text) =>
+                (tag -> Attributes tag text -> c (n' c tag text) -> n' c tag text)  -- ^ Element constructor
+             -> n c tag text
+             -> n' c tag text
+fromElement_ mkElement elt | isElement elt =
+    mkElement (getName elt) (getAttributes elt) (fromNodes_ mkElement $ getChildren elt)
+fromElement_ _ _ = error "fromElement requires an Element"
+
+-- | Generically convert a list of nodes from one node type to another.  Useful for
+-- adding or removing annotations.
+fromNodes :: (NodeClass n c, MkElementClass n' c, Monoid tag, Monoid text) =>
+             c (n c tag text)
+          -> c (n' c tag text)
+fromNodes = fromNodes_ mkElement
+
+-- | Generically convert a list of nodes from one node type to another, using
+-- the specified element constructor.  Useful for adding or removing annotations.
+fromNodes_ :: (NodeClass n c, NodeClass n' c, Monoid tag, Monoid text) =>
+              (tag -> Attributes tag text -> c (n' c tag text) -> n' c tag text)  -- ^ Element constructor
+           -> c (n c tag text)
+           -> c (n' c tag text)
+fromNodes_ mkElement l = joinL $ do
+    li <- runList l
+    return $ case li of
+        Nil -> mzero
+        Cons elt l' | isElement elt -> fromElement_ mkElement elt `cons` fromNodes_ mkElement l'
+        Cons txt l' | isText txt    -> mkText (getText txt) `cons` fromNodes_ mkElement l'
+        -- Future node types may include other kinds of nodes, which we discard here.
+        Cons _   l'                 -> fromNodes_ mkElement l'
 
