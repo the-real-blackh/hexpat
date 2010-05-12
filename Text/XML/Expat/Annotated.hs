@@ -68,7 +68,8 @@ module Text.XML.Expat.Annotated (
   parseSAXLocationsThrowing,
   parseTree,
   parseTree',
-  parseTreeThrowing
+  parseTreeThrowing,
+  unannotate
 ) where
 
 import Control.Arrow
@@ -205,6 +206,13 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
 
 instance (Functor c, List c) => MkElementClass (NodeG (Maybe a)) c where
     mkElement name attrs children = Element name attrs children Nothing
+
+-- | Convert an annotated tree (/Annotated/ module) into a non-annotated
+-- tree (/Tree/ module).  DEPRECATED in favour of 'fromElement'.
+unannotate :: Functor c => NodeG a c tag text -> Tree.NodeG c tag text
+{-# DEPRECATED unannotate "use fromElement instead" #-}
+unannotate (Element na at ch _) = (Tree.Element na at (fmap unannotate ch))
+unannotate (Text t) = Tree.Text t
 
 -- | Type shortcut for a single annotated node with unqualified tag names where
 -- tag and text are the same string type

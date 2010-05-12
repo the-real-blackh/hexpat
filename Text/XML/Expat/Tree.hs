@@ -213,7 +213,7 @@ type Nodes tag text = [Node tag text]
 -- | DEPRECATED: Use [UNode text] instead.
 --
 -- Type shortcut for nodes with unqualified tag names where tag and
--- text are the same string type. Deprecated
+-- text are the same string type. DEPRECATED.
 type UNodes text = Nodes text text
 {-# DEPRECATED UNodes "use [UNode text] instead" #-}
 
