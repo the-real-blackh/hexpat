@@ -17,7 +17,7 @@ Executable testsuite
     containers,
     extensible-exceptions >= 0.1 && < 0.2,
     haskell98,
-    mtl >= 1.1.0.0,
+    transformers,
     parallel,
     QuickCheck == 1.2.0.0,
     test-framework < 0.3,
@@ -25,7 +25,7 @@ Executable testsuite
     test-framework-quickcheck < 0.3,
     text >= 0.5,
     utf8-string >= 0.3.3,
-    List >= 0.2
+    List >= 0.4
 
   ghc-options: -Wall -fhpc
   if impl(ghc >= 6.8)

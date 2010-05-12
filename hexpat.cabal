@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.15.1
+Version: 0.16
 Synopsis: wrapper for expat, the fast XML parser
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -40,7 +40,8 @@ Description:
   Ensure @libexpat.dll@ can be found in your system PATH (or copy it into your executable's directory).
   .
   ChangeLog: 0.15 changes intended to fix a (rare) \"error: a C finalizer called back into Haskell.\"
-    that seemed only to happen only on ghc6.12.X; 0.15.1 Fix broken Annotated parse.
+    that seemed only to happen only on ghc6.12.X; 0.15.1 Fix broken Annotated parse;
+    0.16 switch from mtl to transformers
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -77,13 +78,13 @@ Library
   Build-Depends:
     base >= 3 && < 5,
     bytestring,
-    mtl,
+    transformers,
     text >= 0.5,
     utf8-string >= 0.3.3,
     parallel,
     containers,
     extensible-exceptions >= 0.1 && < 0.2,
-    List >= 0.2
+    List >= 0.4
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,

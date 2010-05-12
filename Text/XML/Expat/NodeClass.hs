@@ -4,7 +4,7 @@
 -- /Annotated/.
 module Text.XML.Expat.NodeClass where
 
-import Control.Monad.Identity
+import Data.Functor.Identity
 import Data.List.Class
 import Data.Monoid (Monoid)
 import Text.XML.Expat.SAX (GenericXMLString)

@@ -90,7 +90,7 @@ import Text.XML.Expat.Qualified hiding (QNode, QNodes)
 import Text.XML.Expat.Namespaced hiding (NNode, NNodes)
 import Text.XML.Expat.NodeClass
 
-import Control.Monad (mplus, mzero)
+import Control.Monad (mplus, mzero, liftM)
 import Control.Parallel.Strategies
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
@@ -155,6 +155,8 @@ instance (NFData tag, NFData text, NFData a) => NFData (NodeG a [] tag text) whe
 
 instance (Functor c, List c) => NodeClass (NodeG a) c where
     textContentM (Element _ _ children _) = foldlL mappend mempty $ joinM $ fmap textContentM children
+      where
+        joinM = (>>= joinL . liftM return)
     textContentM (Text txt) = return txt
     
     isElement (Element _ _ _ _) = True

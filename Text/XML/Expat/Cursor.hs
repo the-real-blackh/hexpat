@@ -93,9 +93,10 @@ module Text.XML.Expat.Cursor
   ) where
 
 import Text.XML.Expat.Tree
+import Control.Monad (mzero, mplus)
 import Data.Maybe(isNothing)
 import Data.Monoid
-import Control.Monad.Identity
+import Data.Functor.Identity
 import Data.List.Class
 
 data Tag tag text = Tag { tagName    :: tag

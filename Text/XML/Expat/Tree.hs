@@ -153,7 +153,7 @@ import Text.XML.Expat.NodeClass
 
 ------------------------------------------------------------------------------
 import Control.Arrow
-import Control.Monad (forM, mplus, mzero)
+import Control.Monad (forM, mplus, mzero, liftM)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.IORef
@@ -223,6 +223,8 @@ type UNode text = Node text text
 
 instance (Functor c, List c) => NodeClass NodeG c where
     textContentM (Element _ _ children) = foldlL mappend mempty $ joinM $ fmap textContentM children
+      where
+        joinM = (>>= joinL . liftM return)
     textContentM (Text txt) = return txt
 
     isElement (Element _ _ _) = True
