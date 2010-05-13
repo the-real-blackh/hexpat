@@ -99,7 +99,15 @@ module Text.XML.Expat.Tree (
   UNode,
 
   -- * Generic node manipulation
-  module Text.XML.Expat.NodeClass,
+  module Text.XML.Expat.Internal.NodeClass,
+
+  -- * Qualified nodes
+  QNode,
+  module Text.XML.Expat.Internal.Qualified,
+
+  -- * Namespaced nodes
+  NNode,
+  module Text.XML.Expat.Internal.Namespaced,
 
   -- * Parse to tree
   ParserOptions(..),
@@ -125,6 +133,8 @@ module Text.XML.Expat.Tree (
   eAttrs,
   Nodes,
   UNodes,
+  QNodes,
+  NNodes,
   parseTree,
   parseTree',
   parseSAX,
@@ -132,11 +142,10 @@ module Text.XML.Expat.Tree (
   parseTreeThrowing,
   parseSAXThrowing,
   parseSAXLocationsThrowing
-) where
+  ) where
 
-------------------------------------------------------------------------------
-import Text.XML.Expat.IO hiding (parse,parse')
-import qualified Text.XML.Expat.IO as IO
+import Text.XML.Expat.Internal.IO hiding (parse,parse')
+import qualified Text.XML.Expat.Internal.IO as IO
 import Text.XML.Expat.SAX ( ParserOptions(..)
                           , XMLParseException(..)
                           , SAXEvent(..)
@@ -149,11 +158,12 @@ import Text.XML.Expat.SAX ( ParserOptions(..)
                           , GenericXMLString(..)
                           , setEntityDecoder )
 import qualified Text.XML.Expat.SAX as SAX
-import Text.XML.Expat.NodeClass
+import Text.XML.Expat.Internal.Namespaced
+import Text.XML.Expat.Internal.NodeClass
+import Text.XML.Expat.Internal.Qualified
 
-------------------------------------------------------------------------------
 import Control.Arrow
-import Control.Monad (forM, mplus, mzero, liftM)
+import Control.Monad (forM, mplus, mzero)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.IORef
@@ -221,10 +231,26 @@ type UNodes text = Nodes text text
 -- text are the same string type.
 type UNode text = Node text text
 
+-- | DEPRECATED: Use [QNode text] instead.
+--
+-- Type shortcut for nodes where qualified names are used for tags
+{-# DEPRECATED QNodes "use [QNode text] instead" #-}
+type QNodes text = [Node (QName text) text]
+
+-- | Type shortcut for a single node where qualified names are used for tags
+type QNode text = Node (QName text) text
+
+-- | DEPRECATED: Use [NNode text] instead.
+--
+-- Type shortcut for nodes where namespaced names are used for tags.
+{-# DEPRECATED NNodes "use [NNode text] instead" #-}
+type NNodes text = [Node (NName text) text]
+
+-- | Type shortcut for a single node where namespaced names are used for tags
+type NNode text = Node (NName text) text
+
 instance (Functor c, List c) => NodeClass NodeG c where
     textContentM (Element _ _ children) = foldlL mappend mempty $ joinM $ fmap textContentM children
-      where
-        joinM = (>>= joinL . liftM return)
     textContentM (Text txt) = return txt
 
     isElement (Element _ _ _) = True

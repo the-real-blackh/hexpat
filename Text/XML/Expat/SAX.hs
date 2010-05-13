@@ -37,9 +37,9 @@ module Text.XML.Expat.SAX (
 
   -- * Abstraction of string types
   GenericXMLString(..)
-) where
+  ) where
 
-import Text.XML.Expat.IO hiding (parse)
+import Text.XML.Expat.Internal.IO hiding (parse)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Internal as I

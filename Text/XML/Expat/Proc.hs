@@ -2,7 +2,7 @@
 -- | This module ported from Text.XML.Light.Proc
 module Text.XML.Expat.Proc where
 
-import Text.XML.Expat.NodeClass
+import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.SAX
 
 import Control.Monad

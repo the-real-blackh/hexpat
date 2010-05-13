@@ -14,35 +14,25 @@ module Text.XML.Expat.Annotated (
   ULNode,
 
   -- * Generic node manipulation
-  module Text.XML.Expat.NodeClass,
+  module Text.XML.Expat.Internal.NodeClass,
 
   -- * Annotation-specific
   modifyAnnotation,
   mapAnnotation,
 
   -- * Qualified nodes
-  QName(..),
   QNode,
-  QAttributes,
   QLNode,
-  toQualified,
-  fromQualified,
+  module Text.XML.Expat.Internal.Qualified,
 
   -- * Namespaced nodes
-  NName (..),
   NNode,
-  NAttributes,
   NLNode,
-  mkNName,
-  mkAnNName,
-  toNamespaced,
-  fromNamespaced,
-  xmlnsUri,
-  xmlns,
+  module Text.XML.Expat.Internal.Namespaced,
 
   -- * Parse to tree
-  Tree.ParserOptions(..),
-  Tree.defaultParserOptions,
+  ParserOptions(..),
+  defaultParserOptions,
   Encoding(..),
   parse,
   parse',
@@ -70,13 +60,14 @@ module Text.XML.Expat.Annotated (
   parseTree',
   parseTreeThrowing,
   unannotate
-) where
+  ) where
 
 import Control.Arrow
 import qualified Text.XML.Expat.Tree as Tree
 import Text.XML.Expat.SAX ( Encoding(..)
                           , GenericXMLString(..)
                           , ParserOptions(..)
+                          , defaultParserOptions
                           , SAXEvent(..)
                           , XMLParseError(..)
                           , XMLParseException(..)
@@ -86,11 +77,11 @@ import Text.XML.Expat.SAX ( Encoding(..)
                           , parseSAXLocations
                           , parseSAXLocationsThrowing )
 import qualified Text.XML.Expat.SAX as SAX
-import Text.XML.Expat.Qualified hiding (QNode, QNodes)
-import Text.XML.Expat.Namespaced hiding (NNode, NNodes)
-import Text.XML.Expat.NodeClass
+import Text.XML.Expat.Internal.Namespaced
+import Text.XML.Expat.Internal.NodeClass
+import Text.XML.Expat.Internal.Qualified
 
-import Control.Monad (mplus, mzero, liftM)
+import Control.Monad (mplus, mzero)
 import Control.Parallel.Strategies
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
@@ -155,8 +146,6 @@ instance (NFData tag, NFData text, NFData a) => NFData (NodeG a [] tag text) whe
 
 instance (Functor c, List c) => NodeClass (NodeG a) c where
     textContentM (Element _ _ children _) = foldlL mappend mempty $ joinM $ fmap textContentM children
-      where
-        joinM = (>>= joinL . liftM return)
     textContentM (Text txt) = return txt
     
     isElement (Element _ _ _ _) = True

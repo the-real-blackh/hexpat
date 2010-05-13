@@ -27,7 +27,7 @@ module Text.XML.Expat.Format (
         indent_
     ) where
 
-import Text.XML.Expat.NodeClass
+import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.SAX
 
 import Control.Monad

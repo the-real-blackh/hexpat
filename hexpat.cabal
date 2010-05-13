@@ -9,24 +9,24 @@ Description:
   @ByteString@ and @Text@ provided out of the box.
   .
   Basic usage: Parsing a tree (/Tree/), formatting a tree (/Format/).
-  .
   Other features: Helpers for processing XML trees (/Proc/), trees annotated with
-  XML source location (/Annotated/), XML cursors (/Cursor/), more intelligent
-  handling of qualified tag names (/Qualified/), tags qualified with namespaces
-  (/Namespaced/), SAX-style parse (/SAX/), and access to the low-level interface
-  in case speed is paramount (/IO/).  And, /NodeClass/ contains type classes for
-  generalized tree processing.
+  XML source location (/Annotated/), XML cursors (/Cursor/), SAX-style parse (/SAX/),
+  and access to the low-level interface in case speed is paramount (/Internal.IO/).
   .
-  The design goals are speed, speed, speed, interface simplicity and modularity
-  (in that order).
+  The design goals are speed, speed, speed, interface simplicity and modularity.
   .
   For introduction and examples, see the /Text.XML.Expat.Tree/ module. For benchmarks,
   <http://haskell.org/haskellwiki/Hexpat/>
   .
-  This package provides pure lazy parsing.  However, Haskell's lazy I\/O is
+  If you want to do interactive I\/O, an obvious option is to use lazy parsing
+  with one of the lazy I\/O functions such as hGetContents.  However, this can be
   problematic in some applications because it doesn't handle I\/O errors properly
   and can give no guarantee of timely resource cleanup.  In these cases, chunked
   I\/O is a better approach: Take a look at the /hexpat-iteratee/ package.
+  .
+  /IO/ is filed under /Internal/ because it's low-level and most users won't want
+  it.  The other /Internal/ modules are re-exported by /Annotated/ and /Tree/,
+  so you won't need to import them directly.
   .
   Credits to Iavor Diatchki and the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
   .
@@ -95,6 +95,10 @@ Library
     Text.XML.Expat.Proc,
     Text.XML.Expat.Qualified,
     Text.XML.Expat.SAX,
-    Text.XML.Expat.Tree
+    Text.XML.Expat.Tree,
+    Text.XML.Expat.Internal.IO,
+    Text.XML.Expat.Internal.Namespaced,
+    Text.XML.Expat.Internal.NodeClass,
+    Text.XML.Expat.Internal.Qualified
   Extra-Libraries: expat
   ghc-options: -Wall -fno-warn-name-shadowing
