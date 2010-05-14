@@ -128,7 +128,7 @@ type instance ListOf (NodeG a c tag text) = c (NodeG a c tag text)
 -- that you can also use the more general type function 'ListOf' to give a list of
 -- any node type, using that node's associated list type, e.g.
 -- @ListOf (UNode Text)@.
-type Node a = NodeG a []
+type Node a tag text = NodeG a [] tag text
 
 instance (Show tag, Show text, Show a) => Show (NodeG a [] tag text) where
     show (Element na at ch an) = "Element "++show na++" "++show at++" "++show ch++" "++show an

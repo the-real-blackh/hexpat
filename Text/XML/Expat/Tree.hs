@@ -211,7 +211,7 @@ instance (Eq tag, Eq text) => Eq (NodeG [] tag text) where
 -- that you can also use the more general type function 'ListOf' to give a list of
 -- any node type, using that node's associated list type, e.g.
 -- @ListOf (UNode Text)@.
-type Node = NodeG []
+type Node tag text = NodeG [] tag text
 
 eAttrs :: Node tag text -> [(tag, text)]
 {-# DEPRECATED eAttrs "use eAttributes instead" #-}
