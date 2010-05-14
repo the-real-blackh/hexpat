@@ -216,37 +216,37 @@ instance (NFData tag, NFData text) => NFData (NodeG [] tag text) where
 
 -- | DEPRECATED: Use [Node tag text] instead.
 --
--- Type shortcut for nodes.
+-- Type alias for nodes.
 type Nodes tag text = [Node tag text]
 {-# DEPRECATED Nodes "use [Node tag text] instead" #-}
 
 -- | DEPRECATED: Use [UNode text] instead.
 --
--- Type shortcut for nodes with unqualified tag names where tag and
+-- Type alias for nodes with unqualified tag names where tag and
 -- text are the same string type. DEPRECATED.
 type UNodes text = Nodes text text
 {-# DEPRECATED UNodes "use [UNode text] instead" #-}
 
--- | Type shortcut for a single node with unqualified tag names where tag and
+-- | Type alias for a single node with unqualified tag names where tag and
 -- text are the same string type.
 type UNode text = Node text text
 
 -- | DEPRECATED: Use [QNode text] instead.
 --
--- Type shortcut for nodes where qualified names are used for tags
+-- Type alias for nodes where qualified names are used for tags
 {-# DEPRECATED QNodes "use [QNode text] instead" #-}
 type QNodes text = [Node (QName text) text]
 
--- | Type shortcut for a single node where qualified names are used for tags
+-- | Type alias for a single node where qualified names are used for tags
 type QNode text = Node (QName text) text
 
 -- | DEPRECATED: Use [NNode text] instead.
 --
--- Type shortcut for nodes where namespaced names are used for tags.
+-- Type alias for nodes where namespaced names are used for tags.
 {-# DEPRECATED NNodes "use [NNode text] instead" #-}
 type NNodes text = [Node (NName text) text]
 
--- | Type shortcut for a single node where namespaced names are used for tags
+-- | Type alias for a single node where namespaced names are used for tags
 type NNode text = Node (NName text) text
 
 instance (Functor c, List c) => NodeClass NodeG c where
