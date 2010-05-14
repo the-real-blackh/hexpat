@@ -191,6 +191,8 @@ data NodeG c tag text =
     } |
     Text !text
 
+type instance ListOf (NodeG c tag text) = c (NodeG c tag text)
+
 instance (Show tag, Show text) => Show (NodeG [] tag text) where
     show (Element na at ch) = "Element "++show na++" "++show at++" "++show ch
     show (Text t) = "Text "++show t

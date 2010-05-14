@@ -23,7 +23,11 @@ type UAttributes text = Attributes text text
 textContent :: (NodeClass n [], Monoid text) => n [] tag text -> text
 textContent node = runIdentity $ textContentM node
 
+-- | Generalized way of extracting the list type from a node.
+type family ListOf n
+
 class (Functor c, List c) => NodeClass n c where
+
     -- | Is the given node an element?
     isElement :: n c tag text -> Bool
 

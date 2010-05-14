@@ -119,6 +119,8 @@ data NodeG a c tag text =
     } |
     Text !text
 
+type instance ListOf (NodeG a c tag text) = c (NodeG a c tag text)
+
 -- | A pure tree representation that uses a list as its container type,
 -- annotated variant.
 type Node a = NodeG a []
