@@ -93,8 +93,8 @@ import Data.Monoid
 -- that it has an extra piece of information of your choice attached to each
 -- Element.
 --
--- @c@ is the container type for the element's children, which is usually [],
--- except when you are using chunked I\/O with the @hexpat-iteratee@ package.
+-- @c@ is the container type for the element's children, which is [] in the
+-- @hexpat@ package, and a monadic list type for @hexpat-iteratee@.
 --
 -- @tag@ is the tag type, which can either be one of several string types,
 -- or a special type from the @Text.XML.Expat.Namespaced@ or
@@ -123,6 +123,11 @@ type instance ListOf (NodeG a c tag text) = c (NodeG a c tag text)
 
 -- | A pure tree representation that uses a list as its container type,
 -- annotated variant.
+--
+-- In the @hexpat@ package, a list of nodes has the type @[Node tag text]@, but note
+-- that you can also use the more general type function 'ListOf' to give a list of
+-- any node type, using that node's associated list type, e.g.
+-- @ListOf (UNode Text)@.
 type Node a = NodeG a []
 
 instance (Show tag, Show text, Show a) => Show (NodeG a [] tag text) where
