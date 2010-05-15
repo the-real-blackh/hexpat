@@ -1,10 +1,11 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, TypeFamilies,
+        ScopedTypeVariables, Rank2Types #-}
 -- | Type classes to allow for XML handling functions to be generalized to
 -- work with different node types, including the ones defined in /Tree/ and
 -- /Annotated/.
 module Text.XML.Expat.Internal.NodeClass where
 
-import Control.Monad (mzero)
+import Control.Monad (mzero, liftM)
 import Data.Functor.Identity
 import Data.List.Class
 import Data.Monoid (Monoid)
@@ -80,13 +81,39 @@ class (Functor c, List c) => NodeClass n c where
                   -> n c tag text
                   -> n c tag' text
 
-    -- | Change a node from one container type to another.
-    mapNodeContainer :: (c (n c tag text) -> ItemM c (c' (n c' tag text)))
-                     -> n c tag text
-                     -> ItemM c (n c' tag text)
+    -- | Change a node from one container type to another, with a specified
+    -- function to convert the list type.
+    mapNodeContainer  :: List c' => 
+                         (forall a . c a -> ItemM c (c' a))
+                      -> n c tag text
+                      -> ItemM c (n c' tag text)
 
     -- | Generic text node constructor.
     mkText :: text -> n c tag text
+
+-- | Change a list of nodes from one container type to another, with a specified
+-- function to convert the list type.
+mapNodeListContainer  :: (NodeClass n c, List c') =>
+                         (forall a . c a -> ItemM c (c' a))
+                      -> c (n c tag text)
+                      -> ItemM c (c' (n c' tag text))
+mapNodeListContainer  f = f . mapL (mapNodeContainer  f)
+
+-- | Change a node from one container type to another.  This is a strict
+-- operation that extracts the tree contents and creates the structure anew
+-- with the new container type.
+fromNodeContainer :: (NodeClass n c, List c') => 
+                    n c tag text
+                 -> ItemM c (n c' tag text)
+fromNodeContainer = mapNodeContainer  (\l -> fromList `liftM` toList l)
+
+-- | Change a list of nodes from one container type to another.  This is a strict
+-- operation that extracts the tree contents and creates the structure anew
+-- with the new container type.
+fromNodeListContainer :: (NodeClass n c, List c') =>
+                        c (n c tag text)
+                     -> ItemM c (c' (n c' tag text))
+fromNodeListContainer = mapNodeListContainer  (\l -> fromList `liftM` toList l)
 
 -- | A class of node types where an Element can be constructed given a tag,
 -- attributes and children.

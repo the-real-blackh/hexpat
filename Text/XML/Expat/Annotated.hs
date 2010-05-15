@@ -194,7 +194,7 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
         in  Element n' a' c' ann
 
     mapNodeContainer f (Element n a ch an) = do
-        ch' <- f ch
+        ch' <- mapNodeListContainer f ch
         return $ Element n a ch' an
     mapNodeContainer _ (Text t) = return $ Text t
 
