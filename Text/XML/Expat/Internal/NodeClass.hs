@@ -78,11 +78,11 @@ class (Functor c, List c) => NodeClass n c where
     -- | Map an element non-recursively, allowing the tag type to be changed.
     mapElement :: ((tag, [(tag, text)], c (n c tag text))
                        -> (tag', [(tag', text)], c (n c tag' text)))
-                  -> n c tag text
-                  -> n c tag' text
+               -> n c tag text
+               -> n c tag' text
 
     -- | Change a node from one container type to another, with a specified
-    -- function to convert the list type.
+    -- function to convert the container type.
     mapNodeContainer  :: List c' => 
                          (forall a . c a -> ItemM c (c' a))
                       -> n c tag text
@@ -92,7 +92,7 @@ class (Functor c, List c) => NodeClass n c where
     mkText :: text -> n c tag text
 
 -- | Change a list of nodes from one container type to another, with a specified
--- function to convert the list type.
+-- function to convert the container type.
 mapNodeListContainer  :: (NodeClass n c, List c') =>
                          (forall a . c a -> ItemM c (c' a))
                       -> c (n c tag text)
@@ -100,7 +100,7 @@ mapNodeListContainer  :: (NodeClass n c, List c') =>
 mapNodeListContainer  f = f . mapL (mapNodeContainer  f)
 
 -- | Change a node from one container type to another.  This is a strict
--- operation that extracts the tree contents and creates the structure anew
+-- operation that extracts the entire tree contents and creates the structure anew
 -- with the new container type.
 fromNodeContainer :: (NodeClass n c, List c') => 
                     n c tag text
@@ -108,7 +108,7 @@ fromNodeContainer :: (NodeClass n c, List c') =>
 fromNodeContainer = mapNodeContainer  (\l -> fromList `liftM` toList l)
 
 -- | Change a list of nodes from one container type to another.  This is a strict
--- operation that extracts the tree contents and creates the structure anew
+-- operation that extracts the entire tree contents and creates the structure anew
 -- with the new container type.
 fromNodeListContainer :: (NodeClass n c, List c') =>
                         c (n c tag text)
