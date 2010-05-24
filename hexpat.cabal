@@ -41,7 +41,7 @@ Description:
   .
   ChangeLog: 0.15 changes intended to fix a (rare) \"error: a C finalizer called back into Haskell.\"
     that seemed only to happen only on ghc6.12.X; 0.15.1 Fix broken Annotated parse;
-    0.16 switch from mtl to transformers
+    0.16 switch from mtl to transformers; 0.17 fix mapNodeContainer & rename some things.
 Category: XML
 License: BSD3
 License-File: LICENSE

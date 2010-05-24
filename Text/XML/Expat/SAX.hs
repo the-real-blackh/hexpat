@@ -13,7 +13,7 @@ module Text.XML.Expat.SAX (
   XMLParseLocation(..),
 
   -- * SAX-style parse
-  ParserOptions(..),
+  ParseOptions(..),
   SAXEvent(..),
 
   textFromCString,
@@ -21,22 +21,24 @@ module Text.XML.Expat.SAX (
   parseLocations,
   parseLocationsThrowing,
   parseThrowing,
-  defaultParserOptions,
+  defaultParseOptions,
 
   -- * Variants that throw exceptions
   XMLParseException(..),
+
+  -- * Helpers
+  setEntityDecoder,
+
+  -- * Abstraction of string types
+  GenericXMLString(..),
 
   -- * Deprecated parse functions
   parseSAX,
   parseSAXLocations,
   parseSAXLocationsThrowing,
   parseSAXThrowing,
-
-  -- * Helpers
-  setEntityDecoder,
-
-  -- * Abstraction of string types
-  GenericXMLString(..)
+  ParserOptions,
+  defaultParserOptions
   ) where
 
 import Text.XML.Expat.Internal.IO hiding (parse)
@@ -59,8 +61,8 @@ import Foreign.C.String
 import Foreign.Ptr
 
 
-data ParserOptions tag text = ParserOptions
-    { parserEncoding :: Maybe Encoding
+data ParseOptions tag text = ParseOptions
+    { defaultEncoding :: Maybe Encoding
           -- ^ The encoding parameter, if provided, overrides the document's
           -- encoding declaration.
     , entityDecoder  :: Maybe (tag -> Maybe text)
@@ -68,8 +70,16 @@ data ParserOptions tag text = ParserOptions
           -- be decoded into text using the supplied lookup function
     }
 
-defaultParserOptions :: ParserOptions tag text
-defaultParserOptions = ParserOptions Nothing Nothing
+{-# DEPRECATED ParserOptions "renamed to ParseOptions" #-}
+type ParserOptions tag text = ParseOptions tag text
+
+defaultParseOptions :: ParseOptions tag text
+defaultParseOptions = ParseOptions Nothing Nothing
+
+-- | DEPRECATED. Renamed to defaultParseOptions.
+defaultParserOptions :: ParseOptions tag text
+{-# DEPRECATED defaultParserOptions "renamed to defaultParseOptions" #-}
+defaultParserOptions = defaultParseOptions
 
 
 -- | An abstraction for any string type you want to use as xml text (that is,
@@ -181,11 +191,11 @@ setEntityDecoder parser decoder insertText = do
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list.
 parse :: (GenericXMLString tag, GenericXMLString text) =>
-         ParserOptions tag text -- ^ Parser options
+         ParseOptions tag text -- ^ Parser options
       -> L.ByteString           -- ^ Input text (a lazy ByteString)
       -> [SAXEvent tag text]
 parse opts input = unsafePerformIO $ do
-    let enc = parserEncoding opts
+    let enc = defaultEncoding opts
     let mEntityDecoder = entityDecoder opts
 
     parser <- newParser enc
@@ -244,7 +254,7 @@ parseSAX :: (GenericXMLString tag, GenericXMLString text) =>
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [SAXEvent tag text]
 {-# DEPRECATED parseSAX "use Text.XML.Expat.SAX.parse instead" #-}
-parseSAX enc = parse (ParserOptions enc Nothing)
+parseSAX enc = parse (ParseOptions enc Nothing)
 
 
 -- | An exception indicating an XML parse error, used by the /..Throwing/ variants.
@@ -256,11 +266,11 @@ instance Exception XMLParseException where
 
 -- | A variant of parseSAX that gives a document location with each SAX event.
 parseLocations :: (GenericXMLString tag, GenericXMLString text) =>
-                  ParserOptions tag text  -- ^ Parser options
+                  ParseOptions tag text  -- ^ Parser options
                -> L.ByteString            -- ^ Input text (a lazy ByteString)
                -> [(SAXEvent tag text, XMLParseLocation)]
 parseLocations opts input = unsafePerformIO $ do
-    let enc = parserEncoding opts
+    let enc = defaultEncoding opts
     let mEntityDecoder = entityDecoder opts
 
     -- Done with cut & paste coding for maximum speed.
@@ -326,7 +336,7 @@ parseSAXLocations :: (GenericXMLString tag, GenericXMLString text) =>
          -> L.ByteString        -- ^ Input text (a lazy ByteString)
          -> [(SAXEvent tag text, XMLParseLocation)]
 {-# DEPRECATED parseSAXLocations "use Text.XML.Expat.SAX.parseLocations instead" #-}
-parseSAXLocations enc = parseLocations (ParserOptions enc Nothing)
+parseSAXLocations enc = parseLocations (ParseOptions enc Nothing)
 
 
 -- | Lazily parse XML to SAX events. In the event of an error, throw
@@ -338,7 +348,7 @@ parseSAXLocations enc = parseLocations (ParserOptions enc Nothing)
 -- situations where it's not expected during normal operation, depending on the
 -- design of your program.
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                 ParserOptions tag text  -- ^ Parser options
+                 ParseOptions tag text  -- ^ Parser options
               -> L.ByteString            -- ^ input text (a lazy ByteString)
               -> [SAXEvent tag text]
 parseThrowing opts bs = map freakOut $ parse opts bs
@@ -356,7 +366,7 @@ parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
                  -> L.ByteString        -- ^ Input text (a lazy ByteString)
                  -> [SAXEvent tag text]
 {-# DEPRECATED parseSAXThrowing "use Text.XML.Expat.SAX.parseThrowing instead" #-}
-parseSAXThrowing mEnc = parseThrowing (ParserOptions mEnc Nothing)
+parseSAXThrowing mEnc = parseThrowing (ParseOptions mEnc Nothing)
 
 
 -- | A variant of parseSAX that gives a document location with each SAX event.
@@ -368,7 +378,7 @@ parseSAXThrowing mEnc = parseThrowing (ParserOptions mEnc Nothing)
 -- situations where it's not expected during normal operation, depending on the
 -- design of your program.
 parseLocationsThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                          ParserOptions tag text  -- ^ Optional encoding override
+                          ParseOptions tag text  -- ^ Optional encoding override
                        -> L.ByteString            -- ^ Input text (a lazy ByteString)
                        -> [(SAXEvent tag text, XMLParseLocation)]
 parseLocationsThrowing opts bs = map freakOut $ parseLocations opts bs
@@ -387,4 +397,4 @@ parseSAXLocationsThrowing :: (GenericXMLString tag, GenericXMLString text) =>
                           -> [(SAXEvent tag text, XMLParseLocation)]
 {-# DEPRECATED parseSAXLocationsThrowing "use Text.XML.Expat.SAX.parseLocationsThrowing instead" #-}
 parseSAXLocationsThrowing mEnc =
-    parseLocationsThrowing (ParserOptions mEnc Nothing)
+    parseLocationsThrowing (ParseOptions mEnc Nothing)

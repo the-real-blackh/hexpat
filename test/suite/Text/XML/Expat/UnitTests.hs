@@ -38,7 +38,7 @@ fromByteString :: B.ByteString -> String
 fromByteString = map w2c . B.unpack
 
 testDoc :: (Show tag, Show text) =>
-           (ParserOptions tag text
+           (ParseOptions tag text
                 -> bs
                 -> Either XMLParseError (Node tag text))
         -> (Node tag text -> L.ByteString)
@@ -58,7 +58,7 @@ testDoc parseFn fmt toBS descr0 idx xml = do
             hPutStrLn stderr $ "parse failed: "++show error
             assertFailure descr
   where
-    popts = defaultParserOptions { parserEncoding = Just UTF8 }
+    popts = defaultParseOptions { defaultEncoding = Just UTF8 }
 
 
 eitherify f mEnc bs = do
@@ -68,7 +68,7 @@ eitherify f mEnc bs = do
 
 test_error1 :: IO ()
 test_error1 = do
-    let eDoc = Tree.parse' defaultParserOptions (toByteString "<hello></goodbye>") :: Either XMLParseError (UNode String)
+    let eDoc = Tree.parse' defaultParseOptions (toByteString "<hello></goodbye>") :: Either XMLParseError (UNode String)
     assertEqual "error1" (Left $ XMLParseError "mismatched tag" (XMLParseLocation 1 9 9 0)) eDoc
 
 test_error2 :: IO ()
@@ -76,7 +76,7 @@ test_error2 = do
     assertEqual "error2" (
             Element {eName = "hello", eAttributes = [], eChildren = []},
             Just (XMLParseError "mismatched tag" (XMLParseLocation 1 9 9 0))
-        ) (Tree.parse defaultParserOptions
+        ) (Tree.parse defaultParseOptions
               (toByteStringL "<hello></goodbye>") :: (UNode String, Maybe XMLParseError))
 
 test_error3 :: IO ()
@@ -87,12 +87,12 @@ test_error3 =
                 Element {eName = "hello", eAttributes = [], eChildren = []}
             ]},
             Just (XMLParseError "mismatched tag" (XMLParseLocation 1 35 35 0))
-        ) $ Tree.parse defaultParserOptions
+        ) $ Tree.parse defaultParseOptions
               (toByteStringL "<open><test1>Hello</test1><hello></goodbye>")
 
 test_error4 :: IO ()
 test_error4 = do
-    let eDoc = Tree.parse' defaultParserOptions (toByteString "!") :: Either XMLParseError (UNode String)
+    let eDoc = Tree.parse' defaultParseOptions (toByteString "!") :: Either XMLParseError (UNode String)
     assertEqual "error1" (Left $ XMLParseError "not well-formed (invalid token)"
         (XMLParseLocation 1 0 0 0)) eDoc
 
@@ -126,7 +126,7 @@ test_entities = do
   where
     xml = "<root>&entity;</root>"
 
-    popts = defaultParserOptions { entityDecoder = Just entityLookup }
+    popts = defaultParseOptions { entityDecoder = Just entityLookup }
 
     (tree,merr) = Tree.parse popts $ toByteStringL xml
 
@@ -184,7 +184,7 @@ test_indent = do
                      "\n  <wisdom>\n    <ignorance>strength</ignorance>\n  </wisdom>\n</test>")
             ]
     forM_ tests $ \(name, inp, outSB) -> do
-        let eree = Tree.parse' defaultParserOptions inp :: Either XMLParseError (UNode String)
+        let eree = Tree.parse' defaultParseOptions inp :: Either XMLParseError (UNode String)
         case eree of
             Left err -> assertFailure $ show err
             Right tree -> do
@@ -229,32 +229,32 @@ simpleDocs = [
 tests = hUnitTestToTests $
     TestList [
         t' ("String",
-            Tree.parse' :: ParserOptions String String
+            Tree.parse' :: ParseOptions String String
                         -> B.ByteString
                         -> Either XMLParseError (Node String String),
             formatTree),
         t' ("ByteString",
-            Tree.parse' :: ParserOptions B.ByteString B.ByteString
+            Tree.parse' :: ParseOptions B.ByteString B.ByteString
                         -> B.ByteString
                         -> Either XMLParseError (Node B.ByteString B.ByteString),
             formatTree),
         t' ("Text",
-            Tree.parse' :: ParserOptions T.Text T.Text
+            Tree.parse' :: ParseOptions T.Text T.Text
                         -> B.ByteString
                         -> Either XMLParseError (Node T.Text T.Text),
             formatTree),
         t ("String/Lazy",
-            eitherify $ Tree.parse :: ParserOptions String String
+            eitherify $ Tree.parse :: ParseOptions String String
                                    -> L.ByteString
                                    -> Either XMLParseError (Node String String),
             formatTree),
         t ("ByteString/Lazy",
-            eitherify $ Tree.parse :: ParserOptions B.ByteString B.ByteString
+            eitherify $ Tree.parse :: ParseOptions B.ByteString B.ByteString
                                    -> L.ByteString
                                    -> Either XMLParseError (Node B.ByteString B.ByteString),
             formatTree),
         t ("Text/Lazy",
-            eitherify $ Tree.parse :: ParserOptions T.Text T.Text
+            eitherify $ Tree.parse :: ParseOptions T.Text T.Text
                                    -> L.ByteString
                                    -> Either XMLParseError (Node T.Text T.Text),
             formatTree),

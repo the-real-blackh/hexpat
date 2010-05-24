@@ -36,7 +36,7 @@
 -- >     inputText <- L.readFile filename
 -- >     -- Note: Because we're not using the tree, Haskell can't infer the type of
 -- >     -- strings we're using so we need to tell it explicitly with a type signature.
--- >     let (xml, mErr) = parse defaultParserOptions inputText :: (UNode String, Maybe XMLParseError)
+-- >     let (xml, mErr) = parse defaultParseOptions inputText :: (UNode String, Maybe XMLParseError)
 -- >     -- Process document before handling error, so we get lazy processing.
 -- >     L.hPutStr stdout $ format xml
 -- >     putStrLn ""
@@ -58,7 +58,7 @@
 -- >
 -- > -- This is the recommended way to handle errors in lazy parses
 -- > main = do
--- >     let (tree, mError) = parse defaultParserOptions
+-- >     let (tree, mError) = parse defaultParseOptions
 -- >                    (L.pack $ map c2w $ "<top><banana></apple></top>")
 -- >     print (tree :: UNode String)
 -- >
@@ -82,7 +82,7 @@
 -- > -- This is not the recommended way to handle errors.
 -- > main = do
 -- >     do
--- >         let tree = parseThrowing defaultParserOptions
+-- >         let tree = parseThrowing defaultParseOptions
 -- >                        (L.pack $ map c2w $ "<top><banana></apple></top>")
 -- >         print (tree :: UNode String)
 -- >         -- Because of lazy evaluation, you should not process the tree outside
@@ -110,8 +110,8 @@ module Text.XML.Expat.Tree (
   module Text.XML.Expat.Internal.Namespaced,
 
   -- * Parse to tree
-  ParserOptions(..),
-  defaultParserOptions,
+  ParseOptions(..),
+  defaultParseOptions,
   Encoding(..),
   parse,
   parse',
@@ -141,22 +141,26 @@ module Text.XML.Expat.Tree (
   parseSAXLocations,
   parseTreeThrowing,
   parseSAXThrowing,
-  parseSAXLocationsThrowing
+  parseSAXLocationsThrowing,
+  ParserOptions,
+  defaultParserOptions
   ) where
 
 import Text.XML.Expat.Internal.IO hiding (parse,parse')
 import qualified Text.XML.Expat.Internal.IO as IO
-import Text.XML.Expat.SAX ( ParserOptions(..)
+import Text.XML.Expat.SAX ( ParseOptions(..)
                           , XMLParseException(..)
                           , SAXEvent(..)
-                          , defaultParserOptions
+                          , defaultParseOptions
                           , textFromCString
                           , parseSAX
                           , parseSAXLocations
                           , parseSAXLocationsThrowing
                           , parseSAXThrowing
                           , GenericXMLString(..)
-                          , setEntityDecoder )
+                          , setEntityDecoder
+                          , ParserOptions
+                          , defaultParserOptions )
 import qualified Text.XML.Expat.SAX as SAX
 import Text.XML.Expat.Internal.Namespaced
 import Text.XML.Expat.Internal.NodeClass
@@ -310,12 +314,12 @@ instance (Functor c, List c) => MkElementClass NodeG c where
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parse' :: (GenericXMLString tag, GenericXMLString text) =>
-          ParserOptions tag text  -- ^ Parser options
+          ParseOptions tag text  -- ^ Parser options
        -> ByteString              -- ^ Input text (a strict ByteString)
        -> Either XMLParseError (Node tag text)
 parse' opts doc = unsafePerformIO $ runParse where
   runParse = do
-    let enc = parserEncoding opts
+    let enc = defaultEncoding opts
     let mEntityDecoder = entityDecoder opts
 
     parser <- newParser enc
@@ -370,7 +374,7 @@ parseTree' :: (GenericXMLString tag, GenericXMLString text) =>
            -> ByteString          -- ^ Input text (a strict ByteString)
            -> Either XMLParseError (Node tag text)
 {-# DEPRECATED parseTree' "use Text.XML.Expat.parse' instead" #-}
-parseTree' enc = parse' (ParserOptions enc Nothing)
+parseTree' enc = parse' (ParseOptions enc Nothing)
 
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
@@ -400,7 +404,7 @@ saxToTree events =
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
 parse :: (GenericXMLString tag, GenericXMLString text) =>
-         ParserOptions tag text   -- ^ Parser options
+         ParseOptions tag text   -- ^ Parser options
       -> L.ByteString             -- ^ Input text (a lazy ByteString)
       -> (Node tag text, Maybe XMLParseError)
 parse opts bs = saxToTree $ SAX.parse opts bs
@@ -416,7 +420,7 @@ parseTree :: (GenericXMLString tag, GenericXMLString text) =>
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> (Node tag text, Maybe XMLParseError)
 {-# DEPRECATED parseTree "use Text.XML.Expat.Tree.parse instead" #-}
-parseTree mEnc = parse (ParserOptions mEnc Nothing)
+parseTree mEnc = parse (ParseOptions mEnc Nothing)
 
 
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
@@ -427,7 +431,7 @@ parseTree mEnc = parse (ParserOptions mEnc Nothing)
 -- situations where it's not expected during normal operation, depending on the
 -- design of your program.
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-         ParserOptions tag text -- ^ Parser options
+         ParseOptions tag text -- ^ Parser options
       -> L.ByteString           -- ^ Input text (a lazy ByteString)
       -> Node tag text
 parseThrowing opts bs = fst $ saxToTree $ SAX.parseThrowing opts bs
@@ -441,4 +445,4 @@ parseTreeThrowing :: (GenericXMLString tag, GenericXMLString text) =>
           -> L.ByteString        -- ^ Input text (a lazy ByteString)
           -> Node tag text
 {-# DEPRECATED parseTreeThrowing "use Text.XML.Expat.Tree.parseThrowing instead" #-}
-parseTreeThrowing mEnc = parseThrowing (ParserOptions mEnc Nothing)
+parseTreeThrowing mEnc = parseThrowing (ParseOptions mEnc Nothing)
