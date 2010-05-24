@@ -81,7 +81,7 @@ toNamespaced = nodeWithNamespaces baseNsBindings
 
 nodeWithNamespaces :: (NodeClass n c, GenericXMLString text, Ord text, Show text)
                    => NsPrefixMap text -> n c (QName text) text -> n c (NName text) text
-nodeWithNamespaces bindings = mapElement namespaceify
+nodeWithNamespaces bindings = modifyElement namespaceify
   where
     namespaceify (qname, qattrs, qchildren) = (nname, nattrs, nchildren)
       where
@@ -123,7 +123,7 @@ nodeWithQualifiers :: (NodeClass n c, GenericXMLString text, Ord text, Functor c
                    -> PrefixNsMap text
                    -> n c (NName text) text
                    -> n c (QName text) text
-nodeWithQualifiers cntr bindings = mapElement namespaceify
+nodeWithQualifiers cntr bindings = modifyElement namespaceify
   where
     namespaceify (nname, nattrs, nchildren) = (qname, qattrs, qchildren) 
       where

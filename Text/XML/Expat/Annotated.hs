@@ -188,8 +188,8 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
     mapAllTags _ (Text t) = Text t
     mapAllTags f (Element n a c ann) = Element (f n) (map (first f) a) (fmap (mapAllTags f) c) ann
 
-    mapElement _ (Text t) = Text t
-    mapElement f (Element n a c ann) =
+    modifyElement _ (Text t) = Text t
+    modifyElement f (Element n a c ann) =
         let (n', a', c') = f (n, a, c)
         in  Element n' a' c' ann
 

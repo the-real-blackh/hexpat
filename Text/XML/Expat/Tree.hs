@@ -46,7 +46,7 @@
 -- >             hPutStrLn stderr $ "XML parse failed: "++show err
 -- >             exitWith $ ExitFailure 2
 --
--- Error handling in strict parses is very straight forward - just check the
+-- Error handling in strict parses is very straightforward - just check the
 -- 'Either' return value.  Lazy parses are not so simple.  Here are two working
 -- examples that illustrate the ways to handle errors.  Here they are:
 --
@@ -293,8 +293,8 @@ instance (Functor c, List c) => NodeClass NodeG c where
     mapAllTags _ (Text t) = Text t
     mapAllTags f (Element n a c) = Element (f n) (map (first f) a) (fmap (mapAllTags f) c)
 
-    mapElement _ (Text t) = Text t
-    mapElement f (Element n a c) =
+    modifyElement _ (Text t) = Text t
+    modifyElement f (Element n a c) =
         let (n', a', c') = f (n, a, c)
         in  Element n' a' c'
 

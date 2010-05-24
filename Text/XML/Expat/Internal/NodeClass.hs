@@ -70,49 +70,51 @@ class (Functor c, List c) => NodeClass n c where
                    -> n c tag text
                    -> n c tag text
 
+    -- | Map an element non-recursively, allowing the tag type to be changed.
+    modifyElement :: ((tag, [(tag, text)], c (n c tag text))
+                  -> (tag', [(tag', text)], c (n c tag' text)))
+                  -> n c tag text
+                  -> n c tag' text
+
     -- | Map all tags (both tag names and attribute names) recursively.
     mapAllTags :: (tag -> tag')
                -> n c tag text
                -> n c tag' text
 
-    -- | Map an element non-recursively, allowing the tag type to be changed.
-    mapElement :: ((tag, [(tag, text)], c (n c tag text))
-                       -> (tag', [(tag', text)], c (n c tag' text)))
-               -> n c tag text
-               -> n c tag' text
-
-    -- | Change a node from one container type to another, with a specified
-    -- function to convert the container type.
-    mapNodeContainer  :: List c' => 
-                         (forall a . c a -> ItemM c (c' a))
-                      -> n c tag text
-                      -> ItemM c (n c' tag text)
+    -- | Change a node recursively from one container type to another, with a
+    -- specified function to convert the container type.
+    mapNodeContainer :: List c' => 
+                        (forall a . c a -> ItemM c (c' a))
+                     -> n c tag text
+                     -> ItemM c (n c' tag text)
 
     -- | Generic text node constructor.
     mkText :: text -> n c tag text
 
--- | Change a list of nodes from one container type to another, with a specified
--- function to convert the container type.
-mapNodeListContainer  :: (NodeClass n c, List c') =>
-                         (forall a . c a -> ItemM c (c' a))
-                      -> c (n c tag text)
-                      -> ItemM c (c' (n c' tag text))
-mapNodeListContainer  f = f . mapL (mapNodeContainer  f)
+-- | Change a list of nodes recursively from one container type to another, with
+-- a specified function to convert the container type.
+mapNodeListContainer :: (NodeClass n c, List c') =>
+                        (forall a . c a -> ItemM c (c' a))
+                     -> c (n c tag text)
+                     -> ItemM c (c' (n c' tag text))
+mapNodeListContainer f = f . mapL (mapNodeContainer f)
 
--- | Change a node from one container type to another.  This is a strict
--- operation that extracts the entire tree contents and creates the structure anew
--- with the new container type.
+-- | Change a node recursively from one container type to another.  This
+-- extracts the entire tree contents to standard lists and re-constructs them
+-- with the new container type.  For monadic list types used in
+-- @hexpat-iteratee@ this operation forces evaluation. 
 fromNodeContainer :: (NodeClass n c, List c') => 
-                    n c tag text
-                 -> ItemM c (n c' tag text)
+                     n c tag text
+                  -> ItemM c (n c' tag text)
 fromNodeContainer = mapNodeContainer  (\l -> fromList `liftM` toList l)
 
--- | Change a list of nodes from one container type to another.  This is a strict
--- operation that extracts the entire tree contents and creates the structure anew
--- with the new container type.
+-- | Change a list of nodes recursively from one container type to another.  This
+-- extracts the entire tree contents to standard lists and re-constructs them
+-- with the new container type.  For monadic list types used in
+-- @hexpat-iteratee@ this operation forces evaluation.
 fromNodeListContainer :: (NodeClass n c, List c') =>
-                        c (n c tag text)
-                     -> ItemM c (c' (n c' tag text))
+                         c (n c tag text)
+                      -> ItemM c (c' (n c' tag text))
 fromNodeListContainer = mapNodeListContainer  (\l -> fromList `liftM` toList l)
 
 -- | A class of node types where an Element can be constructed given a tag,
