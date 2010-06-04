@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.17
+Version: 0.18
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -41,7 +41,8 @@ Description:
   .
   ChangeLog: 0.15 changes intended to fix a (rare) \"error: a C finalizer called back into Haskell.\"
     that seemed only to happen only on ghc6.12.X; 0.15.1 Fix broken Annotated parse;
-    0.16 switch from mtl to transformers; 0.17 fix mapNodeContainer & rename some things.
+    0.16 switch from mtl to transformers; 0.17 fix mapNodeContainer & rename some things.;
+    0.18 rename defaultEncoding to overrideEncoding.
 Category: XML
 License: BSD3
 License-File: LICENSE

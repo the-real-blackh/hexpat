@@ -62,7 +62,7 @@ import Foreign.Ptr
 
 
 data ParseOptions tag text = ParseOptions
-    { defaultEncoding :: Maybe Encoding
+    { overrideEncoding :: Maybe Encoding
           -- ^ The encoding parameter, if provided, overrides the document's
           -- encoding declaration.
     , entityDecoder  :: Maybe (tag -> Maybe text)
@@ -195,7 +195,7 @@ parse :: (GenericXMLString tag, GenericXMLString text) =>
       -> L.ByteString           -- ^ Input text (a lazy ByteString)
       -> [SAXEvent tag text]
 parse opts input = unsafePerformIO $ do
-    let enc = defaultEncoding opts
+    let enc = overrideEncoding opts
     let mEntityDecoder = entityDecoder opts
 
     parser <- newParser enc
@@ -270,7 +270,7 @@ parseLocations :: (GenericXMLString tag, GenericXMLString text) =>
                -> L.ByteString            -- ^ Input text (a lazy ByteString)
                -> [(SAXEvent tag text, XMLParseLocation)]
 parseLocations opts input = unsafePerformIO $ do
-    let enc = defaultEncoding opts
+    let enc = overrideEncoding opts
     let mEntityDecoder = entityDecoder opts
 
     -- Done with cut & paste coding for maximum speed.

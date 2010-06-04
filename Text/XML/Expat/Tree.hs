@@ -319,7 +319,7 @@ parse' :: (GenericXMLString tag, GenericXMLString text) =>
        -> Either XMLParseError (Node tag text)
 parse' opts doc = unsafePerformIO $ runParse where
   runParse = do
-    let enc = defaultEncoding opts
+    let enc = overrideEncoding opts
     let mEntityDecoder = entityDecoder opts
 
     parser <- newParser enc

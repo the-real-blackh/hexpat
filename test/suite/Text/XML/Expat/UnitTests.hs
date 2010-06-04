@@ -58,7 +58,7 @@ testDoc parseFn fmt toBS descr0 idx xml = do
             hPutStrLn stderr $ "parse failed: "++show error
             assertFailure descr
   where
-    popts = defaultParseOptions { defaultEncoding = Just UTF8 }
+    popts = defaultParseOptions { overrideEncoding = Just UTF8 }
 
 
 eitherify f mEnc bs = do
