@@ -13,7 +13,7 @@ module Text.XML.Expat.Internal.Namespaced
 import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.Internal.Qualified
 import Text.XML.Expat.SAX
-import Control.Parallel.Strategies
+import Control.DeepSeq
 import qualified Data.Map as M
 import qualified Data.Maybe as DM
 import qualified Data.List as L

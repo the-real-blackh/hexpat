@@ -51,7 +51,7 @@ module Text.XML.Expat.Internal.IO (
   ) where
 
 import Control.Exception (bracket)
-import Control.Parallel.Strategies
+import Control.DeepSeq
 import Control.Monad
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL

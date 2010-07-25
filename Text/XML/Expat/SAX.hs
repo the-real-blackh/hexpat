@@ -54,7 +54,7 @@ import qualified Codec.Binary.UTF8.String as U8
 import Data.Typeable
 import Control.Exception.Extensible as Exc
 import Control.Applicative
-import Control.Parallel.Strategies
+import Control.DeepSeq
 import Control.Monad
 import System.IO.Unsafe
 import Foreign.C.String

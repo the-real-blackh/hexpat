@@ -18,7 +18,7 @@ import Data.IORef
 import Control.Applicative
 import Control.Exception as E
 import Control.Monad
-import Control.Parallel.Strategies
+import Control.DeepSeq
 import Test.HUnit hiding (Node)
 import System.IO
 

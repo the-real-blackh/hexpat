@@ -173,7 +173,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.IORef
 import Data.List.Class
 import Data.Monoid (Monoid,mempty,mappend)
-import Control.Parallel.Strategies
+import Control.DeepSeq
 import System.IO.Unsafe
 
 

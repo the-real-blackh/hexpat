@@ -20,7 +20,7 @@ module Text.XML.Expat.Internal.Qualified (
 
 import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.SAX
-import Control.Parallel.Strategies
+import Control.DeepSeq
 import Data.Monoid
 
 -- | A qualified name.

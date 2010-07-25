@@ -86,7 +86,7 @@ import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.Internal.Qualified
 
 import Control.Monad (mplus, mzero)
-import Control.Parallel.Strategies
+import Control.DeepSeq
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.List.Class
