@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.18.2
+Version: 0.18.3
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -42,7 +42,8 @@ Description:
   ChangeLog: 0.15 changes intended to fix a (rare) \"error: a C finalizer called back into Haskell.\"
     that seemed only to happen only on ghc6.12.X; 0.15.1 Fix broken Annotated parse;
     0.16 switch from mtl to transformers; 0.17 fix mapNodeContainer & rename some things.;
-    0.18 rename defaultEncoding to overrideEncoding.
+    0.18 rename defaultEncoding to overrideEncoding. 0.18.3 formatG and indent were demanding list
+    items more than once (inefficient in chunked processing).
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -80,12 +81,12 @@ Library
     base >= 3 && < 5,
     bytestring,
     transformers,
-    text >= 0.5,
-    utf8-string >= 0.3.3,
-    deepseq >= 1.1.0.0,
+    text >= 0.5 && < 0.8,
+    utf8-string == 0.3.*,
+    deepseq == 1.1.*,
     containers,
-    extensible-exceptions >= 0.1 && < 0.2,
-    List >= 0.4
+    extensible-exceptions == 0.1.*,
+    List == 0.4.*
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,

@@ -154,7 +154,9 @@ formatSAXG :: forall c tag text . (List c, GenericXMLString tag,
        -> c B.ByteString
 formatSAXG l1 = joinL $ do
     it1 <- runList l1
-    return $ case it1 of
+    return $ formatItem it1
+  where
+    formatItem it1 = case it1 of
         Nil -> mzero
         Cons (StartElement name attrs) l2 ->
             fromList (startTagHelper name attrs)
@@ -167,7 +169,7 @@ formatSAXG l1 = joinL $ do
                             formatSAXG l3
                         _ ->
                             cons (B.singleton (c2w '>')) $
-                            formatSAXG l2
+                            formatItem it2
             )
         Cons (EndElement name) l2 ->
             cons (pack "</") $
@@ -217,10 +219,13 @@ indent_ :: forall n c tag text . (NodeClass n c, GenericXMLString tag, GenericXM
         -> n c tag text
 indent_ cur perLevel elt | isElement elt =
     flip modifyChildren elt $ \chs -> joinL $ do
-        anyElts <- anyElements chs
+        (anyElts, chs') <- anyElements [] chs
+        -- The new list chs' is the same as the old list chs, but some of its
+        -- nodes have been loaded into memory.  This is to avoid evaluating
+        -- list elements twice.
         if anyElts
-            then addSpace True chs
-            else return chs
+            then addSpace True chs'
+            else return chs'
   where
     addSpace :: Bool -> c (n c tag text) -> ItemM c (c (n c tag text))
     addSpace startOfText l = do
@@ -244,13 +249,27 @@ indent_ cur perLevel elt | isElement elt =
                 return $
                     cons n $
                     joinL $ addSpace False l'
-    anyElements :: c (n c tag text) -> ItemM c Bool
-    anyElements l = do
+
+    -- acc is used to keep the nodes we've scanned into memory.
+    -- We then construct a new list that looks the same as the old list, but
+    -- which starts with the nodes in memory, to prevent the list being
+    -- demanded more than once (in case it's monadic and it's expensive to
+    -- evaluate).
+    anyElements :: [n c tag text]   -- ^ Accumulator for tags we've looked at.
+                -> c (n c tag text)
+                -> ItemM c (Bool, c (n c tag text))
+    anyElements acc l = do
         n <- runList l
         case n of
-            Nil                    -> return False
-            Cons n _ | isElement n -> return True
-            Cons _ l'              -> anyElements l'
+            Nil                     -> return (False, instantiatedList acc mzero)
+            Cons n l' | isElement n -> return (True,  instantiatedList (n:acc) l')
+            Cons n l'               -> anyElements (n:acc) l'
+      where
+        instantiatedList :: [n c tag text] -> c (n c tag text) -> c (n c tag text)
+        instantiatedList acc l' = reverse acc `prepend` l'
+
+        prepend :: forall a . [a] -> c a -> c a
+        prepend xs l = foldr cons l xs
 
     strip t | gxNullString t = Nothing
     strip t | isSpace (gxHead t) = strip (gxTail t)

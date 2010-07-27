@@ -171,13 +171,13 @@ test_indent = do
                      "<test>\n  <ignorance>strength</ignorance>\n  <freedom>Slavery</freedom>\n  <war>Peace</war>\n</test>"),
                 ("#5",
                  toByteString $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
-                     "<test><ministries><mini name=\"minitrue\">Ministry of Truth</mini>In between"++
+                     "<test>Extra here<ministries><mini name=\"minitrue\">Ministry of Truth</mini>In between"++
                      "<mini name=\"minilove\">Ministry of Love</mini>\n  And some more"++
                      "<mini name=\"miniplenty\">Ministry of Plenty</mini>"++
                      "<mini name=\"minipax\">Ministry of Peace<at-war-with>Eurasia</at-war-with></mini></ministries>"++
                      "<wisdom><ignorance>strength</ignorance></wisdom></test>",
                  toByteString $ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"++
-                     "<test>\n  <ministries>\n    <mini name=\"minitrue\">Ministry of Truth</mini>In between"++
+                     "<test>Extra here\n  <ministries>\n    <mini name=\"minitrue\">Ministry of Truth</mini>In between"++
                      "\n    <mini name=\"minilove\">Ministry of Love</mini>And some more"++
                      "\n    <mini name=\"miniplenty\">Ministry of Plenty</mini>"++
                      "\n    <mini name=\"minipax\">Ministry of Peace\n      <at-war-with>Eurasia</at-war-with>\n    </mini>\n  </ministries>"++
