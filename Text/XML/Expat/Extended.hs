@@ -117,11 +117,16 @@ type instance ListOf (NodeG a c tag text) = c (NodeG a c tag text)
 type Node a tag text = NodeG a [] tag text
 
 instance (Show tag, Show text, Show a) => Show (NodeG a [] tag text) where
-    show (Element na at ch an) = "Element "++show na++" "++show at++" "++show ch++" "++show an
-    show (Text t) = "Text "++show t
-    show (CData t) = "CData "++show t
-    show (ProcessingInstruction t d) = "ProcessingInstruction " ++ show t ++ " " ++ show d
-    show (Comment t) = "Comment "++show t
+    showsPrec d (Element na at ch an) = showParen (d > 10) $
+        ("Element "++) . showsPrec 11 na . (" "++) .
+                         showsPrec 11 at . (" "++) .
+                         showsPrec 11 ch . (" "++) .
+                         showsPrec 11 an
+    showsPrec d (Text t) = showParen (d > 10) $ ("Text "++) . showsPrec 11 t
+    showsPrec d (CData t) = showParen (d > 10) $ ("CData "++) . showsPrec 11 t
+    showsPrec d (ProcessingInstruction t txt) = showParen (d > 10) $
+        ("ProcessingInstruction "++) . showsPrec 11 t . (" "++) . showsPrec 11 txt
+    showsPrec d (Comment t) = showParen (d > 10) $ ("Comment "++) . showsPrec 11 t
 
 instance (Eq tag, Eq text, Eq a) => Eq (NodeG a [] tag text) where
     Element na1 at1 ch1 an1 == Element na2 at2 ch2 an2 =
