@@ -110,7 +110,7 @@ import Data.Monoid
 --
 -- Note that some functions in the @Text.XML.Expat.Cursor@ module need to create
 -- new nodes through the 'MkElementClass' type class. Normally this can only be done
--- if @a@ is a Maybe type (so it can provide the Nothing value for the annotation
+-- if @a@ is a Maybe type or () (so it can provide the Nothing value for the annotation
 -- on newly created nodes).  Or, you can write your own 'MkElementClass' instance.
 -- Apart from that, there is no requirement for @a@ to be a Maybe type.
 data NodeG a c tag text =
@@ -216,6 +216,9 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
 
 instance (Functor c, List c) => MkElementClass (NodeG (Maybe a)) c where
     mkElement name attrs children = Element name attrs children Nothing
+
+instance (Functor c, List c) => MkElementClass (NodeG ()) c where
+    mkElement name attrs children = Element name attrs children ()
 
 -- | Convert an annotated tree (/Annotated/ module) into a non-annotated
 -- tree (/Tree/ module).  DEPRECATED in favour of 'fromElement'.
