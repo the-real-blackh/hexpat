@@ -38,6 +38,10 @@ module Text.XML.Expat.Internal.IO (
   setStartElementHandler,
   setEndElementHandler,
   setCharacterDataHandler,
+  setStartCDataHandler,
+  setEndCDataHandler,
+  setProcessingInstructionHandler,
+  setCommentHandler,
   setExternalEntityRefHandler,
   setSkippedEntityHandler,
   setUseForeignDTD,
@@ -64,16 +68,20 @@ import Foreign.C
 data Parser_struct
 type ParserPtr = Ptr Parser_struct
 data Parser = Parser
-    { _parserObj                :: ForeignPtr Parser_struct
-    , _startElementHandler      :: IORef CStartElementHandler
-    , _endElementHandler        :: IORef CEndElementHandler
-    , _cdataHandler             :: IORef CCharacterDataHandler
-    , _externalEntityRefHandler :: IORef (Maybe CExternalEntityRefHandler)
-    , _skippedEntityHandler     :: IORef (Maybe CSkippedEntityHandler)
+    { _parserObj                    :: ForeignPtr Parser_struct
+    , _startElementHandler          :: IORef CStartElementHandler
+    , _endElementHandler            :: IORef CEndElementHandler
+    , _cdataHandler                 :: IORef CCharacterDataHandler
+    , _externalEntityRefHandler     :: IORef (Maybe CExternalEntityRefHandler)
+    , _skippedEntityHandler         :: IORef (Maybe CSkippedEntityHandler)
+    , _startCDataHandler            :: IORef CStartCDataHandler
+    , _endCDataHandler              :: IORef CEndCDataHandler
+    , _processingInstructionHandler :: IORef CProcessingInstructionHandler
+    , _commentHandler               :: IORef CCommentHandler
     }
 
 instance Show Parser where
-    showsPrec _ (Parser fp _ _ _ _ _) = showsPrec 0 fp
+    showsPrec _ (Parser fp _ _ _ _ _ _ _ _ _) = showsPrec 0 fp
 
 -- |Encoding types available for the document encoding.
 data Encoding = ASCII | UTF8 | UTF16 | ISO88591
@@ -105,9 +113,14 @@ newParser enc = do
   nullCharH  <- newIORef nullCCharacterDataHandler
   extH       <- newIORef Nothing
   skipH      <- newIORef Nothing
+  nullSCDataH <- newIORef nullCStartCDataHandler
+  nullECDataH   <- newIORef nullCEndCDataHandler
+  nullPIH <- newIORef nullCProcessingInstructionHandler
+  nullCommentH <- newIORef nullCCommentHandler
 
-  return $ Parser fptr nullStartH nullEndH nullCharH extH skipH
-
+  return $ Parser fptr nullStartH nullEndH nullCharH extH skipH 
+    nullSCDataH nullECDataH nullPIH nullCommentH
+  
 setUseForeignDTD :: Parser -> Bool -> IO ()
 setUseForeignDTD p b = withParser p $ \p' -> xmlUseForeignDTD p' b'
   where
@@ -188,20 +201,25 @@ data ExpatHandlers = ExpatHandlers
     (FunPtr CCharacterDataHandler)
     (Maybe (FunPtr CExternalEntityRefHandler))
     (Maybe (FunPtr CSkippedEntityHandler))
+    (FunPtr CStartCDataHandler)
+    (FunPtr CEndCDataHandler)
+    (FunPtr CProcessingInstructionHandler)
+    (FunPtr CCommentHandler)
 
 -- | Most of the low-level functions take a ParserPtr so are required to be
 -- called inside @withParser@.
 withParser :: Parser
            -> (ParserPtr -> IO a)  -- ^ Computation where parseChunk and other low-level functions may be used
            -> IO a
-withParser parser@(Parser fp _ _ _ _ _) code = withForeignPtr fp $ \pp -> do
+withParser parser@(Parser fp _ _ _ _ _ _ _ _ _) code = withForeignPtr fp $ \pp -> do
     bracket
         (unsafeSetHandlers parser pp)
         unsafeReleaseHandlers
         (\_ -> code pp)
   where
     unsafeSetHandlers :: Parser -> ParserPtr -> IO ExpatHandlers
-    unsafeSetHandlers (Parser _ startRef endRef charRef extRef skipRef) pp =
+    unsafeSetHandlers (Parser _ startRef endRef charRef extRef skipRef 
+        startCDataRef endCDataRef processingInstructionRef commentRef) pp =
       do
         cStartH <- mkCStartElementHandler =<< readIORef startRef
         cEndH   <- mkCEndElementHandler =<< readIORef endRef
@@ -213,10 +231,20 @@ withParser parser@(Parser fp _ _ _ _ _) code = withForeignPtr fp $ \pp -> do
         mSkipH  <- readIORef skipRef >>=
                        maybe (return Nothing)
                              (\h -> liftM Just $ mkCSkippedEntityHandler h)
+                             
+        cStartCDataH <- mkCStartCDataHandler =<< readIORef startCDataRef
+        cEndCDataH   <- mkCEndCDataHandler =<< readIORef endCDataRef
+        
+        cProcessingInstructionH   <- mkCProcessingInstructionHandler =<< readIORef processingInstructionRef
+        cCommentH   <- mkCCommentHandler =<< readIORef commentRef
     
         xmlSetstartelementhandler  pp cStartH
         xmlSetendelementhandler    pp cEndH
         xmlSetcharacterdatahandler pp cCharH
+        xmlSetstartcdatahandler  pp cStartCDataH
+        xmlSetendcdatahandler    pp cEndCDataH
+        xmlSetprocessinginstructionhandler pp cProcessingInstructionH
+        xmlSetcommenthandler pp cCommentH
         maybe (return ())
               (xmlSetExternalEntityRefHandler pp)
               mExtH
@@ -224,16 +252,21 @@ withParser parser@(Parser fp _ _ _ _ _) code = withForeignPtr fp $ \pp -> do
               (xmlSetSkippedEntityHandler pp)
               mSkipH
     
-        return $ ExpatHandlers cStartH cEndH cCharH mExtH mSkipH
+        return $ ExpatHandlers cStartH cEndH cCharH mExtH mSkipH 
+            cStartCDataH cEndCDataH cProcessingInstructionH cCommentH
     
     unsafeReleaseHandlers :: ExpatHandlers -> IO ()
-    unsafeReleaseHandlers (ExpatHandlers cStartH cEndH cCharH mcExtH mcSkipH) = do
+    unsafeReleaseHandlers (ExpatHandlers cStartH cEndH cCharH mcExtH mcSkipH 
+            cStartCDataH cEndCDataH cProcessingInstructionH cCommentH) = do
         freeHaskellFunPtr cStartH
         freeHaskellFunPtr cEndH
         freeHaskellFunPtr cCharH
         maybe (return ()) freeHaskellFunPtr mcExtH
         maybe (return ()) freeHaskellFunPtr mcSkipH
-
+        freeHaskellFunPtr cStartCDataH
+        freeHaskellFunPtr cEndCDataH
+        freeHaskellFunPtr cProcessingInstructionH
+        freeHaskellFunPtr cCommentH
 
 -- |Obtain C value from Haskell 'Bool'.
 --
@@ -295,6 +328,25 @@ type EndElementHandler    = ParserPtr -> CString -> IO Bool
 -- parsing as normal, or False to terminate the parse.
 type CharacterDataHandler = ParserPtr -> CStringLen -> IO Bool
 
+-- | The type of the \"start cdata\" callback.   Return True to continue
+-- parsing as normal, or False to terminate the parse.
+type StartCDataHandler = ParserPtr -> IO Bool
+
+-- | The type of the \"end cdata\" callback.   Return True to continue
+-- parsing as normal, or False to terminate the parse.
+type EndCDataHandler = ParserPtr -> IO Bool
+
+-- | The type of the \"processing instruction\" callback.  The first parameter
+-- is the first word in the processing instruction.  The second parameter is
+-- the rest of the characters in the processing instruction after skipping all
+-- whitespace after the initial word. Return True to continue parsing as normal,
+-- or False to terminate the parse.
+type ProcessingInstructionHandler = ParserPtr -> CString -> CString -> IO Bool
+
+-- | The type of the \"comment\" callback.  The parameter is the comment text.
+-- Return True to continue parsing as normal, or False to terminate the parse.
+type CommentHandler = ParserPtr -> CString -> IO Bool
+
 -- | The type of the \"external entity reference\" callback. See the expat
 -- documentation.
 type ExternalEntityRefHandler =  Parser
@@ -335,7 +387,7 @@ wrapStartElementHandler parser handler = h
 
 -- | Attach a StartElementHandler to a Parser.
 setStartElementHandler :: Parser -> StartElementHandler -> IO ()
-setStartElementHandler parser@(Parser _ startRef _ _ _ _) handler =
+setStartElementHandler parser@(Parser _ startRef _ _ _ _ _ _ _ _) handler =
     writeIORef startRef $ wrapStartElementHandler parser handler
 
 type CEndElementHandler = ParserPtr -> CString -> IO ()
@@ -355,7 +407,7 @@ wrapEndElementHandler parser handler = h
 
 -- | Attach an EndElementHandler to a Parser.
 setEndElementHandler :: Parser -> EndElementHandler -> IO ()
-setEndElementHandler parser@(Parser _ _ endRef _ _ _) handler =
+setEndElementHandler parser@(Parser _ _ endRef _ _ _ _ _ _ _) handler =
     writeIORef endRef $ wrapEndElementHandler parser handler
 
 type CCharacterDataHandler = ParserPtr -> CString -> CInt -> IO ()
@@ -375,8 +427,92 @@ wrapCharacterDataHandler parser handler = h
 
 -- | Attach an CharacterDataHandler to a Parser.
 setCharacterDataHandler :: Parser -> CharacterDataHandler -> IO ()
-setCharacterDataHandler parser@(Parser _ _ _ charRef _ _) handler =
+setCharacterDataHandler parser@(Parser _ _ _ charRef _ _ _ _ _ _) handler =
     writeIORef charRef $ wrapCharacterDataHandler parser handler
+    
+type CStartCDataHandler = ParserPtr -> IO ()
+
+nullCStartCDataHandler :: CStartCDataHandler
+nullCStartCDataHandler _ = return ()
+
+foreign import ccall safe "wrapper"
+  mkCStartCDataHandler :: CStartCDataHandler
+                         -> IO (FunPtr CStartCDataHandler)
+
+wrapStartCDataHandler :: Parser -> StartCDataHandler -> CStartCDataHandler
+wrapStartCDataHandler parser handler = h
+  where
+    h pp = do
+        stillRunning <- handler pp
+        unless stillRunning $ stopp parser
+
+-- | Attach a StartCDataHandler to a Parser.
+setStartCDataHandler :: Parser -> StartCDataHandler -> IO ()
+setStartCDataHandler parser@(Parser _ _ _ _ _ _ startCData _ _ _) handler =
+    writeIORef startCData $ wrapStartCDataHandler parser handler
+    
+type CEndCDataHandler = ParserPtr -> IO ()
+
+nullCEndCDataHandler :: CEndCDataHandler
+nullCEndCDataHandler _ = return ()
+
+foreign import ccall safe "wrapper"
+  mkCEndCDataHandler :: CEndCDataHandler
+                         -> IO (FunPtr CEndCDataHandler)
+
+wrapEndCDataHandler :: Parser -> EndCDataHandler -> CEndCDataHandler
+wrapEndCDataHandler parser handler = h
+  where
+    h pp = do
+        stillRunning <- handler pp
+        unless stillRunning $ stopp parser
+
+-- | Attach a EndCDataHandler to a Parser.
+setEndCDataHandler :: Parser -> EndCDataHandler -> IO ()
+setEndCDataHandler parser@(Parser _ _ _ _ _ _ _ endCData _ _) handler =
+    writeIORef endCData $ wrapEndCDataHandler parser handler
+    
+type CProcessingInstructionHandler = ParserPtr -> CString -> CString -> IO ()
+
+nullCProcessingInstructionHandler :: CProcessingInstructionHandler
+nullCProcessingInstructionHandler _ _ _ = return ()
+
+foreign import ccall safe "wrapper"
+  mkCProcessingInstructionHandler :: CProcessingInstructionHandler
+                          -> IO (FunPtr CProcessingInstructionHandler)
+                          
+wrapProcessingInstructionHandler :: Parser -> ProcessingInstructionHandler -> CProcessingInstructionHandler
+wrapProcessingInstructionHandler parser handler = h
+  where
+    h pp ctarget cdata = do
+        stillRunning <- handler pp ctarget cdata
+        unless stillRunning $ stopp parser
+
+-- | Attach a ProcessingInstructionHandler to a Parser.
+setProcessingInstructionHandler :: Parser -> ProcessingInstructionHandler -> IO ()
+setProcessingInstructionHandler parser@(Parser _ _ _ _ _ _ _ _ piRef _) handler =
+    writeIORef piRef $ wrapProcessingInstructionHandler parser handler
+    
+type CCommentHandler = ParserPtr -> CString -> IO ()
+
+nullCCommentHandler :: CCommentHandler
+nullCCommentHandler _ _ = return ()
+
+foreign import ccall safe "wrapper"
+  mkCCommentHandler :: CCommentHandler
+                          -> IO (FunPtr CCommentHandler)
+                          
+wrapCommentHandler :: Parser -> CommentHandler -> CCommentHandler
+wrapCommentHandler parser handler = h
+  where
+    h pp cdata = do
+        stillRunning <- handler pp cdata
+        unless stillRunning $ stopp parser
+
+-- | Attach a CommentHandler to a Parser.
+setCommentHandler :: Parser -> CommentHandler -> IO ()
+setCommentHandler parser@(Parser _ _ _ _ _ _ _ _ _ commentRef) handler =
+    writeIORef commentRef $ wrapCommentHandler parser handler
 
 pairwise :: [a] -> [(a,a)]
 pairwise (x1:x2:xs) = (x1,x2) : pairwise xs
@@ -399,9 +535,21 @@ foreign import ccall unsafe "XML_SetStartElementHandler"
 
 foreign import ccall unsafe "XML_SetEndElementHandler"
   xmlSetendelementhandler :: ParserPtr -> ((FunPtr (ParserPtr -> ((Ptr CChar) -> (IO ()))) -> (IO ())))
-
+  
 foreign import ccall unsafe "XML_SetCharacterDataHandler"
   xmlSetcharacterdatahandler :: ParserPtr -> ((FunPtr (ParserPtr -> ((Ptr CChar) -> (CInt -> (IO ())))) -> (IO ())))
+  
+foreign import ccall unsafe "XML_SetStartCdataSectionHandler"
+  xmlSetstartcdatahandler :: ParserPtr -> FunPtr CStartCDataHandler -> IO ()
+
+foreign import ccall unsafe "XML_SetEndCdataSectionHandler"
+  xmlSetendcdatahandler :: ParserPtr -> FunPtr CStartCDataHandler -> IO ()
+  
+foreign import ccall unsafe "XML_SetCommentHandler"
+  xmlSetcommenthandler :: ParserPtr -> ((FunPtr (ParserPtr -> ((Ptr CChar) -> (IO ()))) -> (IO ())))
+  
+foreign import ccall unsafe "XML_SetProcessingInstructionHandler"
+  xmlSetprocessinginstructionhandler :: ParserPtr -> ((FunPtr (ParserPtr -> ((Ptr CChar) -> ((Ptr CChar) -> (IO ())))) -> (IO ())))
 
 foreign import ccall safe "XML_Parse"
   doParseChunk'_ :: ParserPtr -> ((Ptr CChar) -> (CInt -> (CInt -> (IO CInt))))

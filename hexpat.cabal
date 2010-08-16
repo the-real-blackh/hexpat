@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.18.3
+Version: 0.19
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -52,7 +52,8 @@ Author:
   Doug Beardsley,
   Gregory Collins,
   Evan Martin (who started the project),
-  Matthew Pocock [drdozer]
+  Matthew Pocock [drdozer],
+  Kevin Jardine
 Maintainer: http://blacksapphire.com/antispam/
 Copyright:
   (c) 2009 Doug Beardsley <mightybyte@gmail.com>,
@@ -60,7 +61,8 @@ Copyright:
   (c) 2009 Gregory Collins,
   (c) 2008 Evan Martin <martine@danga.com>,
   (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>,
-  (c) 2007-2009 Galois Inc.
+  (c) 2007-2009 Galois Inc.,
+  (c) 2010 Kevin Jardine
 Homepage: http://haskell.org/haskellwiki/Hexpat/
 Extra-Source-Files:
   test/hexpat-tests.cabal,
@@ -90,6 +92,7 @@ Library
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,
+    Text.XML.Expat.Extended,
     Text.XML.Expat.Format,
     Text.XML.Expat.IO,
     Text.XML.Expat.Namespaced,

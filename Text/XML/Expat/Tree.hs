@@ -269,12 +269,19 @@ instance (Functor c, List c) => NodeClass NodeG c where
     
     isText (Text _) = True
     isText _        = False
-    
+
+    isCData _ = False
+    isProcessingInstruction _ = False
+    isComment _ = False
+
     isNamed _  (Text _) = False
     isNamed nm (Element nm' _ _) = nm == nm'
 
     getName (Text _)             = mempty
     getName (Element name _ _)   = name
+
+    hasTarget _ _ = False
+    getTarget _ = mempty
 
     getAttributes (Text _)            = []
     getAttributes (Element _ attrs _) = attrs
@@ -397,6 +404,7 @@ saxToTree events =
         let (out, err, rema') = ptl rema
         in  (Text txt:out, err, rema')
     ptl (FailDocument err:_) = ([], Just err, [])
+    ptl (_:rema) = ([], Nothing, rema)  -- extended node types not supported in this tree type
     ptl [] = ([], Nothing, [])
 
 

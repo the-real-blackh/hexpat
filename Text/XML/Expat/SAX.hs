@@ -141,6 +141,10 @@ data SAXEvent tag text =
     StartElement tag [(tag, text)] |
     EndElement tag |
     CharacterData text |
+    StartCData |
+    EndCData |
+    EndProcessingInstruction text text |
+    EndComment text |
     FailDocument XMLParseError
     deriving (Eq, Show)
 
@@ -148,8 +152,11 @@ instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
     rnf (StartElement tag atts) = rnf (tag, atts)
     rnf (EndElement tag) = rnf tag
     rnf (CharacterData text) = rnf text
+    rnf StartCData = ()
+    rnf EndCData = ()
+    rnf (EndProcessingInstruction target text) = rnf (target, text)
+    rnf (EndComment text) = rnf text
     rnf (FailDocument err) = rnf err
-
 
 -- | Converts a 'CString' to a 'GenericXMLString' type.
 textFromCString :: GenericXMLString text => CString -> IO text
@@ -223,6 +230,25 @@ parse opts input = unsafePerformIO $ do
     setCharacterDataHandler parser $ \_ cText -> do
         txt <- gxFromCStringLen cText
         modifyIORef queueRef (CharacterData txt:)
+        return True
+        
+    setStartCDataHandler parser $ \_  -> do
+        modifyIORef queueRef (StartCData :)
+        return True
+        
+    setEndCDataHandler parser $ \_  -> do
+        modifyIORef queueRef (EndCData :)
+        return True
+        
+    setProcessingInstructionHandler parser $ \_ cTarget cText -> do
+        target <- textFromCString cTarget
+        txt <- textFromCString cText
+        modifyIORef queueRef (EndProcessingInstruction target txt :)
+        return True
+        
+    setCommentHandler parser $ \_ cText -> do
+        txt <- textFromCString cText
+        modifyIORef queueRef (EndComment txt :)
         return True
 
     let runParser inp = unsafeInterleaveIO $ do
@@ -303,6 +329,29 @@ parseLocations opts input = unsafePerformIO $ do
         txt <- gxFromCStringLen cText
         loc <- getParseLocation pp
         modifyIORef queueRef ((CharacterData txt, loc):)
+        return True
+        
+    setStartCDataHandler parser $ \pp -> do
+        loc <- getParseLocation pp
+        modifyIORef queueRef ((StartCData, loc):)
+        return True
+        
+    setEndCDataHandler parser $ \pp -> do
+        loc <- getParseLocation pp
+        modifyIORef queueRef ((EndCData, loc):)
+        return True
+        
+    setProcessingInstructionHandler parser $ \pp cTarget cText -> do
+        target <- textFromCString cTarget
+        txt <- textFromCString cText
+        loc <- getParseLocation pp
+        modifyIORef queueRef ((EndProcessingInstruction target txt, loc) :)
+        return True
+        
+    setCommentHandler parser $ \pp cText -> do
+        txt <- textFromCString cText
+        loc <- getParseLocation pp
+        modifyIORef queueRef ((EndComment txt, loc) :)
         return True
 
     let runParser inp = unsafeInterleaveIO $ do

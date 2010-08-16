@@ -110,8 +110,14 @@ treeToSAX node
                     Cons n l' -> cons n (postpend l')
         in  cons (StartElement name atts) $
             postpend (concatL $ fmap treeToSAX children)
+    | isCData node =
+        cons StartCData (cons (CharacterData $ getText node) (singleton EndCData))
     | isText node =
-        singleton (CharacterData $ getText node)
+        singleton (CharacterData $ getText node)        
+    | isProcessingInstruction node =
+        singleton (EndProcessingInstruction (getTarget node) (getText node))
+    | isComment node =
+        singleton (EndComment $ getText node)    
     | otherwise = mzero
   where
     singleton = return
@@ -152,7 +158,14 @@ formatSAXG :: forall c tag text . (List c, GenericXMLString tag,
               GenericXMLString text) =>
           c (SAXEvent tag text)    -- ^ SAX events
        -> c B.ByteString
-formatSAXG l1 = joinL $ do
+formatSAXG l1 = formatSAXGb l1 False
+
+formatSAXGb :: forall c tag text . (List c, GenericXMLString tag,
+              GenericXMLString text) =>
+          c (SAXEvent tag text)    -- ^ SAX events
+       -> Bool                     -- ^ True if processing CDATA
+       -> c B.ByteString
+formatSAXGb l1 cd = joinL $ do
     it1 <- runList l1
     return $ formatItem it1
   where
@@ -166,7 +179,7 @@ formatSAXG l1 = joinL $ do
                     return $ case it2 of
                         Cons (EndElement _) l3 ->
                             cons (pack "/>") $
-                            formatSAXG l3
+                            formatSAXGb l3 cd
                         _ ->
                             cons (B.singleton (c2w '>')) $
                             formatItem it2
@@ -175,13 +188,33 @@ formatSAXG l1 = joinL $ do
             cons (pack "</") $
             cons (gxToByteString name) $
             cons (B.singleton (c2w '>')) $
-            formatSAXG l2
+            formatSAXGb l2 cd
         Cons (CharacterData txt) l2 ->
-            fromList (escapeText (gxToByteString txt))
-            `mplus`
-            formatSAXG l2
+            (if cd then
+                fromList [gxToByteString txt]
+             else
+                fromList (escapeText (gxToByteString txt))
+            ) `mplus` (formatSAXGb l2 cd)
+        Cons StartCData l2 ->
+            cons(pack "<![CDATA[") $
+            formatSAXGb l2 True
+        Cons EndCData l2 ->
+            cons(pack "]]>") $
+            formatSAXGb l2 False
+        Cons (EndProcessingInstruction target txt) l2 ->
+            cons (pack "<?") $
+            cons (gxToByteString target) $
+            cons (pack " ") $
+            cons (gxToByteString txt) $
+            cons (pack "?>") $
+            formatSAXGb l2 cd
+        Cons (EndComment txt) l2 ->
+            cons (pack "<!--") $
+            cons (gxToByteString txt) $
+            cons (pack "-->") $
+            formatSAXGb l2 cd
         Cons (FailDocument _) l2 ->
-            formatSAXG l2
+            formatSAXGb l2 cd
 
 pack :: String -> B.ByteString
 pack = B.pack . map c2w

@@ -35,6 +35,15 @@ class (Functor c, List c) => NodeClass n c where
 
     -- | Is the given node text?
     isText :: n c tag text -> Bool
+    
+    -- | Is the given node CData?
+    isCData :: n c tag text -> Bool
+    
+    -- | Is the given node a processing instruction?
+    isProcessingInstruction :: n c tag text -> Bool
+    
+    -- | Is the given node a comment?
+    isComment :: n c tag text -> Bool
 
     -- | Extract all text content from inside a tag into a single string, including
     -- any text contained in children.
@@ -45,6 +54,12 @@ class (Functor c, List c) => NodeClass n c where
 
     -- | Get the name of this node if it's an element, return empty string otherwise.
     getName :: Monoid tag => n c tag text -> tag
+    
+    -- | Is the given node a Processing Instruction with the given target?
+    hasTarget :: Eq text => text -> n c tag text -> Bool
+
+    -- | Get the target of this node if it's a Processing Instruction, return empty string otherwise.
+    getTarget :: Monoid text => n c tag text -> text
 
     -- | Get the attributes of a node if it's an element, return empty list otherwise.
     getAttributes :: n c tag text -> [(tag,text)]
