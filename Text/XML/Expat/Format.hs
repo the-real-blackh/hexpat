@@ -232,7 +232,7 @@ formatSAXGb l1 cd = joinL $ do
                     Just True  -> return (pack " standalone=\"yes\"")
                     Just False -> return (pack " standalone=\"no\"")
             ) `mplus`
-            return (pack ("\"?>"))
+            return (pack ("?>"))
             `mplus`
             formatSAXGb l2 cd
         Cons (StartElement name attrs) l2 ->
