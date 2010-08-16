@@ -54,6 +54,9 @@ module Text.XML.Expat.Extended (
   parseThrowing,
   XMLParseException(..),
 
+  -- * Convert from SAX
+  saxToTree,
+
   -- * Abstraction of string types
   GenericXMLString(..)
   ) where
@@ -105,6 +108,7 @@ instance (Eq tag, Eq text, Eq a) => Eq (DocumentG a [] tag text) where
         m1 == m2 &&
         r1 == r2
 
+-- | A pure representation of an XML document that uses a list as its container type.
 type Document a tag text = DocumentG a [] tag text
 
 type instance NodeType (DocumentG ann) = NodeG ann
@@ -150,7 +154,7 @@ data NodeG a c tag text =
 type instance ListOf (NodeG a c tag text) = c (NodeG a c tag text)
 
 -- | A pure tree representation that uses a list as its container type,
--- annotated variant.
+-- extended variant.
 --
 -- In the @hexpat@ package, a list of nodes has the type @[Node tag text]@, but note
 -- that you can also use the more general type function 'ListOf' to give a list of

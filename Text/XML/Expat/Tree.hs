@@ -122,8 +122,7 @@ module Text.XML.Expat.Tree (
   parseThrowing,
   XMLParseException(..),
 
-  -- * SAX-style parse
-  SAXEvent(..),
+  -- * Convert from SAX
   saxToTree,
 
   -- * Abstraction of string types

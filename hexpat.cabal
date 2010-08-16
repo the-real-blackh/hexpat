@@ -10,8 +10,10 @@ Description:
   .
   Basic usage: Parsing a tree (/Tree/), formatting a tree (/Format/).
   Other features: Helpers for processing XML trees (/Proc/), trees annotated with
-  XML source location (/Annotated/), XML cursors (/Cursor/), SAX-style parse (/SAX/),
-  and access to the low-level interface in case speed is paramount (/Internal.IO/).
+  XML source location (/Annotated/), extended XML trees with comments,
+  processing instructions, etc (/Extended/), XML cursors (/Cursor/),
+  SAX-style parse (/SAX/), and access to the low-level interface in case speed
+  is paramount (/Internal.IO/).
   .
   The design goals are speed, speed, speed, interface simplicity and modularity.
   .
@@ -25,10 +27,11 @@ Description:
   I\/O is a better approach: Take a look at the /hexpat-iteratee/ package.
   .
   /IO/ is filed under /Internal/ because it's low-level and most users won't want
-  it.  The other /Internal/ modules are re-exported by /Annotated/ and /Tree/,
+  it.  The other /Internal/ modules are re-exported by /Annotated/, /Tree/ and /Extended/,
   so you won't need to import them directly.
   .
   Credits to Iavor Diatchki and the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
+  Thanks to the many contributors.
   .
   INSTALLATION: Unix install requires an OS package called something like @libexpat-dev@.
   On MacOSX, expat comes with Apple's optional X11 package, or you can install it from source.
@@ -43,7 +46,7 @@ Description:
     that seemed only to happen only on ghc6.12.X; 0.15.1 Fix broken Annotated parse;
     0.16 switch from mtl to transformers; 0.17 fix mapNodeContainer & rename some things.;
     0.18 rename defaultEncoding to overrideEncoding. 0.18.3 formatG and indent were demanding list
-    items more than once (inefficient in chunked processing).
+    items more than once (inefficient in chunked processing); 0.19 add Extended.hs.
 Category: XML
 License: BSD3
 License-File: LICENSE
