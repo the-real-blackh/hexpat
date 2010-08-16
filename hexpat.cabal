@@ -71,7 +71,8 @@ Extra-Source-Files:
   test/suite/Text/XML/Expat/Proc/Tests.hs,
   test/suite/Text/XML/Expat/UnitTests.hs,
   test/suite/Text/XML/Expat/Tests.hs,
-  test/suite/Text/XML/Expat/Cursor/Tests.hs
+  test/suite/Text/XML/Expat/Cursor/Tests.hs,
+  test/suite/Text/XML/Expat/ParseFormat.hs
 Build-Type: Simple
 Stability: beta
 source-repository head

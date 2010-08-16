@@ -25,6 +25,7 @@ module Text.XML.Expat.Extended (
   -- * Annotation-specific
   modifyAnnotation,
   mapAnnotation,
+  mapDocumentAnnotation,
 
   -- * Qualified nodes
   QDocument,
@@ -113,6 +114,7 @@ instance (Functor c, List c) => DocumentClass (DocumentG ann) c where
     getDocumentTypeDeclaration = dDocumentTypeDeclaration
     getTopLevelMiscs           = dTopLevelMiscs
     getRoot                    = dRoot
+    mkDocument                 = Document
 
 -- | Extended variant of the tree representation of the XML document, intended
 -- to support the entire XML specification.  DTDs are not yet supported, however.
@@ -328,6 +330,15 @@ _ `mapAnnotation` CData t = CData t
 _ `mapAnnotation` Misc (ProcessingInstruction n t) = Misc (ProcessingInstruction n t)
 _ `mapAnnotation` Misc (Comment t) = Misc (Comment t)
 
+-- | Modify the annotation of every node in the document recursively.
+mapDocumentAnnotation :: (a -> b) -> Document a tag text -> Document b tag text
+mapDocumentAnnotation f doc = Document {
+        dXMLDeclaration          = dXMLDeclaration doc,
+        dDocumentTypeDeclaration = dDocumentTypeDeclaration doc,
+        dTopLevelMiscs           = dTopLevelMiscs doc,
+        dRoot                    = mapAnnotation f (dRoot doc)
+    }
+
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 -- Variant that takes annotations for start tags.
 saxToTree :: (GenericXMLString tag, Monoid text) =>
@@ -378,14 +389,14 @@ saxToTree events =
         let (out, err, rema') = ptl rema isCD cd
         in  (Misc (ProcessingInstruction target txt):out, err, rema')
     ptl ((SAX.FailDocument err, _):_) _ _ = ([], Just err, [])
-    ptl ((SAX.XMLDeclaration _ _ _, _):rema) _ _ = ([], Nothing, rema)  -- doesn't appear in the middle of a document
+    ptl ((SAX.XMLDeclaration _ _ _, _):rema) isCD cd = ptl rema isCD cd  -- doesn't appear in the middle of a document
     ptl [] _ _ = ([], Nothing, [])
 
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
 parse :: (GenericXMLString tag, GenericXMLString text) =>
-         ParseOptions tag text   -- ^ Optional encoding override
+         ParseOptions tag text    -- ^ Parse options
       -> L.ByteString             -- ^ Input text (a lazy ByteString)
       -> (LDocument tag text, Maybe XMLParseError)
 parse opts bs = saxToTree $ SAX.parseLocations opts bs
@@ -398,14 +409,14 @@ parse opts bs = saxToTree $ SAX.parseLocations opts bs
 -- situations where it's not expected during normal operation, depending on the
 -- design of your program.
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                 ParseOptions tag text   -- ^ Optional encoding override
+                 ParseOptions tag text    -- ^ Parse options
               -> L.ByteString             -- ^ Input text (a lazy ByteString)
               -> LDocument tag text
 parseThrowing opts bs = fst $ saxToTree $ SAX.parseLocationsThrowing opts bs
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parse' :: (GenericXMLString tag, GenericXMLString text) =>
-          ParseOptions tag text  -- ^ Optional encoding override
+          ParseOptions tag text   -- ^ Parse options
        -> B.ByteString            -- ^ Input text (a strict ByteString)
        -> Either XMLParseError (LDocument tag text)
 parse' opts bs = case parse opts (L.fromChunks [bs]) of

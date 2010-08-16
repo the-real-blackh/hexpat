@@ -200,7 +200,7 @@ setEntityDecoder parser decoder insertText = do
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list.
 parse :: (GenericXMLString tag, GenericXMLString text) =>
-         ParseOptions tag text -- ^ Parser options
+         ParseOptions tag text -- ^ Parse options
       -> L.ByteString           -- ^ Input text (a lazy ByteString)
       -> [SAXEvent tag text]
 parse opts input = unsafePerformIO $ do
@@ -305,7 +305,7 @@ instance Exception XMLParseException where
 
 -- | A variant of parseSAX that gives a document location with each SAX event.
 parseLocations :: (GenericXMLString tag, GenericXMLString text) =>
-                  ParseOptions tag text  -- ^ Parser options
+                  ParseOptions tag text  -- ^ Parse options
                -> L.ByteString            -- ^ Input text (a lazy ByteString)
                -> [(SAXEvent tag text, XMLParseLocation)]
 parseLocations opts input = unsafePerformIO $ do
@@ -422,7 +422,7 @@ parseSAXLocations enc = parseLocations (ParseOptions enc Nothing)
 -- situations where it's not expected during normal operation, depending on the
 -- design of your program.
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                 ParseOptions tag text  -- ^ Parser options
+                 ParseOptions tag text  -- ^ Parse options
               -> L.ByteString            -- ^ input text (a lazy ByteString)
               -> [SAXEvent tag text]
 parseThrowing opts bs = map freakOut $ parse opts bs

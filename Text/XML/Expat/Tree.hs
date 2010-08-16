@@ -324,7 +324,7 @@ instance (Functor c, List c) => MkElementClass NodeG c where
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parse' :: (GenericXMLString tag, GenericXMLString text) =>
-          ParseOptions tag text  -- ^ Parser options
+          ParseOptions tag text  -- ^ Parse options
        -> ByteString              -- ^ Input text (a strict ByteString)
        -> Either XMLParseError (Node tag text)
 parse' opts doc = unsafePerformIO $ runParse where
@@ -393,10 +393,11 @@ saxToTree :: GenericXMLString tag =>
           -> (Node tag text, Maybe XMLParseError)
 saxToTree events =
     let (nodes, mError, _) = ptl events
-    in  (safeHead nodes, mError)
+    in  (findRoot nodes, mError)
   where
-    safeHead (a:_) = a
-    safeHead [] = Element (gxFromString "") [] []
+    findRoot (elt@(Element _ _ _ ):_) = elt
+    findRoot (_:nodes) = findRoot nodes
+    findRoot [] = Element (gxFromString "") [] []
     ptl (StartElement name attrs:rema) =
         let (children, err1, rema') = ptl rema
             elt = Element name attrs children
@@ -407,7 +408,7 @@ saxToTree events =
         let (out, err, rema') = ptl rema
         in  (Text txt:out, err, rema')
     ptl (FailDocument err:_) = ([], Just err, [])
-    ptl (_:rema) = ([], Nothing, rema)  -- extended node types not supported in this tree type
+    ptl (_:rema) = ptl rema  -- extended node types not supported in this tree type
     ptl [] = ([], Nothing, [])
 
 
@@ -415,7 +416,7 @@ saxToTree events =
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
 parse :: (GenericXMLString tag, GenericXMLString text) =>
-         ParseOptions tag text   -- ^ Parser options
+         ParseOptions tag text    -- ^ Parse options
       -> L.ByteString             -- ^ Input text (a lazy ByteString)
       -> (Node tag text, Maybe XMLParseError)
 parse opts bs = saxToTree $ SAX.parse opts bs
@@ -442,7 +443,7 @@ parseTree mEnc = parse (ParseOptions mEnc Nothing)
 -- situations where it's not expected during normal operation, depending on the
 -- design of your program.
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-         ParseOptions tag text -- ^ Parser options
+         ParseOptions tag text -- ^ Parse options
       -> L.ByteString           -- ^ Input text (a lazy ByteString)
       -> Node tag text
 parseThrowing opts bs = fst $ saxToTree $ SAX.parseThrowing opts bs

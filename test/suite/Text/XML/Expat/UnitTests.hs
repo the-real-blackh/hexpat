@@ -225,6 +225,8 @@ simpleDocs = [
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<test>Cat &amp; mouse</test>"
   ]
 
+data ParseFormatTest = ParseFormatTest {
+    }
 
 tests = hUnitTestToTests $
     TestList [
@@ -232,32 +234,32 @@ tests = hUnitTestToTests $
             Tree.parse' :: ParseOptions String String
                         -> B.ByteString
                         -> Either XMLParseError (Node String String),
-            formatTree),
+            format),
         t' ("ByteString",
             Tree.parse' :: ParseOptions B.ByteString B.ByteString
                         -> B.ByteString
                         -> Either XMLParseError (Node B.ByteString B.ByteString),
-            formatTree),
+            format),
         t' ("Text",
             Tree.parse' :: ParseOptions T.Text T.Text
                         -> B.ByteString
                         -> Either XMLParseError (Node T.Text T.Text),
-            formatTree),
+            format),
         t ("String/Lazy",
             eitherify $ Tree.parse :: ParseOptions String String
                                    -> L.ByteString
                                    -> Either XMLParseError (Node String String),
-            formatTree),
+            format),
         t ("ByteString/Lazy",
             eitherify $ Tree.parse :: ParseOptions B.ByteString B.ByteString
                                    -> L.ByteString
                                    -> Either XMLParseError (Node B.ByteString B.ByteString),
-            formatTree),
+            format),
         t ("Text/Lazy",
             eitherify $ Tree.parse :: ParseOptions T.Text T.Text
                                    -> L.ByteString
                                    -> Either XMLParseError (Node T.Text T.Text),
-            formatTree),
+            format),
         TestLabel "error1" $ TestCase $ test_error1,
         TestLabel "error2" $ TestCase $ test_error2,
         TestLabel "error3" $ TestCase $ test_error3,

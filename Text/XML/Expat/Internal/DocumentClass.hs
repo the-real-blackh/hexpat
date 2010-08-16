@@ -5,10 +5,17 @@ module Text.XML.Expat.Internal.DocumentClass where
 
 import Text.XML.Expat.Internal.NodeClass (NodeClass)
 import Control.DeepSeq
+import Control.Monad (mzero)
 import Data.List.Class
 
 
 -- | XML declaration, consisting of version, encoding and standalone.
+--
+-- Please note: The formatting functions always outputs only UTF-8, regardless
+-- of what encoding is specified here.  If you want to produce a document in a
+-- different encoding, then set the encoding here, format the document, and then
+-- convert the output text from UTF-8 to your desired encoding using some
+-- text conversion library.
 data XMLDeclaration text = XMLDeclaration text (Maybe text) (Maybe Bool) deriving (Eq, Show)
 
 -- | Stub for future expansion.
@@ -48,4 +55,16 @@ class (Functor c, List c, NodeClass (NodeType d) c) => DocumentClass d c where
 
     -- | Get the root element for this document.
     getRoot :: d c tag text -> NodeType d c tag text
+
+    -- | Make a document with the specified fields.
+    mkDocument :: Maybe (XMLDeclaration text)
+               -> Maybe (DocumentTypeDeclaration c tag text)
+               -> c (Misc text)
+               -> NodeType d c tag text
+               -> d c tag text
+
+-- | Make a document with the specified root node and all other information
+-- set to defaults.
+mkPlainDocument :: DocumentClass d c => NodeType d c tag text -> d c tag text
+mkPlainDocument = mkDocument Nothing Nothing mzero
 

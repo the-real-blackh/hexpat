@@ -265,10 +265,11 @@ saxToTree :: GenericXMLString tag =>
           -> (Node a tag text, Maybe XMLParseError)
 saxToTree events =
     let (nodes, mError, _) = ptl events
-    in  (safeHead nodes, mError)
+    in  (findRoot nodes, mError)
   where
-    safeHead (a:_) = a
-    safeHead [] = Element (gxFromString "") [] [] (error "saxToTree null annotation")
+    findRoot (elt@(Element _ _ _ _):_) = elt
+    findRoot (_:nodes) = findRoot nodes
+    findRoot [] = Element (gxFromString "") [] [] (error "saxToTree null annotation")
     ptl ((StartElement name attrs, ann):rema) =
         let (children, err1, rema') = ptl rema
             elt = Element name attrs children ann
@@ -279,14 +280,14 @@ saxToTree events =
         let (out, err, rema') = ptl rema
         in  (Text txt:out, err, rema')
     ptl ((FailDocument err, _):_) = ([], Just err, [])
-    ptl (_:rema) = ([], Nothing, rema)  -- extended node types not supported in this tree type
+    ptl (_:rema) = ptl rema  -- extended node types not supported in this tree type
     ptl [] = ([], Nothing, [])
 
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
 parse :: (GenericXMLString tag, GenericXMLString text) =>
-         ParseOptions tag text   -- ^ Optional encoding override
+         ParseOptions tag text    -- ^ Parse options
       -> L.ByteString             -- ^ Input text (a lazy ByteString)
       -> (LNode tag text, Maybe XMLParseError)
 parse opts bs = saxToTree $ SAX.parseLocations opts bs
@@ -311,7 +312,7 @@ parseTree mEnc = parse (ParseOptions mEnc Nothing)
 -- situations where it's not expected during normal operation, depending on the
 -- design of your program.
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                 ParseOptions tag text   -- ^ Optional encoding override
+                 ParseOptions tag text    -- ^ Parse options
               -> L.ByteString             -- ^ Input text (a lazy ByteString)
               -> LNode tag text
 parseThrowing opts bs = fst $ saxToTree $ SAX.parseLocationsThrowing opts bs
@@ -328,7 +329,7 @@ parseTreeThrowing mEnc = parseThrowing (ParseOptions mEnc Nothing)
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parse' :: (GenericXMLString tag, GenericXMLString text) =>
-          ParseOptions tag text  -- ^ Optional encoding override
+          ParseOptions tag text   -- ^ Parse options
        -> B.ByteString            -- ^ Input text (a strict ByteString)
        -> Either XMLParseError (LNode tag text)
 parse' opts bs = case parse opts (L.fromChunks [bs]) of
