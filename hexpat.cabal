@@ -101,6 +101,7 @@ Library
     Text.XML.Expat.Qualified,
     Text.XML.Expat.SAX,
     Text.XML.Expat.Tree,
+    Text.XML.Expat.Internal.DocumentClass,
     Text.XML.Expat.Internal.IO,
     Text.XML.Expat.Internal.Namespaced,
     Text.XML.Expat.Internal.NodeClass,

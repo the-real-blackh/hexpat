@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeFamilies,
-        FlexibleContexts #-}
+        FlexibleContexts, EmptyDataDecls #-}
 -- | An extended variant of /Node/ intended to implement the entire XML
 -- specification.  DTDs are not yet supported, however.
 --
@@ -7,13 +7,19 @@
 -- if you want to use both modules.
 module Text.XML.Expat.Extended (
   -- * Tree structure
+  Document,
+  DocumentG(..),
   Node,
   NodeG(..),
+  UDocument,
+  LDocument,
+  ULDocument,
   UNode,
   LNode,
   ULNode,
 
-  -- * Generic node manipulation
+  -- * Generic document/node manipulation
+  module Text.XML.Expat.Internal.DocumentClass,
   module Text.XML.Expat.Internal.NodeClass,
 
   -- * Annotation-specific
@@ -21,11 +27,15 @@ module Text.XML.Expat.Extended (
   mapAnnotation,
 
   -- * Qualified nodes
+  QDocument,
+  QLDocument,
   QNode,
   QLNode,
   module Text.XML.Expat.Internal.Qualified,
 
   -- * Namespaced nodes
+  NDocument,
+  NLDocument,
   NNode,
   NLNode,
   module Text.XML.Expat.Internal.Namespaced,
@@ -43,10 +53,6 @@ module Text.XML.Expat.Extended (
   parseThrowing,
   XMLParseException(..),
 
-  -- * SAX-style parse
-  SAXEvent(..),
-  saxToTree,
-
   -- * Abstraction of string types
   GenericXMLString(..)
   ) where
@@ -56,11 +62,12 @@ import Text.XML.Expat.SAX ( Encoding(..)
                           , GenericXMLString(..)
                           , ParseOptions(..)
                           , defaultParseOptions
-                          , SAXEvent(..)
+                          , SAXEvent
                           , XMLParseError(..)
                           , XMLParseException(..)
                           , XMLParseLocation(..) )
 import qualified Text.XML.Expat.SAX as SAX
+import Text.XML.Expat.Internal.DocumentClass
 import Text.XML.Expat.Internal.Namespaced
 import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.Internal.Qualified
@@ -70,11 +77,45 @@ import Control.DeepSeq
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.List.Class
+import Data.Maybe
 import Data.Monoid
 
 
+-- | Document representation of the XML document, intended to support the entire
+-- XML specification.  DTDs are not yet supported, however.
+data DocumentG a c tag text = Document {
+        dXMLDeclaration          :: Maybe (XMLDeclaration text),
+        dDocumentTypeDeclaration :: Maybe (DocumentTypeDeclaration c tag text),
+        dTopLevelMiscs           :: c (Misc text),
+        dRoot                    :: NodeG a c tag text
+    }
+
+instance (Show tag, Show text, Show a) => Show (DocumentG a [] tag text) where
+    showsPrec d (Document xd dtd m r) = showParen (d > 10) $
+        ("Document "++) . showsPrec 11 xd . (" "++) .
+                          showsPrec 11 dtd . (" "++) .
+                          showsPrec 11 m . (" "++) .
+                          showsPrec 11 r
+
+instance (Eq tag, Eq text, Eq a) => Eq (DocumentG a [] tag text) where
+    Document xd1 dtd1 m1 r1 == Document xd2 dtd2 m2 r2 =
+        xd1 == xd2 &&
+        dtd1 == dtd2 &&
+        m1 == m2 &&
+        r1 == r2
+
+type Document a tag text = DocumentG a [] tag text
+
+type instance NodeType (DocumentG ann) = NodeG ann
+
+instance (Functor c, List c) => DocumentClass (DocumentG ann) c where
+    getXMLDeclaration          = dXMLDeclaration
+    getDocumentTypeDeclaration = dDocumentTypeDeclaration
+    getTopLevelMiscs           = dTopLevelMiscs
+    getRoot                    = dRoot
+
 -- | Extended variant of the tree representation of the XML document, intended
--- to support the entire XML specification.
+-- to support the entire XML specification.  DTDs are not yet supported, however.
 --
 -- @c@ is the container type for the element's children, which is [] in the
 -- @hexpat@ package, and a monadic list type for @hexpat-iteratee@.
@@ -102,8 +143,7 @@ data NodeG a c tag text =
     } |
     Text !text |
     CData !text |
-    Comment !text |
-    ProcessingInstruction !text !text
+    Misc (Misc text)
 
 type instance ListOf (NodeG a c tag text) = c (NodeG a c tag text)
 
@@ -124,9 +164,7 @@ instance (Show tag, Show text, Show a) => Show (NodeG a [] tag text) where
                          showsPrec 11 an
     showsPrec d (Text t) = showParen (d > 10) $ ("Text "++) . showsPrec 11 t
     showsPrec d (CData t) = showParen (d > 10) $ ("CData "++) . showsPrec 11 t
-    showsPrec d (ProcessingInstruction t txt) = showParen (d > 10) $
-        ("ProcessingInstruction "++) . showsPrec 11 t . (" "++) . showsPrec 11 txt
-    showsPrec d (Comment t) = showParen (d > 10) $ ("Comment "++) . showsPrec 11 t
+    showsPrec d (Misc m)  = showParen (d > 10) $ ("Misc "++) . showsPrec 11 m
 
 instance (Eq tag, Eq text, Eq a) => Eq (NodeG a [] tag text) where
     Element na1 at1 ch1 an1 == Element na2 at2 ch2 an2 =
@@ -136,26 +174,22 @@ instance (Eq tag, Eq text, Eq a) => Eq (NodeG a [] tag text) where
         an1 == an2
     Text t1 == Text t2 = t1 == t2
     CData t1 == CData t2 = t1 == t2
-    ProcessingInstruction t1 d1 == ProcessingInstruction t2 d2 = 
-        t1 == t2 &&
-        d1 == d2
-    Comment t1 == Comment t2 = t1 == t2
+    Misc t1 == Misc t2 = t1 == t2
     _ == _ = False
 
 instance (NFData tag, NFData text, NFData a) => NFData (NodeG a [] tag text) where
     rnf (Element nam att chi ann) = rnf (nam, att, chi, ann)
     rnf (Text txt) = rnf txt
     rnf (CData txt) = rnf txt
-    rnf (ProcessingInstruction target txt) = rnf (target, txt)
-    rnf (Comment txt) = rnf txt
+    rnf (Misc m) = rnf m
 
 instance (Functor c, List c) => NodeClass (NodeG a) c where
     textContentM (Element _ _ children _) = foldlL mappend mempty $ joinM $ fmap textContentM children
     textContentM (Text txt) = return txt
     textContentM (CData txt) = return txt
-    textContentM (ProcessingInstruction _ txt) = return txt
-    textContentM (Comment txt) = return txt
-    
+    textContentM (Misc (ProcessingInstruction _ _)) = return mempty
+    textContentM (Misc (Comment _)) = return mempty
+
     isElement (Element _ _ _ _) = True
     isElement _                 = False
     
@@ -166,11 +200,11 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
     isCData (CData _) = True
     isCData _        = False
     
-    isProcessingInstruction (ProcessingInstruction _ _) = True
+    isProcessingInstruction (Misc (ProcessingInstruction _ _)) = True
     isProcessingInstruction _        = False
     
-    isComment (Comment _) = True
-    isComment _        = False
+    isComment (Misc (Comment _)) = True
+    isComment _                  = False
     
     isNamed nm (Element nm' _ _ _) = nm == nm'
     isNamed _  _ = False
@@ -178,11 +212,11 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
     getName (Element name _ _ _) = name
     getName _             = mempty
     
-    hasTarget t (ProcessingInstruction t' _ ) = t == t'
+    hasTarget t (Misc (ProcessingInstruction t' _ )) = t == t'
     hasTarget _  _ = False
     
-    getTarget (ProcessingInstruction target _) = target
-    getTarget _             = mempty
+    getTarget (Misc (ProcessingInstruction target _)) = target
+    getTarget _                                       = mempty
 
     getAttributes (Element _ attrs _ _) = attrs
     getAttributes _              = []
@@ -192,8 +226,8 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
 
     getText (Text txt) = txt
     getText (CData txt) = txt
-    getText (ProcessingInstruction _ txt) = txt
-    getText (Comment txt) = txt
+    getText (Misc (ProcessingInstruction _ txt)) = txt
+    getText (Misc (Comment txt)) = txt
     getText (Element _ _ _ _) = mempty
 
     modifyName f (Element n a c ann) = Element (f n) a c ann
@@ -208,51 +242,74 @@ instance (Functor c, List c) => NodeClass (NodeG a) c where
     mapAllTags f (Element n a c ann) = Element (f n) (map (first f) a) (fmap (mapAllTags f) c) ann
     mapAllTags _ (Text txt) = Text txt
     mapAllTags _ (CData txt) = CData txt
-    mapAllTags _ (ProcessingInstruction n txt) = ProcessingInstruction n txt
-    mapAllTags _ (Comment txt) = Comment txt
+    mapAllTags _ (Misc (ProcessingInstruction n txt)) = Misc (ProcessingInstruction n txt)
+    mapAllTags _ (Misc (Comment txt)) = Misc (Comment txt)
 
     modifyElement f (Element n a c ann) =
         let (n', a', c') = f (n, a, c)
         in  Element n' a' c' ann
     modifyElement _ (Text txt) = Text txt
     modifyElement _ (CData txt) = CData txt
-    modifyElement _ (ProcessingInstruction n txt) = ProcessingInstruction n txt
-    modifyElement _ (Comment txt) = Comment txt
+    modifyElement _ (Misc (ProcessingInstruction n txt)) = Misc (ProcessingInstruction n txt)
+    modifyElement _ (Misc (Comment txt)) = Misc (Comment txt)
 
     mapNodeContainer f (Element n a ch an) = do
         ch' <- mapNodeListContainer f ch
         return $ Element n a ch' an
     mapNodeContainer _ (Text txt) = return $ (Text txt)
     mapNodeContainer _ (CData txt) = return $ (CData txt)
-    mapNodeContainer _ (ProcessingInstruction n txt) = return $ (ProcessingInstruction n txt)
-    mapNodeContainer _ (Comment txt) = return $ (Comment txt)
+    mapNodeContainer _ (Misc (ProcessingInstruction n txt)) = return $ Misc (ProcessingInstruction n txt)
+    mapNodeContainer _ (Misc (Comment txt)) = return $ Misc (Comment txt)
 
     mkText = Text
 
 instance (Functor c, List c) => MkElementClass (NodeG (Maybe a)) c where
     mkElement name attrs children = Element name attrs children Nothing
 
--- | Type alias for a single annotated node with unqualified tag names where
+-- | Type alias for an extended document with unqualified tag names where
+-- tag and text are the same string type
+type UDocument a text = Document a text text
+
+-- | Type alias for an extended document, annotated with parse location
+type LDocument tag text = Document XMLParseLocation tag text
+
+-- | Type alias for an extended document with unqualified tag names where
+-- tag and text are the same string type, annotated with parse location
+type ULDocument text = Document XMLParseLocation text text
+
+-- | Type alias for an extended document where qualified names are used for tags
+type QDocument a text = Document a (QName text) text
+
+-- | Type alias for an extended document where qualified names are used for tags, annotated with parse location
+type QLDocument text = Document XMLParseLocation (QName text) text
+
+-- | Type alias for an extended document where namespaced names are used for tags
+type NDocument a text = Document a (NName text) text
+
+-- | Type alias for an extended document where namespaced names are used for tags, annotated with parse location
+type NLDocument text = Document XMLParseLocation (NName text) text
+
+-- | Type alias for an extended node with unqualified tag names where
 -- tag and text are the same string type
 type UNode a text = Node a text text
 
--- | Type alias for a single annotated node, annotated with parse location
+-- | Type alias for an extended node, annotated with parse location
 type LNode tag text = Node XMLParseLocation tag text
 
--- | Type alias for a single node with unqualified tag names where
+-- | Type alias for an extended node with unqualified tag names where
 -- tag and text are the same string type, annotated with parse location
 type ULNode text = LNode text text 
 
--- | Type alias for a single annotated node where qualified names are used for tags
+-- | Type alias for an extended node where qualified names are used for tags
 type QNode a text = Node a (QName text) text
 
--- | Type alias for a single node where qualified names are used for tags, annotated with parse location
+-- | Type alias for an extended node where qualified names are used for tags, annotated with parse location
 type QLNode text = LNode (QName text) text
 
--- | Type alias for a single annotated node where namespaced names are used for tags
+-- | Type alias for an extended node where namespaced names are used for tags
 type NNode a text = Node a (NName text) text
 
--- | Type alias for a single node where namespaced names are used for tags, annotated with parse location
+-- | Type alias for an extended node where namespaced names are used for tags, annotated with parse location
 type NLNode text = LNode (NName text) text
 
 -- | Modify this node's annotation (non-recursively) if it's an element, otherwise no-op.
@@ -260,52 +317,68 @@ modifyAnnotation :: (a -> a) -> Node a tag text -> Node a tag text
 f `modifyAnnotation` Element na at ch an = Element na at ch (f an)
 _ `modifyAnnotation` Text t = Text t
 _ `modifyAnnotation` CData t = CData t
-_ `modifyAnnotation` ProcessingInstruction n t = ProcessingInstruction n t
-_ `modifyAnnotation` Comment t = Comment t
+_ `modifyAnnotation` Misc (ProcessingInstruction n t) = Misc (ProcessingInstruction n t)
+_ `modifyAnnotation` Misc (Comment t) = Misc (Comment t)
 
 -- | Modify this node's annotation and all its children recursively if it's an element, otherwise no-op.
 mapAnnotation :: (a -> b) -> Node a tag text -> Node b tag text
 f `mapAnnotation` Element na at ch an = Element na at (map (f `mapAnnotation`) ch) (f an)
 _ `mapAnnotation` Text t = Text t
 _ `mapAnnotation` CData t = CData t
-_ `mapAnnotation` ProcessingInstruction n t = ProcessingInstruction n t
-_ `mapAnnotation` Comment t = Comment t
+_ `mapAnnotation` Misc (ProcessingInstruction n t) = Misc (ProcessingInstruction n t)
+_ `mapAnnotation` Misc (Comment t) = Misc (Comment t)
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 -- Variant that takes annotations for start tags.
 saxToTree :: (GenericXMLString tag, Monoid text) =>
              [(SAXEvent tag text, a)]
-          -> (Node a tag text, Maybe XMLParseError)
+          -> (Document a tag text, Maybe XMLParseError)
+saxToTree ((SAX.XMLDeclaration ver mEnc mSD, _):events) =
+    let (doc, mErr) = saxToTree events
+    in  (doc {
+            dXMLDeclaration = Just $ XMLDeclaration ver mEnc mSD
+        }, mErr)
 saxToTree events =
     let (nodes, mError, _) = ptl events False []
-    in  (safeHead nodes, mError)
+        doc = Document {
+                dXMLDeclaration          = Nothing,
+                dDocumentTypeDeclaration = Nothing,
+                dTopLevelMiscs           = findTopLevelMiscs nodes,
+                dRoot                    = findRoot nodes
+            }
+    in  (doc, mError)
   where
-    safeHead (a:_) = a
-    safeHead [] = Element (gxFromString "") [] [] (error "saxToTree null annotation")
-    ptl ((StartElement name attrs,ann):rema) isCD cd =
+    findRoot (elt@(Element _ _ _ _):_) = elt
+    findRoot (_:nodes) = findRoot nodes
+    findRoot [] = Element (gxFromString "") [] [] (error "saxToTree null annotation")
+    findTopLevelMiscs = mapMaybe $ \node -> case node of
+        Misc m -> Just m
+        _      -> Nothing
+    ptl ((SAX.StartElement name attrs,ann):rema) isCD cd =
         let (children, err1, rema') = ptl rema isCD cd
             elt = Element name attrs children ann
             (out, err2, rema'') = ptl rema' isCD cd
         in  (elt:out, err1 `mplus` err2, rema'')
-    ptl ((EndElement _, _):rema) _ _ = ([], Nothing, rema)
-    ptl ((CharacterData txt, _):rema) isCD cd =
+    ptl ((SAX.EndElement _, _):rema) _ _ = ([], Nothing, rema)
+    ptl ((SAX.CharacterData txt, _):rema) isCD cd =
         if isCD then
-            ptl rema isCD (cd ++ [txt])
+            ptl rema isCD (txt:cd)
         else
             let (out, err, rema') = ptl rema isCD cd
             in  (Text txt:out, err, rema')
-    ptl ((StartCData,_) :rema) _ _ =
+    ptl ((SAX.StartCData,_) :rema) _ _ =
         ptl rema True mzero
-    ptl ((EndCData, _) :rema) _ cd =
+    ptl ((SAX.EndCData, _) :rema) _ cd =
         let (out, err, rema') = ptl rema False mzero
-        in  (CData (mconcat cd):out, err, rema')
-    ptl ((EndComment txt, _):rema) isCD cd =
+        in  (CData (mconcat $ reverse cd):out, err, rema')
+    ptl ((SAX.Comment txt, _):rema) isCD cd =
         let (out, err, rema') = ptl rema isCD cd
-        in  (Comment txt:out, err, rema')
-    ptl ((EndProcessingInstruction target txt, _):rema) isCD cd =
+        in  (Misc (Comment txt):out, err, rema')
+    ptl ((SAX.ProcessingInstruction target txt, _):rema) isCD cd =
         let (out, err, rema') = ptl rema isCD cd
-        in  (ProcessingInstruction target txt:out, err, rema')
-    ptl ((FailDocument err, _):_) _ _ = ([], Just err, [])
+        in  (Misc (ProcessingInstruction target txt):out, err, rema')
+    ptl ((SAX.FailDocument err, _):_) _ _ = ([], Just err, [])
+    ptl ((SAX.XMLDeclaration _ _ _, _):rema) _ _ = ([], Nothing, rema)  -- doesn't appear in the middle of a document
     ptl [] _ _ = ([], Nothing, [])
 
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
@@ -314,7 +387,7 @@ saxToTree events =
 parse :: (GenericXMLString tag, GenericXMLString text) =>
          ParseOptions tag text   -- ^ Optional encoding override
       -> L.ByteString             -- ^ Input text (a lazy ByteString)
-      -> (LNode tag text, Maybe XMLParseError)
+      -> (LDocument tag text, Maybe XMLParseError)
 parse opts bs = saxToTree $ SAX.parseLocations opts bs
 
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
@@ -327,14 +400,14 @@ parse opts bs = saxToTree $ SAX.parseLocations opts bs
 parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
                  ParseOptions tag text   -- ^ Optional encoding override
               -> L.ByteString             -- ^ Input text (a lazy ByteString)
-              -> LNode tag text
+              -> LDocument tag text
 parseThrowing opts bs = fst $ saxToTree $ SAX.parseLocationsThrowing opts bs
 
 -- | Strictly parse XML to tree. Returns error message or valid parsed tree.
 parse' :: (GenericXMLString tag, GenericXMLString text) =>
           ParseOptions tag text  -- ^ Optional encoding override
        -> B.ByteString            -- ^ Input text (a strict ByteString)
-       -> Either XMLParseError (LNode tag text)
+       -> Either XMLParseError (LDocument tag text)
 parse' opts bs = case parse opts (L.fromChunks [bs]) of
     (_, Just err)   -> Left err
     (root, Nothing) -> Right root 

@@ -5,6 +5,9 @@
 
 -- | This module provides functions to format a tree
 -- structure or SAX stream as UTF-8 encoded XML.
+--
+-- Note: If you want to format an XML @Document@ data structure, use @formatDocument@
+-- or @formatDocumentG@ from /Extended.hs/.
 module Text.XML.Expat.Format (
         -- * High level
         format,
@@ -13,12 +16,17 @@ module Text.XML.Expat.Format (
         formatNode,
         formatNode',
         formatNodeG,
+        -- * Format document (for use with Extended.hs)
+        formatDocument,
+        formatDocument',
+        formatDocumentG,
         -- * Deprecated names
         formatTree,
         formatTree',
         -- * Low level
         xmlHeader,
         treeToSAX,
+        documentToSAX,
         formatSAX,
         formatSAX',
         formatSAXG,
@@ -27,6 +35,7 @@ module Text.XML.Expat.Format (
         indent_
     ) where
 
+import qualified Text.XML.Expat.Internal.DocumentClass as Doc
 import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.SAX
 
@@ -89,9 +98,43 @@ formatNodeG :: (NodeClass n c, GenericXMLString tag, GenericXMLString text) =>
            -> c B.ByteString
 formatNodeG = formatSAXG . treeToSAX
 
+-- | Format an XML document - lazy variant that returns lazy ByteString.
+formatDocument :: (Doc.DocumentClass d [], GenericXMLString tag, GenericXMLString text) =>
+                  d [] tag text
+               -> L.ByteString
+formatDocument = formatSAX . documentToSAX
+
+-- | Format an XML document - strict variant that returns strict ByteString.
+formatDocument' :: (Doc.DocumentClass d [], GenericXMLString tag, GenericXMLString text) =>
+                   d [] tag text
+                -> B.ByteString
+formatDocument' = B.concat . L.toChunks . formatDocument
+
+-- | Format an XML document - generalized variant that returns a generic
+-- list of strict ByteStrings.
+formatDocumentG :: (Doc.DocumentClass d c, GenericXMLString tag, GenericXMLString text) =>
+                   d c tag text
+                -> c B.ByteString
+formatDocumentG = formatSAXG . documentToSAX
+
 -- | The standard XML header with UTF-8 encoding.
 xmlHeader :: B.ByteString
 xmlHeader = B.pack $ map c2w "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+
+documentToSAX :: forall tag text d c . (GenericXMLString tag, GenericXMLString text,
+                     Monoid text, Doc.DocumentClass d c) =>
+                 d c tag text -> c (SAXEvent tag text)
+documentToSAX doc =
+    (case Doc.getXMLDeclaration doc of
+        Just (Doc.XMLDeclaration ver mEnc sd) -> fromList [
+                  XMLDeclaration ver mEnc sd, CharacterData (gxFromString "\n")]
+        Nothing                               -> mzero) `mplus`
+    join (fmap (\misc -> fromList [case misc of
+            Doc.ProcessingInstruction target text -> ProcessingInstruction target text
+            Doc.Comment text                      -> Comment text,
+            CharacterData (gxFromString "\n")]
+        ) (Doc.getTopLevelMiscs doc)) `mplus`
+    treeToSAX (Doc.getRoot doc)
 
 -- | Flatten a tree structure into SAX events, monadic version.
 treeToSAX :: forall tag text n c . (GenericXMLString tag, GenericXMLString text,
@@ -115,9 +158,9 @@ treeToSAX node
     | isText node =
         singleton (CharacterData $ getText node)        
     | isProcessingInstruction node =
-        singleton (EndProcessingInstruction (getTarget node) (getText node))
+        singleton (ProcessingInstruction (getTarget node) (getText node))
     | isComment node =
-        singleton (EndComment $ getText node)    
+        singleton (Comment $ getText node)    
     | otherwise = mzero
   where
     singleton = return
@@ -171,6 +214,27 @@ formatSAXGb l1 cd = joinL $ do
   where
     formatItem it1 = case it1 of
         Nil -> mzero
+        Cons (XMLDeclaration ver mEnc mSD) l2 ->
+            return (pack "<?xml version=\"") `mplus`
+            fromList (escapeText (gxToByteString ver)) `mplus`
+            return (pack "\"") `mplus`
+            (
+                case mEnc of
+                    Nothing -> mzero
+                    Just enc ->
+                        return (pack " encoding=\"") `mplus`
+                        fromList (escapeText (gxToByteString enc)) `mplus`
+                        return (pack "\"")
+            ) `mplus`
+            (
+                case mSD of
+                    Nothing -> mzero
+                    Just True  -> return (pack " standalone=\"yes\"")
+                    Just False -> return (pack " standalone=\"no\"")
+            ) `mplus`
+            return (pack ("\"?>"))
+            `mplus`
+            formatSAXGb l2 cd
         Cons (StartElement name attrs) l2 ->
             fromList (startTagHelper name attrs)
             `mplus` (
@@ -201,14 +265,14 @@ formatSAXGb l1 cd = joinL $ do
         Cons EndCData l2 ->
             cons(pack "]]>") $
             formatSAXGb l2 False
-        Cons (EndProcessingInstruction target txt) l2 ->
+        Cons (ProcessingInstruction target txt) l2 ->
             cons (pack "<?") $
             cons (gxToByteString target) $
             cons (pack " ") $
             cons (gxToByteString txt) $
             cons (pack "?>") $
             formatSAXGb l2 cd
-        Cons (EndComment txt) l2 ->
+        Cons (Comment txt) l2 ->
             cons (pack "<!--") $
             cons (gxToByteString txt) $
             cons (pack "-->") $

@@ -225,27 +225,27 @@ unannotate :: Functor c => NodeG a c tag text -> Tree.NodeG c tag text
 unannotate (Element na at ch _) = (Tree.Element na at (fmap unannotate ch))
 unannotate (Text t) = Tree.Text t
 
--- | Type alias for a single annotated node with unqualified tag names where
+-- | Type alias for an annotated node with unqualified tag names where
 -- tag and text are the same string type
 type UNode a text = Node a text text
 
--- | Type alias for a single annotated node, annotated with parse location
+-- | Type alias for an annotated node, annotated with parse location
 type LNode tag text = Node XMLParseLocation tag text
 
--- | Type alias for a single node with unqualified tag names where
+-- | Type alias for an annotated node with unqualified tag names where
 -- tag and text are the same string type, annotated with parse location
 type ULNode text = LNode text text 
 
--- | Type alias for a single annotated node where qualified names are used for tags
+-- | Type alias for an annotated node where qualified names are used for tags
 type QNode a text = Node a (QName text) text
 
--- | Type alias for a single node where qualified names are used for tags, annotated with parse location
+-- | Type alias for an annotated node where qualified names are used for tags, annotated with parse location
 type QLNode text = LNode (QName text) text
 
--- | Type alias for a single annotated node where namespaced names are used for tags
+-- | Type alias for an annotated node where namespaced names are used for tags
 type NNode a text = Node a (NName text) text
 
--- | Type alias for a single node where namespaced names are used for tags, annotated with parse location
+-- | Type alias for an annotated node where namespaced names are used for tags, annotated with parse location
 type NLNode text = LNode (NName text) text
 
 -- | Modify this node's annotation (non-recursively) if it's an element, otherwise no-op.

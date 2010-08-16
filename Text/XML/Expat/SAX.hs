@@ -138,24 +138,26 @@ peekByteStringLen (cstr, len) =
 
 
 data SAXEvent tag text =
+    XMLDeclaration text (Maybe text) (Maybe Bool) |
     StartElement tag [(tag, text)] |
     EndElement tag |
     CharacterData text |
     StartCData |
     EndCData |
-    EndProcessingInstruction text text |
-    EndComment text |
+    ProcessingInstruction text text |
+    Comment text |
     FailDocument XMLParseError
     deriving (Eq, Show)
 
 instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
-    rnf (StartElement tag atts) = rnf (tag, atts)
+    rnf (XMLDeclaration ver mEnc mSD) = rnf ver `seq` rnf mEnc `seq` rnf mSD
+    rnf (StartElement tag atts) = rnf tag `seq` rnf atts
     rnf (EndElement tag) = rnf tag
     rnf (CharacterData text) = rnf text
     rnf StartCData = ()
     rnf EndCData = ()
-    rnf (EndProcessingInstruction target text) = rnf (target, text)
-    rnf (EndComment text) = rnf text
+    rnf (ProcessingInstruction target text) = rnf target `seq` rnf text
+    rnf (Comment text) = rnf text
     rnf (FailDocument err) = rnf err
 
 -- | Converts a 'CString' to a 'GenericXMLString' type.
@@ -213,6 +215,17 @@ parse opts input = unsafePerformIO $ do
             modifyIORef queueRef (CharacterData txt:)
         Nothing -> return ()
 
+    setXMLDeclarationHandler parser $ \_ cVer cEnc cSd -> do
+        ver <- textFromCString cVer
+        mEnc <- if cEnc == nullPtr
+            then return Nothing
+            else Just <$> textFromCString cEnc
+        let sd = if cSd < 0
+                then Nothing
+                else Just $ if cSd /= 0 then True else False
+        modifyIORef queueRef (XMLDeclaration ver mEnc sd:)
+        return True
+
     setStartElementHandler parser $ \_ cName cAttrs -> do
         name <- textFromCString cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
@@ -243,12 +256,12 @@ parse opts input = unsafePerformIO $ do
     setProcessingInstructionHandler parser $ \_ cTarget cText -> do
         target <- textFromCString cTarget
         txt <- textFromCString cText
-        modifyIORef queueRef (EndProcessingInstruction target txt :)
+        modifyIORef queueRef (ProcessingInstruction target txt :)
         return True
         
     setCommentHandler parser $ \_ cText -> do
         txt <- textFromCString cText
-        modifyIORef queueRef (EndComment txt :)
+        modifyIORef queueRef (Comment txt :)
         return True
 
     let runParser inp = unsafeInterleaveIO $ do
@@ -309,6 +322,18 @@ parseLocations opts input = unsafePerformIO $ do
             modifyIORef queueRef ((CharacterData txt, loc):)
         Nothing -> return ()
 
+    setXMLDeclarationHandler parser $ \pp cVer cEnc cSd -> do
+        ver <- textFromCString cVer
+        mEnc <- if cEnc == nullPtr
+            then return Nothing
+            else Just <$> textFromCString cEnc
+        let sd = if cSd < 0
+                then Nothing
+                else Just $ if cSd /= 0 then True else False
+        loc <- getParseLocation pp
+        modifyIORef queueRef ((XMLDeclaration ver mEnc sd,loc):)
+        return True
+
     setStartElementHandler parser $ \pp cName cAttrs -> do
         name <- textFromCString cName
         attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
@@ -345,13 +370,13 @@ parseLocations opts input = unsafePerformIO $ do
         target <- textFromCString cTarget
         txt <- textFromCString cText
         loc <- getParseLocation pp
-        modifyIORef queueRef ((EndProcessingInstruction target txt, loc) :)
+        modifyIORef queueRef ((ProcessingInstruction target txt, loc) :)
         return True
         
     setCommentHandler parser $ \pp cText -> do
         txt <- textFromCString cText
         loc <- getParseLocation pp
-        modifyIORef queueRef ((EndComment txt, loc) :)
+        modifyIORef queueRef ((Comment txt, loc) :)
         return True
 
     let runParser inp = unsafeInterleaveIO $ do

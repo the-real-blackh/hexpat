@@ -241,7 +241,7 @@ type Nodes tag text = [Node tag text]
 type UNodes text = Nodes text text
 {-# DEPRECATED UNodes "use [UNode text] instead" #-}
 
--- | Type alias for a single node with unqualified tag names where tag and
+-- | Type alias for a node with unqualified tag names where tag and
 -- text are the same string type.
 type UNode text = Node text text
 
@@ -251,7 +251,7 @@ type UNode text = Node text text
 {-# DEPRECATED QNodes "use [QNode text] instead" #-}
 type QNodes text = [Node (QName text) text]
 
--- | Type alias for a single node where qualified names are used for tags
+-- | Type alias for a node where qualified names are used for tags
 type QNode text = Node (QName text) text
 
 -- | DEPRECATED: Use [NNode text] instead.
@@ -260,7 +260,7 @@ type QNode text = Node (QName text) text
 {-# DEPRECATED NNodes "use [NNode text] instead" #-}
 type NNodes text = [Node (NName text) text]
 
--- | Type alias for a single node where namespaced names are used for tags
+-- | Type alias for a node where namespaced names are used for tags
 type NNode text = Node (NName text) text
 
 instance (Functor c, List c) => NodeClass NodeG c where

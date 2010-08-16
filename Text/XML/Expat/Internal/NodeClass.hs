@@ -20,7 +20,8 @@ type Attributes tag text = [(tag, text)]
 type UAttributes text = Attributes text text
 
 -- | Extract all text content from inside a tag into a single string, including
--- any text contained in children.
+-- any text contained in children.  This /excludes/ the contents of /comments/ or
+-- /processing instructions/.  To get the text for these node types, use 'getText'.
 textContent :: (NodeClass n [], Monoid text) => n [] tag text -> text
 textContent node = runIdentity $ textContentM node
 
@@ -46,7 +47,8 @@ class (Functor c, List c) => NodeClass n c where
     isComment :: n c tag text -> Bool
 
     -- | Extract all text content from inside a tag into a single string, including
-    -- any text contained in children.
+    -- any text contained in children.  This /excludes/ the contents of /comments/ or
+    -- /processing instructions/.  To get the text for these node types, use 'getText'.
     textContentM :: Monoid text => n c tag text -> ItemM c text
 
     -- | Is the given node a tag with the given name?
@@ -67,7 +69,8 @@ class (Functor c, List c) => NodeClass n c where
     -- | Get children of a node if it's an element, return empty list otherwise.
     getChildren :: n c tag text -> c (n c tag text)
 
-    -- | Get this node's text if it's a text node, return empty text otherwise.
+    -- | Get this node's text if it's a text node, comment, or processing instruction,
+    -- return empty text otherwise.
     getText :: Monoid text => n c tag text -> text
 
     -- | Modify name if it's an element, no-op otherwise.
