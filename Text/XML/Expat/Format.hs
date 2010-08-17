@@ -6,8 +6,12 @@
 -- | This module provides functions to format a tree
 -- structure or SAX stream as UTF-8 encoded XML.
 --
--- Note: If you want to format an XML @Document@ data structure, use @formatDocument@
--- or @formatDocumentG@ from /Extended.hs/.
+-- Please note: The formatting functions always outputs only UTF-8, regardless
+-- of what encoding is specified in the 'Doc.XMLDeclaration' of a 'Doc.Document'.
+-- If you want to produce a document, then make sure the 'Doc.XMLDeclaration' agrees
+-- with the final output encoding, then format the document, and
+-- convert the output text from UTF-8 to your desired encoding using some
+-- text conversion library.
 module Text.XML.Expat.Format (
         -- * High level
         format,
