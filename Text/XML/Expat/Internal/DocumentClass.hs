@@ -11,7 +11,7 @@ import Data.List.Class
 
 -- | XML declaration, consisting of version, encoding and standalone.
 --
--- Please note: The formatting functions always outputs only UTF-8, regardless
+-- The formatting functions always outputs only UTF-8, regardless
 -- of what encoding is specified here.  If you want to produce a document in a
 -- different encoding, then set the encoding here, format the document, and then
 -- convert the output text from UTF-8 to your desired encoding using some

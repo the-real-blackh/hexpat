@@ -6,12 +6,16 @@
 -- | This module provides functions to format a tree
 -- structure or SAX stream as UTF-8 encoded XML.
 --
--- Please note: The formatting functions always outputs only UTF-8, regardless
--- of what encoding is specified in the 'Doc.XMLDeclaration' of a 'Doc.Document'.
--- If you want to produce a document, then make sure the 'Doc.XMLDeclaration' agrees
--- with the final output encoding, then format the document, and
--- convert the output text from UTF-8 to your desired encoding using some
--- text conversion library.
+-- The formatting functions always outputs only UTF-8, regardless
+-- of what encoding is specified in the document's 'Doc.XMLDeclaration'.
+-- If you want to output a document in another encoding, then make sure the
+-- 'Doc.XMLDeclaration' agrees with the final output encoding, then format the
+-- document, and convert from UTF-8 to your desired encoding using some text
+-- conversion library.
+--
+-- The lazy 'L.ByteString' representation of the output in generated with very
+-- small chunks, so in some applications you may want to combine them into
+-- larger chunks to get better efficiency.
 module Text.XML.Expat.Format (
         -- * High level
         format,
