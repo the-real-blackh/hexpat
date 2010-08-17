@@ -68,3 +68,31 @@ class (Functor c, List c, NodeClass (NodeType d) c) => DocumentClass d c where
 mkPlainDocument :: DocumentClass d c => NodeType d c tag text -> d c tag text
 mkPlainDocument = mkDocument Nothing Nothing mzero
 
+modifyXMLDeclaration :: DocumentClass d c =>
+                        (Maybe (XMLDeclaration text) -> Maybe (XMLDeclaration text))
+                     -> d c tag text
+                     -> d c tag text
+modifyXMLDeclaration f doc = mkDocument (f $ getXMLDeclaration doc) (getDocumentTypeDeclaration doc)
+        (getTopLevelMiscs doc) (getRoot doc)
+
+modifyDocumentTypeDeclaration :: DocumentClass d c =>
+                                 (Maybe (DocumentTypeDeclaration c tag text) -> Maybe (DocumentTypeDeclaration c tag text))
+                              -> d c tag text
+                              -> d c tag text
+modifyDocumentTypeDeclaration f doc = mkDocument (getXMLDeclaration doc) (f $ getDocumentTypeDeclaration doc)
+        (getTopLevelMiscs doc) (getRoot doc)
+
+modifyTopLevelMiscs :: DocumentClass d c =>
+                       (c (Misc text) -> c (Misc text))
+                    -> d c tag text
+                    -> d c tag text
+modifyTopLevelMiscs f doc = mkDocument (getXMLDeclaration doc) (getDocumentTypeDeclaration doc)
+        (f $ getTopLevelMiscs doc) (getRoot doc)
+
+modifyRoot :: DocumentClass d c =>
+              (NodeType d c tag text -> NodeType d c tag text)
+           -> d c tag text
+           -> d c tag text
+modifyRoot f doc = mkDocument (getXMLDeclaration doc) (getDocumentTypeDeclaration doc)
+        (getTopLevelMiscs doc) (f $ getRoot doc)
+
