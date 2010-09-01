@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.19
+Version: 0.19.1
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -87,7 +87,7 @@ Library
     base >= 3 && < 5,
     bytestring,
     transformers,
-    text >= 0.5 && < 0.8,
+    text >= 0.5 && < 0.9,
     utf8-string == 0.3.*,
     deepseq == 1.1.*,
     containers,
