@@ -200,6 +200,7 @@ getError pp = do
     return $ XMLParseError err loc
 
 data ExpatHandlers = ExpatHandlers
+    (FunPtr CXMLDeclarationHandler)
     (FunPtr CStartElementHandler)
     (FunPtr CEndElementHandler)
     (FunPtr CCharacterDataHandler)
@@ -258,12 +259,13 @@ withParser parser@(Parser fp _ _ _ _ _ _ _ _ _ _) code = withForeignPtr fp $ \pp
               (xmlSetSkippedEntityHandler pp)
               mSkipH
     
-        return $ ExpatHandlers cStartH cEndH cCharH mExtH mSkipH 
+        return $ ExpatHandlers cXMLDeclH cStartH cEndH cCharH mExtH mSkipH 
             cStartCDataH cEndCDataH cProcessingInstructionH cCommentH
     
     unsafeReleaseHandlers :: ExpatHandlers -> IO ()
-    unsafeReleaseHandlers (ExpatHandlers cStartH cEndH cCharH mcExtH mcSkipH 
+    unsafeReleaseHandlers (ExpatHandlers cXMLDeclH cStartH cEndH cCharH mcExtH mcSkipH 
             cStartCDataH cEndCDataH cProcessingInstructionH cCommentH) = do
+        freeHaskellFunPtr cXMLDeclH
         freeHaskellFunPtr cStartH
         freeHaskellFunPtr cEndH
         freeHaskellFunPtr cCharH
@@ -622,7 +624,7 @@ type CExternalEntityRefHandler = ParserPtr   -- parser
                               -> Ptr CChar   -- publicID
                               -> IO ()
 
-foreign import ccall safe "wrapper"
+foreign import ccall unsafe "wrapper"
   mkCExternalEntityRefHandler :: CExternalEntityRefHandler
                               -> IO (FunPtr CExternalEntityRefHandler)
 
