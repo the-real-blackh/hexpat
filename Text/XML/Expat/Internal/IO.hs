@@ -56,6 +56,7 @@ module Text.XML.Expat.Internal.IO (
   encodingToString
   ) where
 
+import Control.Concurrent
 import Control.Exception (bracket)
 import Control.DeepSeq
 import Control.Monad
@@ -282,12 +283,63 @@ cFromBool :: Num a => Bool -> a
 cFromBool  = fromBool
 
 doParseChunk :: ParserPtr -> BS.ByteString -> Bool -> IO (Bool)
-doParseChunk a1 a2 a3 =
+doParseChunk = ensureBoundThread $ \a1 a2 a3 ->
   withBStringLen a2 $ \(a2'1, a2'2) ->
   let {a3' = cFromBool a3} in
   doParseChunk'_ a1 a2'1  a2'2 a3' >>= \res ->
   let {res' = unStatus res} in
   return (res')
+
+data WorkerIface = WorkerIface (MVar (ParserPtr, BS.ByteString, Bool)) (MVar Bool)
+
+workerIfaceRef :: IORef (Maybe WorkerIface)
+{-# NOINLINE workerIfaceRef #-}
+workerIfaceRef = unsafePerformIO $ newIORef Nothing
+
+-- If the calling thread is not bound, we delegate to a bound thread, because
+-- otherwise we get a thread explosion (this is true in ghc-6.12.X).
+-- See test/thread-leak/ directory for a test case.
+ensureBoundThread :: (ParserPtr -> BS.ByteString -> Bool -> IO Bool)
+                  -> ParserPtr
+                  -> BS.ByteString
+                  -> Bool
+                  -> IO Bool
+ensureBoundThread doit p bs last = do
+    bound <- isCurrentThreadBound
+    if rtsSupportsBoundThreads && not bound
+        then delegate
+        else doit p bs last
+  where
+    delegate = do
+        mIface <- readIORef workerIfaceRef
+        case mIface of
+            Just iface -> pipeTo iface
+            Nothing -> do
+                inV <- newEmptyMVar
+                outV <- newEmptyMVar
+                let iface = WorkerIface inV outV
+                justSetItGlobally <- atomicModifyIORef workerIfaceRef $ \mIface ->
+                    case mIface of
+                        Just _  -> (mIface, False)
+                        Nothing -> (Just iface, True) 
+                if justSetItGlobally
+                    then do
+                        _ <- forkOS $ worker iface
+                        pipeTo iface
+                    else
+                        -- If it wasn't changed, then this is because we got a race
+                        -- condition with another thread.  We resolve this by trying
+                        -- again.  We'll succeed on the second attempt.  The mvars
+                        -- we allocated here will be GC'd.
+                        delegate
+
+    pipeTo (WorkerIface inV outV) =
+        putMVar inV (p, bs, last) >> takeMVar outV
+
+    worker (WorkerIface inV outV) = forever $
+        putMVar outV =<< uncurry3 doit =<< takeMVar inV
+      where
+        uncurry3 f (a, b, c) = f a b c 
 
 -- | Parse error, consisting of message text and error location
 data XMLParseError = XMLParseError String XMLParseLocation deriving (Eq, Show)

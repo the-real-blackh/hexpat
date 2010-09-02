@@ -42,11 +42,21 @@ Description:
   .
   Ensure @libexpat.dll@ can be found in your system PATH (or copy it into your executable's directory).
   .
+  BOUND VS. UNBOUND THREADS: GHC (at least versions 6.12.X) will spawn threads
+  if you call a safe FFI callback from an unbound thread.  This can get out of
+  control in a busy application.  To avoid this, from version 0.19.1 we now delegate
+  processing to a single worker thread if the calling thread is not bound.
+  This essentially means that hexpat currently won't exploit multicores very well.
+  It also means that hexpat may be more efficient on threads spawned with forkOS
+  (to give you a bound thread) rather than forkIO.
+  .
   ChangeLog: 0.15 changes intended to fix a (rare) \"error: a C finalizer called back into Haskell.\"
     that seemed only to happen only on ghc6.12.X; 0.15.1 Fix broken Annotated parse;
     0.16 switch from mtl to transformers; 0.17 fix mapNodeContainer & rename some things.;
     0.18 rename defaultEncoding to overrideEncoding. 0.18.3 formatG and indent were demanding list
-    items more than once (inefficient in chunked processing); 0.19 add Extended.hs.
+    items more than once (inefficient in chunked processing); 0.19 add Extended.hs;
+    0.19.1 fix a memory leak introduced in 0.19, delegate parsing to bound thread
+    if unbound (see note above)
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -75,7 +85,16 @@ Extra-Source-Files:
   test/suite/Text/XML/Expat/UnitTests.hs,
   test/suite/Text/XML/Expat/Tests.hs,
   test/suite/Text/XML/Expat/Cursor/Tests.hs,
-  test/suite/Text/XML/Expat/ParseFormat.hs
+  test/suite/Text/XML/Expat/ParseFormat.hs,
+  test/thread-leak/build.sh,
+  test/thread-leak/callme.c,
+  test/thread-leak/cleak.c,
+  test/thread-leak/clean.sh,
+  test/thread-leak/thread-leak.hs,
+  test/hexpat-leak/instant-message.llsd,
+  test/hexpat-leak/Parse.hs,
+  test/hexpat-leak/run.sh,
+  test/hexpat-leak/build.sh
 Build-Type: Simple
 Stability: beta
 source-repository head
