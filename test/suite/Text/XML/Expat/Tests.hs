@@ -9,8 +9,10 @@ module Text.XML.Expat.Tests
   , testAttrSet )
 where
 
+import           Control.Applicative
 import           Control.Monad (liftM)
 import           Data.ByteString.Char8 (ByteString)
+import qualified Data.Map as M
 import           Test.QuickCheck
 import           Text.XML.Expat.Cursor (Cursor)
 import           Text.XML.Expat.Tree
@@ -49,14 +51,12 @@ testAttrSet = [ "sheep"
 
 
 instance Arbitrary TNode where
-    coarbitrary = undefined
-
-    arbitrary = depth 0
+    arbitrary = mkElem 0
       where
         depth :: Int -> Gen TNode
         depth n = do
-            which <- (arbitrary :: Gen Bool)
-            if which then mkElem n else mkText
+            prob <- (choose (0, 1) :: Gen Float)
+            if prob < 0.75 then mkElem n else mkText
 
 
         mkAttr = do
@@ -70,8 +70,9 @@ instance Arbitrary TNode where
             nchildren <- if n > 3
                            then return 0
                            else choose ((0,6) :: (Int,Int))
-            nattrs    <- choose ((0,3) :: (Int,Int))
-            attrs     <- sequence $ replicate nattrs mkAttr
+            nattrs    <- choose ((0,4) :: (Int,Int))
+            attrs     <- M.toList . M.fromList    -- remove duplicate attributes
+                      <$> sequence (replicate nattrs mkAttr)
             children  <- sequence $ replicate nchildren (depth (n+1))
             tagname   <- elements testTagSet
 

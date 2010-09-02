@@ -6,7 +6,7 @@ module Text.XML.Expat.Cursor.Tests (tests) where
 import           Control.Monad (replicateM)
 import           Data.Maybe
 import           Test.Framework (Test)
-import           Test.Framework.Providers.QuickCheck
+import           Test.Framework.Providers.QuickCheck2
 import           Test.QuickCheck
 import           Text.XML.Expat.Tests
 import           Text.XML.Expat.Cursor

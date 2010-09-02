@@ -4,6 +4,7 @@ import qualified Text.XML.Expat.UnitTests
 import qualified Text.XML.Expat.Cursor.Tests
 import qualified Text.XML.Expat.Proc.Tests
 import qualified Text.XML.Expat.ParseFormat
+import qualified Text.XML.Expat.ParallelTest
 
 import Test.Framework (defaultMain, testGroup)
 
@@ -17,5 +18,7 @@ main = defaultMain tests
                             Text.XML.Expat.Cursor.Tests.tests
                 , testGroup "Text.XML.Expat.ParseFormat"
                             Text.XML.Expat.ParseFormat.tests
+                , testGroup "Text.XML.Expat.ParallelTest"
+                            Text.XML.Expat.ParallelTest.tests
                 ]
 
