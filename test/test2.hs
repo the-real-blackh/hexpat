@@ -10,7 +10,7 @@ import Data.Maybe
 
 main :: IO ()
 main = do
-    bs <- L.readFile "/home/blackh/src/ingenitech.x86/trunk/geostar/ROADS.xml"
+    bs <- L.readFile "ROADS.xml"
     let Element _ _ chs = parseThrowing defaultParseOptions bs :: UNode Text
     forM_ chs $ \ch -> do
         case ch of

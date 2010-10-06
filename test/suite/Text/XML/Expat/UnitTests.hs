@@ -93,7 +93,7 @@ test_error3 =
 test_error4 :: IO ()
 test_error4 = do
     let eDoc = Tree.parse' defaultParseOptions (toByteString "!") :: Either XMLParseError (UNode String)
-    assertEqual "error1" (Left $ XMLParseError "not well-formed (invalid token)"
+    assertEqual "error1" (Left $ XMLParseError "unclosed token"
         (XMLParseLocation 1 0 0 0)) eDoc
 
 test_parse :: IO ()

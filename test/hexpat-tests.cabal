@@ -7,8 +7,6 @@ Executable testsuite
   hs-source-dirs:  .. suite
   main-is:         TestSuite.hs
 
-  extra-libraries: expat
-
   build-depends:
     HUnit < 1.3,
     QuickCheck >= 2.1.0.3 && < 2.2,
@@ -32,3 +30,14 @@ Executable testsuite
   ghc-options: -Wall -fhpc -threaded
   if impl(ghc >= 6.8)
     ghc-options: -fwarn-tabs
+
+  include-dirs: ../cbits
+  c-sources:
+    ../cbits/xmlparse.c,
+    ../cbits/xmlrole.c,
+    ../cbits/xmltok.c,
+    ../cbits/xmltok_impl.c,
+    ../cbits/xmltok_ns.c
+
+  if os(windows)
+    CC-Options: -DDONT_HAVE_MEMMOVE
