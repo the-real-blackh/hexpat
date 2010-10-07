@@ -145,7 +145,3 @@ Library
     cbits/xmltok.c,
     cbits/xmltok_impl.c,
     cbits/xmltok_ns.c
-
-  if os(windows)
-    CC-Options: -DDONT_HAVE_MEMMOVE
-

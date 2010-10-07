@@ -73,23 +73,6 @@ typedef char ICHAR;
 /* Round up n to be a multiple of sz, where sz is a power of 2. */
 #define ROUND_UP(n, sz) (((n) + ((sz) - 1)) & ~((sz) - 1))
 
-/* Handle the case where memmove() doesn't exist. */
-#ifdef DONT_HAVE_MEMMOVE
-void
-memmove (register char *src, register char *dest, int len)
-{
-  if (dest < src)
-    while (len--)
-      *dest++ = *src++;
-  else {
-    char *lasts = src + (len-1);
-    char *lastd = dest + (len-1);
-    while (len--)
-      *(char *)lastd-- = *(char *)lasts--;
-  }
-}
-#endif /* HAVE_MEMMOVE */
-
 #include "internal.h"
 #include "xmltok.h"
 #include "xmlrole.h"
