@@ -48,7 +48,7 @@ Description:
     items more than once (inefficient in chunked processing); 0.19 add Extended.hs;
     0.19.1 fix a memory leak introduced in 0.19, delegate parsing to bound thread
     if unbound (see note above); 0.19.2 include expat source code so \'cabal install\' just works
-    on Linux, Mac and Windows.
+    on Linux, Mac and Windows (thanks Jacob Stanley)
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -58,7 +58,8 @@ Author:
   Gregory Collins,
   Evan Martin (who started the project),
   Matthew Pocock [drdozer],
-  Kevin Jardine
+  Kevin Jardine,
+  Jacob Stanley
 Maintainer: http://blacksapphire.com/antispam/
 Copyright:
   (c) 2009 Doug Beardsley <mightybyte@gmail.com>,
@@ -67,7 +68,8 @@ Copyright:
   (c) 2008 Evan Martin <martine@danga.com>,
   (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>,
   (c) 2007-2009 Galois Inc.,
-  (c) 2010 Kevin Jardine
+  (c) 2010 Kevin Jardine,
+  (c) 2010 Jacob Stanley
 Homepage: http://haskell.org/haskellwiki/Hexpat/
 Extra-Source-Files:
   test/hexpat-tests.cabal,
