@@ -47,7 +47,8 @@ Description:
     0.18 rename defaultEncoding to overrideEncoding. 0.18.3 formatG and indent were demanding list
     items more than once (inefficient in chunked processing); 0.19 add Extended.hs;
     0.19.1 fix a memory leak introduced in 0.19, delegate parsing to bound thread
-    if unbound (see note above)
+    if unbound (see note above); 0.19.2 include expat source code so \'cabal install\' just works
+    on Linux, Mac and Windows.
 Category: XML
 License: BSD3
 License-File: LICENSE
