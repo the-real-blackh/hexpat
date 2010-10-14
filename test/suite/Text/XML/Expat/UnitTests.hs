@@ -8,6 +8,7 @@ import Text.XML.Expat.Cursor
 import Text.XML.Expat.Format
 import Text.XML.Expat.Qualified
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as T
 import CForeign
@@ -93,7 +94,7 @@ test_error3 =
 test_error4 :: IO ()
 test_error4 = do
     let eDoc = Tree.parse' defaultParseOptions (toByteString "!") :: Either XMLParseError (UNode String)
-    assertEqual "error1" (Left $ XMLParseError "unclosed token"
+    assertEqual "error1" (Left $ XMLParseError "not well-formed (invalid token)"
         (XMLParseLocation 1 0 0 0)) eDoc
 
 test_parse :: IO ()
@@ -120,7 +121,7 @@ test_parse = do
         l
 
 
-test_entities = do
+test_entities1 = do
     assertEqual "parse error" merr Nothing
     assertEqual "entity substitution" (Text "foo") c
   where
@@ -136,6 +137,16 @@ test_entities = do
                        then Just "foo"
                        else Nothing
 
+test_entities2 = do
+    assertEqual "wrong answer" (Element "html" [] [Text "\228"], Nothing) pr
+  where
+    pr :: (UNode String, Maybe XMLParseError)
+    pr = Tree.parse opt $ LC.pack "<html>&auml;</html>"
+        where
+        opt =  defaultParseOptions
+               { entityDecoder = Just ed }
+        ed "auml" = Just "\228"
+        ed _      = Nothing
 
 test_textContent = do
     let tree = Element "cheese" [("type", "edam")]
@@ -265,7 +276,8 @@ tests = hUnitTestToTests $
         TestLabel "error3" $ TestCase $ test_error3,
         TestLabel "error4" $ TestCase $ test_error4,
         TestLabel "parse" $ TestCase $ test_parse,
-        TestLabel "entities" $ TestCase $ test_entities,
+        TestLabel "entities1" $ TestCase $ test_entities1,
+        TestLabel "entities2" $ TestCase $ test_entities2,
         TestLabel "textContent" $ TestCase $ test_textContent,
         TestLabel "indent" $ TestCase $ test_indent,
         TestLabel "setAttribute" $ TestCase $ test_setAttribute

@@ -38,3 +38,5 @@ Executable testsuite
     ../cbits/xmltok.c,
     ../cbits/xmltok_impl.c,
     ../cbits/xmltok_ns.c
+  cc-options: -DHAVE_MEMMOVE -DXML_NS -DXML_DTD
+

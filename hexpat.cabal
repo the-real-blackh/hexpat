@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.19.2
+Version: 0.19.3
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -48,7 +48,8 @@ Description:
     items more than once (inefficient in chunked processing); 0.19 add Extended.hs;
     0.19.1 fix a memory leak introduced in 0.19, delegate parsing to bound thread
     if unbound (see note above); 0.19.2 include expat source code so \'cabal install\' just works
-    on Linux, Mac and Windows (thanks Jacob Stanley)
+    on Linux, Mac and Windows (thanks Jacob Stanley); 0.19.3 fix misconfiguration of expat
+    which broke entity parsing.
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -148,3 +149,5 @@ Library
     cbits/xmltok.c,
     cbits/xmltok_impl.c,
     cbits/xmltok_ns.c
+  cc-options: -DHAVE_MEMMOVE -DXML_NS -DXML_DTD
+
