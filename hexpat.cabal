@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.19.3
+Version: 0.19.4
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -49,7 +49,7 @@ Description:
     0.19.1 fix a memory leak introduced in 0.19, delegate parsing to bound thread
     if unbound (see note above); 0.19.2 include expat source code so \'cabal install\' just works
     on Linux, Mac and Windows (thanks Jacob Stanley); 0.19.3 fix misconfiguration of expat
-    which broke entity parsing.
+    which broke entity parsing; 0.19.4 bump version constraint for text.
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -69,8 +69,7 @@ Copyright:
   (c) 2008 Evan Martin <martine@danga.com>,
   (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>,
   (c) 2007-2009 Galois Inc.,
-  (c) 2010 Kevin Jardine,
-  (c) 2010 Jacob Stanley
+  (c) 2010 Kevin Jardine
 Homepage: http://haskell.org/haskellwiki/Hexpat/
 Extra-Source-Files:
   test/hexpat-tests.cabal,
@@ -117,7 +116,7 @@ Library
     base >= 3 && < 5,
     bytestring,
     transformers,
-    text >= 0.5 && < 0.9,
+    text >= 0.5 && < 0.11,
     utf8-string == 0.3.*,
     deepseq == 1.1.*,
     containers,
