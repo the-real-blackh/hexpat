@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances #-}
+{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances, CPP #-}
 
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
@@ -126,7 +126,16 @@ instance GenericXMLString T.Text where
     gxFromChar = T.singleton
     gxHead = T.head
     gxTail = T.tail
+#if MIN_VERSION_text(0,11,0)
+    gxBreakOn c = T.break (==c)
+#elif MIN_VERSION_text(0,10,0)
+    -- breakBy gets renamed to break between 0.10.0.0 and 0.10.0.1.
+    -- There's no 'break' function that is consistent between these two
+    -- versions so we work around it using other functions.
+    gxBreakOn c t = (T.takeWhile (/=c) t, T.dropWhile (/=c) t)
+#else
     gxBreakOn c = T.breakBy (==c)
+#endif
     gxFromCStringLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
     gxToByteString = TE.encodeUtf8
 
