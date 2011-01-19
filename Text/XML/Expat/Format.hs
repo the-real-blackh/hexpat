@@ -194,7 +194,7 @@ startTagHelper :: (GenericXMLString tag, GenericXMLString text) =>
 startTagHelper name atts =
     B.singleton (c2w '<'):
     gxToByteString name:
-    concatMap (
+    Prelude.concatMap (
             \(aname, avalue) ->
                 B.singleton (c2w ' '):
                 gxToByteString aname:
