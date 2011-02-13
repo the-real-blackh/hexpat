@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeFamilies,
-        FlexibleContexts #-}
+        FlexibleContexts, ScopedTypeVariables #-}
 -- | A variant of /Node/ in which Element nodes have an annotation of any type,
 -- and some concrete functions that annotate with the XML parse location.
 --
@@ -36,6 +36,7 @@ module Text.XML.Expat.Annotated (
   Encoding(..),
   parse,
   parse',
+  parseG,
   XMLParseError(..),
   XMLParseLocation(..),
 
@@ -45,6 +46,7 @@ module Text.XML.Expat.Annotated (
 
   -- * Convert from SAX
   saxToTree,
+  saxToTreeG,
 
   -- * Abstraction of string types
   GenericXMLString(..),
@@ -86,6 +88,7 @@ import Text.XML.Expat.Internal.Qualified
 
 import Control.Monad (mplus, mzero)
 import Control.DeepSeq
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.List.Class
@@ -285,6 +288,39 @@ saxToTree events =
     ptl (_:rema) = ptl rema  -- extended node types not supported in this tree type
     ptl [] = ([], Nothing, [])
 
+-- | A lower level function that converts a generalized SAX stream into a tree structure.
+-- Ignores parse errors.
+saxToTreeG :: forall l a tag text . (GenericXMLString tag, List l, Monad (ItemM l)) =>
+              l (SAXEvent tag text, a)
+           -> ItemM l (NodeG a l tag text)
+saxToTreeG events = do
+    (elts, _) <- process events
+    findRoot elts
+  where
+    findRoot :: l (NodeG a l tag text) -> ItemM l (NodeG a l tag text)
+    findRoot elts = do
+        li <- runList elts
+        case li of
+            Cons elt@(Element _ _ _ _) _ -> return elt
+            Cons _ rema -> findRoot rema
+            Nil -> return $ Element (gxFromString "") mzero mzero (error "saxToTree null annotation")
+    process :: l (SAXEvent tag text, a)
+            -> ItemM l (l (NodeG a l tag text), l (SAXEvent tag text, a))
+    process events = do
+        li <- runList events
+        case li of
+            Nil -> return (mzero, mzero)
+            Cons (StartElement name attrs, ann) rema -> do
+                (children, rema') <- process rema
+                (out, rema'') <- process rema'
+                return (Element name attrs children ann `cons` out, rema'')
+            Cons (EndElement _, _) rema -> return (mzero, rema)
+            Cons (CharacterData txt, _) rema -> do
+                (out, rema') <- process rema
+                return (Text txt `cons` out, rema')
+            --Cons (FailDocument err) rema = (mzero, mzero)
+            Cons _ rema -> process rema
+
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
 -- check the error status until you have processed the tree.
@@ -293,6 +329,15 @@ parse :: (GenericXMLString tag, GenericXMLString text) =>
       -> L.ByteString             -- ^ Input text (a lazy ByteString)
       -> (LNode tag text, Maybe XMLParseError)
 parse opts bs = saxToTree $ SAX.parseLocations opts bs
+
+-- | Parse a generalized list to a tree, ignoring parse errors.
+-- This function allows for a parse from an enumerator/iteratee to a "lazy"
+-- tree structure using the @List-enumerator@ package.
+parseG :: (GenericXMLString tag, GenericXMLString text, List l) =>
+          ParseOptions tag text  -- ^ Parse options
+       -> l ByteString           -- ^ Input text as a generalized list of blocks
+       -> ItemM l (NodeG XMLParseLocation l tag text)
+parseG opts = saxToTreeG . SAX.parseLocationsG opts
 
 -- | DEPRECATED: Use 'parse' instead.
 --
