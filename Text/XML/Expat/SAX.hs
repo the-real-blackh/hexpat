@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances, CPP, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances, CPP, ScopedTypeVariables, FlexibleInstances #-}
 
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
@@ -55,7 +55,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Codec.Binary.UTF8.String as U8
 import Data.Typeable
-import Data.List.Class
+import Data.List.Class hiding (tail)
 import Control.Exception.Extensible as Exc
 import Control.Applicative
 import Control.DeepSeq

@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.20.1
+Version: 0.19.7
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -24,7 +24,7 @@ Description:
   with one of the lazy I\/O functions such as hGetContents.  However, this can be
   problematic in some applications because it doesn't handle I\/O errors properly
   and can give no guarantee of timely resource cleanup.  In these cases, chunked
-  I\/O is a better approach: Take a look at the /hexpat-iteratee/ package.
+  I\/O is a better approach: Take a look at the /hexpat-enumerator/ package.
   .
   /IO/ is filed under /Internal/ because it's low-level and most users won't want
   it.  The other /Internal/ modules are re-exported by /Annotated/, /Tree/ and /Extended/,
@@ -122,7 +122,7 @@ Library
     deepseq == 1.1.*,
     containers,
     extensible-exceptions == 0.1.*,
-    List == 0.4.*
+    List >= 0.4.2 && < 0.5
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,
