@@ -109,7 +109,7 @@ instance GenericXMLString String where
     gxHead = head
     gxTail = tail
     gxBreakOn c = break (==c)
-    gxFromCStringLen cstr = U8.decodeString <$> peekCStringLen cstr
+    gxFromCStringLen cstr = U8.decode . B.unpack <$> peekByteStringLen cstr
     gxToByteString = B.pack . map c2w . U8.encodeString
 
 instance GenericXMLString B.ByteString where

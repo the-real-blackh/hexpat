@@ -1,5 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE OverloadedStrings, FlexibleInstances, TypeSynonymInstances #-}
 
 module Text.XML.Expat.Tests
   ( TCursor

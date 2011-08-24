@@ -11,7 +11,8 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as T
-import CForeign
+import Foreign
+import Foreign.C
 import Data.ByteString.Internal (c2w, w2c)
 import Data.Char
 import Data.Maybe
