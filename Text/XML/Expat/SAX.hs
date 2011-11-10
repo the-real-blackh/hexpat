@@ -216,7 +216,7 @@ parseG :: forall tag text l . (GenericXMLString tag, GenericXMLString text, List
           ParseOptions tag text -- ^ Parse options
        -> l ByteString          -- ^ Input text (a lazy ByteString)
        -> l (SAXEvent tag text)
-parseG opts inputBlocks = runParser inputBlocks cacheRef
+parseG opts inputBlocks = runParser inputBlocks parser queueRef cacheRef
   where
     (parser, queueRef, cacheRef) = unsafePerformIO $ do
         let enc = overrideEncoding opts
@@ -280,35 +280,31 @@ parseG opts inputBlocks = runParser inputBlocks cacheRef
             return True
 
         cacheRef <- newIORef Nothing
-
         return (parser, queueRef, cacheRef)
 
-    runParser :: l ByteString
-              -> IORef (Maybe (l (SAXEvent tag text)))
-              -> l (SAXEvent tag text)
-    runParser iblks cacheRef = joinL $ do
-        li <- runList iblks 
+    runParser iblks parser queueRef cacheRef = joinL $ do
+        li <- runList iblks
         return $ unsafePerformIO $ do
             mCached <- readIORef cacheRef
             case mCached of
                 Just l -> return l
                 Nothing -> do
-                    (mError, rema) <- case li of
+                    rema <- case li of
                             Nil         -> do
                                 mError <- withParser parser $ \pp -> parseChunk pp B.empty True
-                                return (mError, mzero)
+                                return $ handleFailure mError mzero
                             Cons blk t -> unsafeInterleaveIO $ do
                                 mError <- withParser parser $ \pp -> parseChunk pp blk False
                                 cacheRef' <- newIORef Nothing
-                                return (mError, runParser t cacheRef')
-                    let rema' = case mError of
-                            Just err -> FailDocument err `cons` mzero
-                            Nothing -> rema
+                                return $ handleFailure mError (runParser t parser queueRef cacheRef')
                     queue <- readIORef queueRef
                     writeIORef queueRef []
-                    let l = fromList (reverse queue) `mplus` rema'
+                    let l = fromList (reverse queue) `mplus` rema
                     writeIORef cacheRef (Just l)
                     return l
+      where
+        handleFailure (Just err) _ = FailDocument err `cons` mzero
+        handleFailure Nothing    l = l
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
 -- the last element of the output list.
@@ -345,7 +341,7 @@ parseLocationsG :: forall tag text l . (GenericXMLString tag, GenericXMLString t
                    ParseOptions tag text -- ^ Parse options
                 -> l ByteString          -- ^ Input text (a lazy ByteString)
                 -> l (SAXEvent tag text, XMLParseLocation)
-parseLocationsG opts inputBlocks = runParser inputBlocks cacheRef
+parseLocationsG opts inputBlocks = runParser inputBlocks parser queueRef cacheRef
   where
     (parser, queueRef, cacheRef) = unsafePerformIO $ do
         let enc = overrideEncoding opts
@@ -418,37 +414,32 @@ parseLocationsG opts inputBlocks = runParser inputBlocks cacheRef
             return True
 
         cacheRef <- newIORef Nothing
-
         return (parser, queueRef, cacheRef)
 
-    runParser :: l ByteString
-              -> IORef (Maybe (l (SAXEvent tag text, XMLParseLocation)))
-              -> l (SAXEvent tag text, XMLParseLocation)
-    runParser iblks cacheRef = joinL $ do
-        li <- runList iblks 
+    runParser iblks parser queueRef cacheRef = joinL $ do
+        li <- runList iblks
         return $ unsafePerformIO $ do
             mCached <- readIORef cacheRef
             case mCached of
                 Just l -> return l
                 Nothing -> do
-                    (mError, rema) <- case li of
+                    rema <- case li of
                             Nil         -> do
                                 mError <- withParser parser $ \pp -> parseChunk pp B.empty True
-                                return (mError, mzero)
+                                handleFailure mError mzero
                             Cons blk t -> unsafeInterleaveIO $ do
                                 mError <- withParser parser $ \pp -> parseChunk pp blk False
                                 cacheRef' <- newIORef Nothing
-                                return (mError, runParser t cacheRef')
-                    rema' <- case mError of
-                            Just err -> do
-                                loc <- withParser parser getParseLocation
-                                return $ (FailDocument err, loc) `cons` mzero
-                            Nothing -> return rema
+                                handleFailure mError (runParser t parser queueRef cacheRef')
                     queue <- readIORef queueRef
                     writeIORef queueRef []
-                    let l = fromList (reverse queue) `mplus` rema'
+                    let l = fromList (reverse queue) `mplus` rema
                     writeIORef cacheRef (Just l)
                     return l
+      where
+        handleFailure (Just err) _ = do loc <- withParser parser getParseLocation
+                                        return $ (FailDocument err, loc) `cons` mzero
+        handleFailure Nothing    l = return l
 
 -- | A variant of parseSAX that gives a document location with each SAX event.
 parseLocations :: (GenericXMLString tag, GenericXMLString text) =>
