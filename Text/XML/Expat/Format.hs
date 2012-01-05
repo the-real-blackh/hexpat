@@ -292,7 +292,7 @@ pack :: String -> B.ByteString
 pack = B.pack . map c2w
 
 escapees :: [Word8]
-escapees = map c2w "&<\"'"
+escapees = map c2w "&<>\"'"
 
 escapeText :: B.ByteString -> [B.ByteString]
 escapeText str | B.null str = []
@@ -302,6 +302,7 @@ escapeText str =
             then case w2c $ B.head str of
                 '&'  -> pack "&amp;":escapeText rema
                 '<'  -> pack "&lt;":escapeText rema
+                '>'  -> pack "&gt;":escapeText rema
                 '"'  -> pack "&quot;":escapeText rema
                 '\'' -> pack "&apos;":escapeText rema
                 _        -> error "hexpat: impossible"
