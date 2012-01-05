@@ -291,13 +291,19 @@ formatSAXGb l1 cd = joinL $ do
 pack :: String -> B.ByteString
 pack = B.pack . map c2w
 
-escapees :: [Word8]
-escapees = map c2w "&<>\"'"
+isSafeChar :: Word8 -> Bool
+isSafeChar c =
+     (c /= c2w '&')
+  && (c /= c2w '<')
+  && (c /= c2w '>')
+  && (c /= c2w '"')
+  && (c /= c2w '\'')
+{-# INLINE isSafeChar #-}
 
 escapeText :: B.ByteString -> [B.ByteString]
 escapeText str | B.null str = []
 escapeText str =
-    let (good, bad) = B.span (`notElem` escapees) str
+    let (good, bad) = B.span isSafeChar str
     in  if B.null good
             then case w2c $ B.head str of
                 '&'  -> pack "&amp;":escapeText rema
