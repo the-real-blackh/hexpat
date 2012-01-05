@@ -55,6 +55,8 @@ import Data.Char (isSpace)
 import Data.List.Class
 import Data.Monoid
 import Data.Word
+import Data.Text (Text)
+import Text.XML.Expat.Tree (UNode)
 
 -- | DEPRECATED: Renamed to 'format'.
 formatTree :: (NodeClass n [], GenericXMLString tag, GenericXMLString text) =>
@@ -67,6 +69,7 @@ format :: (NodeClass n [], GenericXMLString tag, GenericXMLString text) =>
           n [] tag text
        -> L.ByteString
 format node = L.fromChunks (xmlHeader : formatNodeG node)
+{-# SPECIALIZE format :: UNode Text -> L.ByteString #-}
 
 -- | Format document with <?xml.. header - generalized variant that returns a generic
 -- list of strict ByteStrings.
@@ -105,6 +108,7 @@ formatNodeG :: (NodeClass n c, GenericXMLString tag, GenericXMLString text) =>
               n c tag text
            -> c B.ByteString
 formatNodeG = formatSAXG . treeToSAX
+{-# SPECIALIZE formatNodeG :: UNode Text -> [B.ByteString] #-}
 
 -- | Format an XML document - lazy variant that returns lazy ByteString.
 formatDocument :: (Doc.DocumentClass d [], GenericXMLString tag, GenericXMLString text) =>
@@ -173,6 +177,7 @@ treeToSAX node
   where
     singleton = return
     concatL = join
+{-# SPECIALIZE treeToSAX :: UNode Text -> [(SAXEvent Text Text)] #-}
 
 -- | Format SAX events with no header - lazy variant that returns lazy ByteString.
 formatSAX :: (GenericXMLString tag, GenericXMLString text) =>
@@ -210,6 +215,7 @@ formatSAXG :: forall c tag text . (List c, GenericXMLString tag,
           c (SAXEvent tag text)    -- ^ SAX events
        -> c B.ByteString
 formatSAXG l1 = formatSAXGb l1 False
+{-# SPECIALIZE formatSAXG :: [SAXEvent Text Text] -> [B.ByteString] #-}
 
 formatSAXGb :: forall c tag text . (List c, GenericXMLString tag,
               GenericXMLString text) =>
@@ -287,6 +293,7 @@ formatSAXGb l1 cd = joinL $ do
             formatSAXGb l2 cd
         Cons (FailDocument _) l2 ->
             formatSAXGb l2 cd
+{-# SPECIALIZE formatSAXGb :: [SAXEvent Text Text] -> Bool -> [B.ByteString] #-}
 
 pack :: String -> B.ByteString
 pack = B.pack . map c2w
