@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.19.8
+Version: 0.19.9
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -51,7 +51,8 @@ Description:
     on Linux, Mac and Windows (thanks Jacob Stanley); 0.19.3 fix misconfiguration of expat
     which broke entity parsing; 0.19.4 bump version constraint for text; 0.19.5 bump text
     to < 0.12 and fix text-0.10.0.1 breakage; 0.19.6 dependency breakage with List;
-    0.19.7 ghc-7.2.1 compatibility; 0.19.8 fix space leak on lazy parse under ghc-7.2.1
+    0.19.7 ghc-7.2.1 compatibility; 0.19.8 fix space leak on lazy parse under ghc-7.2.1;
+    0.19.9 fix formatting of > character + improve performance
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -62,16 +63,18 @@ Author:
   Evan Martin (who started the project),
   Matthew Pocock [drdozer],
   Kevin Jardine,
-  Jacob Stanley
+  Jacob Stanley,
+  Simon Hengel
 Maintainer: http://blacksapphire.com/antispam/
 Copyright:
   (c) 2009 Doug Beardsley <mightybyte@gmail.com>,
-  (c) 2009-2010 Stephen Blackheath <http://blacksapphire.com/antispam/>,
+  (c) 2009-2012 Stephen Blackheath <http://blacksapphire.com/antispam/>,
   (c) 2009 Gregory Collins,
   (c) 2008 Evan Martin <martine@danga.com>,
   (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>,
   (c) 2007-2009 Galois Inc.,
-  (c) 2010 Kevin Jardine
+  (c) 2010 Kevin Jardine,
+  (c) 2012 Simon Hengel
 Homepage: http://haskell.org/haskellwiki/Hexpat/
 Extra-Source-Files:
   test/hexpat-tests.cabal,

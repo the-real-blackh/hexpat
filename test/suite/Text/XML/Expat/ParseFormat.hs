@@ -141,6 +141,14 @@ pfTests = [
                      [Text "Ro", Text "se & Crown"] ()] ()),  -- Test text normalization
             pfOutXML = [],
             pfImpls = [Tree, Annotated, Extended]
+        },
+        PFTest {
+            pfName = "escaping of >",
+            pfXML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<text>]]&gt;</text>",
+            pfDoc = Document (Just (XMLDeclaration "1.0" (Just "UTF-8") Nothing)) Nothing [] (
+                Element "text" [] [Text "]]>"] ()),
+            pfOutXML = [],
+            pfImpls = [Extended]
         }
     ]
 
