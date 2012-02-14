@@ -63,8 +63,9 @@ import Control.Monad
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import Data.IORef
-import Foreign
+import Foreign hiding (unsafePerformIO)
 import Foreign.C
+import System.IO.Unsafe (unsafePerformIO)
 
 
 -- |Opaque parser type.

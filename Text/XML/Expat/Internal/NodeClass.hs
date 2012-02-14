@@ -29,7 +29,7 @@ textContent node = runIdentity $ textContentM node
 -- list type for the specified node type, e.g. @ListOf (UNode Text)@
 type family ListOf n
 
-class (Functor c, List c) => NodeClass n c where
+class (Functor c, List c) => NodeClass (n :: (* -> *) -> * -> * -> *) c where
 
     -- | Is the given node an element?
     isElement :: n c tag text -> Bool

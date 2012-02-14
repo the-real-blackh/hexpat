@@ -19,7 +19,7 @@ import Data.List.Class
 data XMLDeclaration text = XMLDeclaration text (Maybe text) (Maybe Bool) deriving (Eq, Show)
 
 -- | Stub for future expansion.
-data DocumentTypeDeclaration c tag text = DocumentTypeDeclaration deriving (Eq, Show)
+data DocumentTypeDeclaration (c :: * -> *) tag text = DocumentTypeDeclaration deriving (Eq, Show)
 
 data Misc text =
     Comment !text |
@@ -41,9 +41,9 @@ instance NFData text => NFData (Misc text) where
     rnf (ProcessingInstruction target txt) = rnf (target, txt)
     rnf (Comment txt) = rnf txt
 
-type family NodeType d :: (* -> *) -> * -> * -> *
+type family NodeType (d :: (* -> *) -> * -> * -> *) :: (* -> *) -> * -> * -> *
 
-class (Functor c, List c, NodeClass (NodeType d) c) => DocumentClass d c where
+class (Functor c, List c, NodeClass (NodeType d) c) => DocumentClass d (c :: * -> *) where
     -- | Get the XML declaration for this document.
     getXMLDeclaration :: d c tag text -> Maybe (XMLDeclaration text)
 
