@@ -1,4 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
+{-# OPTIONS_GHC -fno-cse -fno-full-laziness #-}
+
 
 -- | Low-level interface to Expat. Unless speed is paramount, this should
 -- normally be avoided in favour of the interfaces provided by
@@ -14,6 +16,8 @@
 module Text.XML.Expat.Internal.IO (
   -- ** Parser Setup
   Parser, newParser,
+  HParser,
+  hexpatNewParser,
 
   -- ** Parsing
   parse, parse',
@@ -24,6 +28,7 @@ module Text.XML.Expat.Internal.IO (
   XMLParseError(..),
   getParseLocation,
   XMLParseLocation(..),
+  hexpatParse,
 
   -- ** Parser Callbacks
   XMLDeclarationHandler,
@@ -56,6 +61,7 @@ module Text.XML.Expat.Internal.IO (
   encodingToString
   ) where
 
+import Control.Applicative
 import Control.Concurrent
 import Control.Exception (bracket)
 import Control.DeepSeq
@@ -126,7 +132,7 @@ newParser enc = do
 
   return $ Parser fptr nullXMLDeclH nullStartH nullEndH nullCharH extH skipH 
     nullSCDataH nullECDataH nullPIH nullCommentH
-  
+
 setUseForeignDTD :: Parser -> Bool -> IO ()
 setUseForeignDTD p b = withParser p $ \p' -> xmlUseForeignDTD p' b'
   where
@@ -284,63 +290,12 @@ cFromBool :: Num a => Bool -> a
 cFromBool  = fromBool
 
 doParseChunk :: ParserPtr -> BS.ByteString -> Bool -> IO (Bool)
-doParseChunk = ensureBoundThread $ \a1 a2 a3 ->
+doParseChunk a1 a2 a3 =
   withBStringLen a2 $ \(a2'1, a2'2) ->
   let {a3' = cFromBool a3} in
   doParseChunk'_ a1 a2'1  a2'2 a3' >>= \res ->
   let {res' = unStatus res} in
   return (res')
-
-data WorkerIface = WorkerIface (MVar (ParserPtr, BS.ByteString, Bool)) (MVar Bool)
-
-workerIfaceRef :: IORef (Maybe WorkerIface)
-{-# NOINLINE workerIfaceRef #-}
-workerIfaceRef = unsafePerformIO $ newIORef Nothing
-
--- If the calling thread is not bound, we delegate to a bound thread, because
--- otherwise we get a thread explosion (this is true in ghc-6.12.X).
--- See test/thread-leak/ directory for a test case.
-ensureBoundThread :: (ParserPtr -> BS.ByteString -> Bool -> IO Bool)
-                  -> ParserPtr
-                  -> BS.ByteString
-                  -> Bool
-                  -> IO Bool
-ensureBoundThread doit p bs last = do
-    bound <- isCurrentThreadBound
-    if rtsSupportsBoundThreads && not bound
-        then delegate
-        else doit p bs last
-  where
-    delegate = do
-        mIface <- readIORef workerIfaceRef
-        case mIface of
-            Just iface -> pipeTo iface
-            Nothing -> do
-                inV <- newEmptyMVar
-                outV <- newEmptyMVar
-                let iface = WorkerIface inV outV
-                justSetItGlobally <- atomicModifyIORef workerIfaceRef $ \mIface ->
-                    case mIface of
-                        Just _  -> (mIface, False)
-                        Nothing -> (Just iface, True) 
-                if justSetItGlobally
-                    then do
-                        _ <- forkOS $ worker iface
-                        pipeTo iface
-                    else
-                        -- If it wasn't changed, then this is because we got a race
-                        -- condition with another thread.  We resolve this by trying
-                        -- again.  We'll succeed on the second attempt.  The mvars
-                        -- we allocated here will be GC'd.
-                        delegate
-
-    pipeTo (WorkerIface inV outV) =
-        putMVar inV (p, bs, last) >> takeMVar outV
-
-    worker (WorkerIface inV outV) = forever $
-        putMVar outV =<< uncurry3 doit =<< takeMVar inV
-      where
-        uncurry3 f (a, b, c) = f a b c 
 
 -- | Parse error, consisting of message text and error location
 data XMLParseError = XMLParseError String XMLParseLocation deriving (Eq, Show)
@@ -776,4 +731,34 @@ foreign import ccall unsafe "expat.h XML_ErrorString" xmlErrorString
     :: CInt -> IO CString
 foreign import ccall unsafe "expat.h XML_StopParser" xmlStopParser
     :: ParserPtr -> CInt -> IO ()
+
+newtype HParser = HParser (ForeignPtr Parser_struct)
+
+foreign import ccall unsafe "hexpatNewParser"
+  _hexpatNewParser :: Ptr CChar -> IO ParserPtr
+
+hexpatNewParser :: Maybe Encoding -> IO HParser
+hexpatNewParser enc =
+    withOptEncoding enc $ \cEnc ->
+        HParser <$> (newForeignPtr parserFree =<< _hexpatNewParser cEnc) 
+
+foreign import ccall unsafe "hexpatParse"
+  _hexpatParse :: ParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt
+
+foreign import ccall "&free" funPtrFree :: FunPtr (Ptr Word8 -> IO ())
+
+hexpatParse :: HParser -> BS.ByteString -> Bool -> IO (ForeignPtr Word8, CInt, Maybe XMLParseError)
+hexpatParse (HParser parser) text final =
+    alloca $ \ppData ->
+    alloca $ \pLen ->
+    withBStringLen text $ \(textBuf, textLen) ->
+    withForeignPtr parser $ \pp -> do
+        ok <- unStatus <$> _hexpatParse pp textBuf textLen (cFromBool final) ppData pLen
+        pData <- peek ppData
+        len <- peek pLen
+        err <- if ok
+            then return Nothing
+            else Just <$> getError pp
+        fpData <- newForeignPtr funPtrFree pData
+        return (fpData, len, err)
 
