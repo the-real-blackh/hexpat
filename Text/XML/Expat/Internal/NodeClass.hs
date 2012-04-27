@@ -109,15 +109,6 @@ class (Functor c, List c) => NodeClass (n :: (* -> *) -> * -> * -> *) c where
     -- | Generic text node constructor.
     mkText :: text -> n c tag text
 
--- | DEPRECATED. Map an element non-recursively, allowing the tag type to be changed.
-mapElement :: NodeClass n c =>
-              ((tag, [(tag, text)], c (n c tag text))
-           -> (tag', [(tag', text)], c (n c tag' text)))
-           -> n c tag text
-           -> n c tag' text
-{-# DEPRECATED mapElement "renamed to modifyElement" #-}
-mapElement = modifyElement
-
 -- | Change a list of nodes recursively from one container type to another, with
 -- a specified function to convert the container type.
 mapNodeListContainer :: (NodeClass n c, List c') =>
