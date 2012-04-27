@@ -131,28 +131,26 @@ module Text.XML.Expat.Tree (
   GenericXMLString(..)
   ) where
 
-import Text.XML.Expat.Internal.IO hiding (parse,parse')
-import qualified Text.XML.Expat.Internal.IO as IO
-import Text.XML.Expat.SAX ( ParseOptions(..)
-                          , XMLParseException(..)
-                          , SAXEvent(..)
+import Text.XML.Expat.SAX ( Encoding(..)
+                          , GenericXMLString(..)
+                          , ParseOptions(..)
                           , defaultParseOptions
-                          , textFromCString
-                          , GenericXMLString(..) )
+                          , SAXEvent(..)
+                          , XMLParseError(..)
+                          , XMLParseException(..)
+                          , XMLParseLocation(..) )
 import qualified Text.XML.Expat.SAX as SAX
 import Text.XML.Expat.Internal.Namespaced
 import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.Internal.Qualified
 
 import Control.Arrow
-import Control.Monad (forM, mplus, mzero)
+import Control.Monad (mplus, mzero)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
-import Data.IORef
 import Data.List.Class
 import Data.Monoid (Monoid,mempty,mappend)
 import Control.DeepSeq
-import System.IO.Unsafe
 
 
 -- | The tree representation of the XML document.

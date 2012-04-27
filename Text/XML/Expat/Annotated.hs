@@ -52,8 +52,7 @@ module Text.XML.Expat.Annotated (
   GenericXMLString(..)
   ) where
 
-import Control.Arrow
-import qualified Text.XML.Expat.Tree as Tree
+import Control.Arrow (first)
 import Text.XML.Expat.SAX ( Encoding(..)
                           , GenericXMLString(..)
                           , ParseOptions(..)

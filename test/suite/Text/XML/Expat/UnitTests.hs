@@ -4,8 +4,6 @@ import Text.XML.Expat.Tree hiding (parse)
 import qualified Text.XML.Expat.Tree as Tree
 import Text.XML.Expat.SAX (SAXEvent(..))
 import qualified Text.XML.Expat.SAX as SAX
-import Text.XML.Expat.Internal.IO hiding (parse)
-import qualified Text.XML.Expat.Internal.IO as IO
 import Text.XML.Expat.Cursor
 import Text.XML.Expat.Format
 import Text.XML.Expat.Extended (LDocument)
@@ -103,30 +101,6 @@ test_error4 = do
     let eDoc = Tree.parse' defaultParseOptions (toByteString "!") :: Either XMLParseError (UNode String)
     assertEqual "error1" (Left $ XMLParseError "not well-formed (invalid token)"
         (XMLParseLocation 1 0 0 0)) eDoc
-
-test_parse :: IO ()
-test_parse = do
-    ref <- newIORef []
-    let lazy = L.fromChunks [
-            toByteString "<open><tes",
-            toByteString "t1>Hello</test",
-            toByteString "1><hello></he",
-            toByteString "llo></open>"]
-    parser <- newParser Nothing
-    setStartElementHandler parser $ \_ cname cattrs -> do
-        name <- peekCString cname
-        ref <- modifyIORef ref $ \l -> ("start "++name):l
-        return True
-    setEndElementHandler parser $ \_ cname -> do
-        name <- peekCString cname
-        ref <- modifyIORef ref $ \l -> ("end "++name):l
-        return True
-    IO.parse parser lazy
-    l <- reverse <$> readIORef ref
-    assertEqual "parse"
-        ["start open","start test1","end test1","start hello","end hello","end open"]
-        l
-
 
 test_entities1 = do
     assertEqual "parse error" merr Nothing
@@ -339,7 +313,6 @@ tests = hUnitTestToTests $
         TestLabel "error2" $ TestCase $ test_error2,
         TestLabel "error3" $ TestCase $ test_error3,
         TestLabel "error4" $ TestCase $ test_error4,
-        TestLabel "parse" $ TestCase $ test_parse,
         TestLabel "entities1" $ TestCase $ test_entities1,
         TestLabel "entities2" $ TestCase $ test_entities2,
         TestLabel "textContent" $ TestCase $ test_textContent,

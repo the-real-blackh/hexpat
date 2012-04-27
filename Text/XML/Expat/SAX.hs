@@ -17,8 +17,6 @@ module Text.XML.Expat.SAX (
   ParseOptions(..),
   SAXEvent(..),
 
-  textFromCString,  -- ###
-  gxFromCStringLen,  -- ###
   parse,
   parseG,
   parseLocations,
@@ -35,14 +33,13 @@ module Text.XML.Expat.SAX (
   ) where
 
 import Control.Concurrent.MVar
-import Text.XML.Expat.Internal.IO hiding (parse)
+import Text.XML.Expat.Internal.IO
 import Data.Bits
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Internal as I
 import Data.Int
-import Data.IORef
 import Data.ByteString.Internal (c2w, w2c, c_strlen)
 import qualified Data.Monoid as M
 import qualified Data.Text as T
@@ -155,16 +152,6 @@ instance (NFData tag, NFData text) => NFData (SAXEvent tag text) where
     rnf (ProcessingInstruction target text) = rnf target `seq` rnf text
     rnf (Comment text) = rnf text
     rnf (FailDocument err) = rnf err
-
--- | Converts a 'CString' to a 'GenericXMLString' type.
-textFromCString :: GenericXMLString text => CString -> IO text
-{-# INLINE textFromCString #-}
-textFromCString cstr = do
-    len <- c_strlen cstr
-    gxFromByteString <$> peekByteStringLen (cstr, fromIntegral len)
-
-gxFromCStringLen :: GenericXMLString text => CStringLen -> IO text
-gxFromCStringLen cl = gxFromByteString <$> peekByteStringLen cl
 
 -- | Parse a generalized list of ByteStrings containing XML to SAX events.
 -- In the event of an error, FailDocument is the last element of the output list.
