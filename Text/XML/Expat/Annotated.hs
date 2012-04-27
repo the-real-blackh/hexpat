@@ -327,6 +327,7 @@ parse' :: (GenericXMLString tag, GenericXMLString text) =>
           ParseOptions tag text   -- ^ Parse options
        -> B.ByteString            -- ^ Input text (a strict ByteString)
        -> Either XMLParseError (LNode tag text)
-parse' opts bs = case parse opts (L.fromChunks [bs]) of
-    (_, Just err)   -> Left err
-    (root, Nothing) -> Right root 
+parse' opts doc = case parse opts (L.fromChunks [doc]) of
+    (xml, Nothing) -> Right xml
+    (_, Just err)  -> Left err
+

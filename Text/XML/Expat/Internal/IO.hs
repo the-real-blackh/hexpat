@@ -633,12 +633,6 @@ foreign import ccall unsafe "XML_SetSkippedEntityHandler"
                              -> FunPtr CSkippedEntityHandler
                              -> IO ()
 
-foreign import ccall unsafe "XML_ExternalEntityParserCreate"
-  xmlExternalEntityParserCreate :: ParserPtr
-                                -> CString   -- ^ context
-                                -> CString   -- ^ encoding
-                                -> IO ParserPtr
-
 type CSkippedEntityHandler =  ParserPtr -- user data pointer
                            -> CString   -- entity name
                            -> CInt      -- is a parameter entity?
@@ -721,7 +715,7 @@ foreign import ccall unsafe "expat.h XML_StopParser" xmlStopParser
 type HParser = B.ByteString -> Bool -> IO (ForeignPtr Word8, CInt, Maybe XMLParseError)
 
 foreign import ccall unsafe "hexpatNewParser"
-  _hexpatNewParser :: Ptr CChar -> IO MyParserPtr
+  _hexpatNewParser :: Ptr CChar -> CInt -> IO MyParserPtr
 
 foreign import ccall unsafe "hexpatGetParser"
   _hexpatGetParser :: MyParserPtr -> IO ParserPtr
@@ -731,42 +725,43 @@ type MyParserPtr = Ptr MyParser_struct
 
 foreign import ccall "&hexpatFreeParser" hexpatFreeParser :: FunPtr (MyParserPtr -> IO ())
 
-hexpatNewParser :: Maybe Encoding -> Maybe (B.ByteString -> Maybe B.ByteString) -> IO HParser
-hexpatNewParser enc Nothing =
+hexpatNewParser :: Maybe Encoding
+                -> Maybe (B.ByteString -> Maybe B.ByteString)  -- ^ Entity decoder
+                -> Bool        -- ^ Whether to include input locations
+                -> IO HParser
+hexpatNewParser enc mDecoder locations =
     withOptEncoding enc $ \cEnc -> do
-        parser <- newForeignPtr hexpatFreeParser =<< _hexpatNewParser cEnc
-        return $ \text final ->
-            alloca $ \ppData ->
-            alloca $ \pLen ->
-            withBStringLen text $ \(textBuf, textLen) ->
-            withForeignPtr parser $ \pp -> do
-                ok <- unStatus <$> _hexpatParseUnsafe pp textBuf textLen (cFromBool final) ppData pLen
-                pData <- peek ppData
-                len <- peek pLen
-                err <- if ok
-                    then return Nothing
-                    else Just <$> (getError =<< _hexpatGetParser pp)
-                fpData <- newForeignPtr funPtrFree pData
-                return (fpData, len, err)
-hexpatNewParser enc (Just decoder) =
-    withOptEncoding enc $ \cEnc -> do
-        parser <- newForeignPtr hexpatFreeParser =<< _hexpatNewParser cEnc
-        return $ \text final ->
-            alloca $ \ppData ->
-            alloca $ \pLen ->
-            withBStringLen text $ \(textBuf, textLen) ->
-            withForeignPtr parser $ \pp -> do
-                eh <- mkCEntityHandler . wrapCEntityHandler $ decoder
-                _hexpatSetEntityHandler pp eh
-                ok <- unStatus <$> _hexpatParseSafe pp textBuf textLen (cFromBool final) ppData pLen
-                freeHaskellFunPtr eh
-                pData <- peek ppData
-                len <- peek pLen
-                err <- if ok
-                    then return Nothing
-                    else Just <$> (getError =<< _hexpatGetParser pp)
-                fpData <- newForeignPtr funPtrFree pData
-                return (fpData, len, err)
+        parser <- newForeignPtr hexpatFreeParser =<< _hexpatNewParser cEnc (cFromBool locations)
+        return $ case mDecoder of
+            Nothing -> \text final ->
+                alloca $ \ppData ->
+                alloca $ \pLen ->
+                withBStringLen text $ \(textBuf, textLen) ->
+                withForeignPtr parser $ \pp -> do
+                    ok <- unStatus <$> _hexpatParseUnsafe pp textBuf textLen (cFromBool final) ppData pLen
+                    pData <- peek ppData
+                    len <- peek pLen
+                    err <- if ok
+                        then return Nothing
+                        else Just <$> (getError =<< _hexpatGetParser pp)
+                    fpData <- newForeignPtr funPtrFree pData
+                    return (fpData, len, err)
+            Just decoder -> \text final ->
+                alloca $ \ppData ->
+                alloca $ \pLen ->
+                withBStringLen text $ \(textBuf, textLen) ->
+                withForeignPtr parser $ \pp -> do
+                    eh <- mkCEntityHandler . wrapCEntityHandler $ decoder
+                    _hexpatSetEntityHandler pp eh
+                    ok <- unStatus <$> _hexpatParseSafe pp textBuf textLen (cFromBool final) ppData pLen
+                    freeHaskellFunPtr eh
+                    pData <- peek ppData
+                    len <- peek pLen
+                    err <- if ok
+                        then return Nothing
+                        else Just <$> (getError =<< _hexpatGetParser pp)
+                    fpData <- newForeignPtr funPtrFree pData
+                    return (fpData, len, err)
 
 foreign import ccall unsafe "hexpatParse"
   _hexpatParseUnsafe :: MyParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt

@@ -276,55 +276,9 @@ parse' :: (GenericXMLString tag, GenericXMLString text) =>
           ParseOptions tag text  -- ^ Parse options
        -> ByteString              -- ^ Input text (a strict ByteString)
        -> Either XMLParseError (Node tag text)
-parse' opts doc = unsafePerformIO $ runParse where
-  runParse = do
-    let enc = overrideEncoding opts
-    let mEntityDecoder = entityDecoder opts
-
-    parser <- newParser enc
-
-    -- We maintain the invariant that the stack always has one element,
-    -- whose only child at the end of parsing is the root of the actual tree.
-    let emptyString = gxFromString ""
-    stack <- newIORef [Element emptyString [] []]
-
-    {-
-    case mEntityDecoder of
-        Just deco -> setEntityDecoder parser deco $ \_ txt -> do
-            modifyIORef stack (text txt)
-        Nothing -> return ()
-        -}
-
-    setStartElementHandler parser $ \_ cName cAttrs -> do
-        name <- textFromCString cName
-        attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-            attrName <- textFromCString cAttrName
-            attrValue <- textFromCString cAttrValue
-            return (attrName, attrValue)
-        modifyIORef stack (start name attrs)
-        return True
-    setEndElementHandler parser $ \_ _ -> do
-        modifyIORef stack end
-        return True
-    setCharacterDataHandler parser $ \_ cText -> do
-        txt <- SAX.gxFromCStringLen cText
-        modifyIORef stack (text txt)
-        return True
-    mError <- IO.parse' parser doc
-    case mError of
-        Just err -> return $ Left err
-        Nothing -> do
-            [Element _ _ [root]] <- readIORef stack
-            return $ Right root
-
-  start name attrs stack = Element name attrs [] : stack
-  text str (cur:rest) = modifyChildren (Text str:) cur : rest
-  text _ [] = impossible
-  end (cur:parent:rest) =
-    let node = modifyChildren reverse cur in
-    modifyChildren (node:) parent : rest
-  end _ = impossible
-  impossible = error "parse' impossible"
+parse' opts doc = case parse opts (L.fromChunks [doc]) of
+    (xml, Nothing) -> Right xml
+    (_, Just err) -> Left err
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 saxToTree :: GenericXMLString tag =>

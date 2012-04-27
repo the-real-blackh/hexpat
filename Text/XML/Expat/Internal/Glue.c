@@ -4,11 +4,16 @@
 #include <string.h>
 
 typedef struct {
+    XML_Parser parser;
+    XML_Char* (*decoder)(const XML_Char*);
+    int locations;
+} MyParser;
+
+typedef struct {
     size_t offset;
     size_t capacity;
     uint8_t* block;
-    XML_Parser parser;
-    XML_Char* (*decoder)(const XML_Char*);
+    MyParser* mp;
 } Block;
 
 /*!
@@ -34,9 +39,21 @@ static void* alloc(Block* blk, size_t room)
     return blk->block + start;
 }
 
+static void pushType(Block* blk, uint32_t type)
+{
+    *(uint32_t*)alloc(blk, 4) = type;
+    if (blk->mp->locations) {
+        int64_t* loc = alloc(blk, 16);
+        loc[0] = (int64_t)XML_GetCurrentLineNumber(blk->mp->parser);
+        loc[1] = (int64_t)XML_GetCurrentColumnNumber(blk->mp->parser);
+        loc[2] = (int64_t)XML_GetCurrentByteIndex(blk->mp->parser);
+        loc[3] = (int64_t)XML_GetCurrentByteCount(blk->mp->parser);
+    }
+}
+
 #define ROUND_UP_32(x) (((x) + 3) & ~3)
 
-static void startElementHandler(
+static void startElement(
     void *userData,
     const XML_Char *name,
     const XML_Char **atts)
@@ -45,11 +62,8 @@ static void startElementHandler(
     size_t nameLen = strlen(name) + 1;
     size_t nAtts, i;
     for (nAtts = 0; atts[nAtts] != NULL; nAtts += 2) ;
-    {
-        uint32_t* hdr = alloc(blk, 8);
-        hdr[0] = 1;
-        hdr[1] = nAtts;
-    }
+    pushType(blk, 1);
+    *(uint32_t*)alloc(blk, 4) = nAtts;
     memcpy(alloc(blk, nameLen), name, nameLen);
     for (i = 0; i < nAtts; i++) {
         size_t attLen = strlen(atts[i]) + 1;
@@ -58,11 +72,11 @@ static void startElementHandler(
     blk->offset = ROUND_UP_32(blk->offset);
 }
 
-static void endElementHandler(void *userData, const XML_Char *name)
+static void endElement(void *userData, const XML_Char *name)
 {
     Block* blk = userData;
     size_t nameLen = strlen(name) + 1;
-    *(uint32_t*)alloc(blk, 4) = 2;
+    pushType(blk, 2);
     memcpy(alloc(blk, nameLen), name, nameLen);
     blk->offset = ROUND_UP_32(blk->offset);
 }
@@ -73,9 +87,8 @@ static void characterData(
     int len)
 {
     Block* blk = userData;
-    uint32_t* hdr = alloc(blk, 8);
-    hdr[0] = 3;
-    hdr[1] = len;
+    pushType(blk, 3);
+    *(uint32_t*)alloc(blk, 4) = len;
     memcpy(alloc(blk, (size_t)len), s, (size_t)len);
     blk->offset = ROUND_UP_32(blk->offset);
 }
@@ -87,7 +100,7 @@ static void xmlDeclHandler(void           *userData,
 {
     Block* blk = userData;
     int verLen = strlen(version) + 1;
-    *(uint32_t*)alloc(blk, 4) = 4;
+    pushType(blk, 4);
     memcpy(alloc(blk, verLen), version, verLen);
     if (encoding != NULL) {
         int encLen = strlen(encoding)+1;
@@ -104,13 +117,13 @@ static void xmlDeclHandler(void           *userData,
 static void startCData(void* userData)
 {
     Block* blk = userData;
-    *(uint32_t*)alloc(blk, 4) = 5;
+    pushType(blk, 5);
 }
 
 static void endCData(void* userData)
 {
     Block* blk = userData;
-    *(uint32_t*)alloc(blk, 4) = 6;
+    pushType(blk, 6);
 }
 
 static void processingInstruction(void *userData, const XML_Char *target, const XML_Char *data)
@@ -118,7 +131,7 @@ static void processingInstruction(void *userData, const XML_Char *target, const 
     Block* blk = userData;
     int targetLen = strlen(target) + 1;
     int dataLen = strlen(data) + 1;
-    *(uint32_t*)alloc(blk, 4) = 7;
+    pushType(blk, 7);
     memcpy(alloc(blk, targetLen), target, targetLen);
     memcpy(alloc(blk, dataLen), data, dataLen);
     blk->offset = ROUND_UP_32(blk->offset);
@@ -128,34 +141,30 @@ static void comment(void* userData, const XML_Char *text)
 {
     Block* blk = userData;
     int textLen = strlen(text) + 1;
-    *(uint32_t*)alloc(blk, 4) = 8;
+    pushType(blk, 8);
     memcpy(alloc(blk, textLen), text, textLen);
     blk->offset = ROUND_UP_32(blk->offset);
 }
 
-typedef struct {
-    XML_Parser p;
-    XML_Char* (*decoder)(const XML_Char*);
-} MyParser;
-
-MyParser* hexpatNewParser(const XML_Char* encoding)
+MyParser* hexpatNewParser(const XML_Char* encoding, int locations)
 {
     MyParser* mp = malloc(sizeof(MyParser));
     XML_Parser p = XML_ParserCreate(encoding);
-    XML_SetStartElementHandler(p, startElementHandler);
-    XML_SetEndElementHandler(p, endElementHandler);
+    XML_SetStartElementHandler(p, startElement);
+    XML_SetEndElementHandler(p, endElement);
     XML_SetCharacterDataHandler(p, characterData);
     XML_SetXmlDeclHandler(p, xmlDeclHandler);
     XML_SetCdataSectionHandler(p, startCData, endCData);
     XML_SetProcessingInstructionHandler(p, processingInstruction);
     XML_SetCommentHandler(p, comment);
-    mp->p = p;
+    mp->parser = p;
+    mp->locations = locations;
     return mp;
 }
 
 void hexpatFreeParser(MyParser* mp)
 {
-    XML_ParserFree(mp->p);
+    XML_ParserFree(mp->parser);
     free(mp);
 }
 
@@ -186,15 +195,15 @@ static void skippedEntity(void *userData,
 {
     Block* blk = userData;
     if (is_parameter_entity)
-        XML_StopParser(blk->parser, 0);
+        XML_StopParser(blk->mp->parser, 0);
     else {
-        XML_Char* out = blk->decoder(entityName);
+        XML_Char* out = blk->mp->decoder(entityName);
         if (out != NULL) {
             characterData(blk, out, strlen(out));
             free(out);
         }
         else
-            XML_StopParser(blk->parser, 0);
+            XML_StopParser(blk->mp->parser, 0);
     }
 }
 
@@ -211,10 +220,9 @@ enum XML_Status hexpatParse(
     blk.offset = 0;
     blk.capacity = 256;
     blk.block = malloc(blk.capacity);
-    blk.parser = mp->p;
-    blk.decoder = mp->decoder;
-    XML_SetUserData(mp->p, &blk);
-    ret = XML_Parse(mp->p, s, len, isFinal);
+    blk.mp = mp;
+    XML_SetUserData(mp->parser, &blk);
+    ret = XML_Parse(mp->parser, s, len, isFinal);
     *(uint32_t*)alloc(&blk, 4) = 0;
     *buffer = blk.block;
     *length = (int)blk.offset;
@@ -226,12 +234,12 @@ void hexpatSetEntityHandler(
     XML_Char* (*decoder)(const XML_Char*))
 {
     mp->decoder = decoder;
-    XML_UseForeignDTD(mp->p, XML_TRUE);
-    XML_SetExternalEntityRefHandler(mp->p, externalEntityRef);
-    XML_SetSkippedEntityHandler(mp->p, skippedEntity);
+    XML_UseForeignDTD(mp->parser, XML_TRUE);
+    XML_SetExternalEntityRefHandler(mp->parser, externalEntityRef);
+    XML_SetSkippedEntityHandler(mp->parser, skippedEntity);
 }
 
 XML_Parser hexpatGetParser(MyParser* mp)
 {
-    return mp->p;
+    return mp->parser;
 }

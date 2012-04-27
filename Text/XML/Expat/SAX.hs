@@ -175,8 +175,10 @@ parseG :: forall tag text l . (GenericXMLString tag, GenericXMLString text, List
 parseG opts inputBlocks = runParser inputBlocks parse cacheRef
   where
     (parse, cacheRef) = unsafePerformIO $ do
-        parse <- hexpatNewParser (overrideEncoding opts) $
-            (\decode -> fmap gxToByteString . decode . gxFromByteString) <$> entityDecoder opts
+        parse <- hexpatNewParser
+            (overrideEncoding opts)
+            ((\decode -> fmap gxToByteString . decode . gxFromByteString) <$> entityDecoder opts)
+            False
 
         cacheRef <- newMVar Nothing
         return (parse, cacheRef)
@@ -212,15 +214,16 @@ parseBuf :: (GenericXMLString tag, GenericXMLString text) =>
 parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
   where
     roundUp32 offset = (offset + 3) .&. complement 3
-    doit acc pBuf offset = offset `seq` do
-        typ <- peek (pBuf `plusPtr` offset :: Ptr Word32)
+    doit acc pBuf offset0 = offset0 `seq` do
+        typ <- peek (pBuf `plusPtr` offset0 :: Ptr Word32)
+        let offset = offset0 + 4
         case typ of
             0 -> return (reverse acc)
             1 -> do
-                nAtts <- peek (pBuf `plusPtr` (offset + 4) :: Ptr Word32)
-                let pName = pBuf `plusPtr` (offset + 8)
+                nAtts <- peek (pBuf `plusPtr` offset :: Ptr Word32)
+                let pName = pBuf `plusPtr` (offset + 4)
                 lName <- fromIntegral <$> c_strlen pName
-                let name = gxFromByteString $ I.fromForeignPtr buf (offset + 8) lName
+                let name = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lName
                 (atts, offset') <- foldM (\(atts, offset) _ -> do
                         let pAtt = pBuf `plusPtr` offset
                         lAtt <- fromIntegral <$> c_strlen pAtt
@@ -230,24 +233,24 @@ parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
                         lValue <- fromIntegral <$> c_strlen pValue
                         let value = gxFromByteString $ I.fromForeignPtr buf offset' lValue
                         return ((att, value):atts, offset' + lValue + 1)
-                    ) ([], offset + 8 + lName + 1) [1,3..nAtts]
+                    ) ([], offset + 4 + lName + 1) [1,3..nAtts]
                 doit (StartElement name (reverse atts) : acc) pBuf (roundUp32 offset')
             2 -> do
-                let pName = pBuf `plusPtr` (offset + 4)
+                let pName = pBuf `plusPtr` offset
                 lName <- fromIntegral <$> c_strlen pName
-                let name = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lName
-                    offset' = offset + 4 + lName + 1
+                let name = gxFromByteString $ I.fromForeignPtr buf offset lName
+                    offset' = offset + lName + 1
                 doit (EndElement name : acc) pBuf (roundUp32 offset')
             3 -> do
-                len <- fromIntegral <$> peek (pBuf `plusPtr` (offset + 4) :: Ptr Word32)
-                let text = gxFromByteString $ I.fromForeignPtr buf (offset + 8) len
-                    offset' = offset + 8 + len
+                len <- fromIntegral <$> peek (pBuf `plusPtr` offset :: Ptr Word32)
+                let text = gxFromByteString $ I.fromForeignPtr buf (offset + 4) len
+                    offset' = offset + 4 + len
                 doit (CharacterData text : acc) pBuf (roundUp32 offset')
             4 -> do
-                let pEnc = pBuf `plusPtr` (offset + 4)
+                let pEnc = pBuf `plusPtr` offset
                 lEnc <- fromIntegral <$> c_strlen pEnc
-                let enc = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lEnc
-                    offset' = offset + 4 + lEnc + 1
+                let enc = gxFromByteString $ I.fromForeignPtr buf offset lEnc
+                    offset' = offset + lEnc + 1
                     pVer = pBuf `plusPtr` offset'
                 pVerFirst <- peek (castPtr pVer :: Ptr Word8)
                 (mVer, offset'') <- case pVerFirst of
@@ -261,22 +264,22 @@ parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
                           if cSta == 0 then Just False else
                                             Just True
                 doit (XMLDeclaration enc mVer sta : acc) pBuf (roundUp32 (offset'' + 1))
-            5 -> doit (StartCData : acc) pBuf (offset + 4)
-            6 -> doit (EndCData : acc) pBuf (offset + 4)
+            5 -> doit (StartCData : acc) pBuf offset
+            6 -> doit (EndCData : acc) pBuf offset
             7 -> do
-                let pTarget = pBuf `plusPtr` (offset + 4)
+                let pTarget = pBuf `plusPtr` offset
                 lTarget <- fromIntegral <$> c_strlen pTarget
-                let target = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lTarget
-                    offset' = offset + 4 + lTarget + 1
+                let target = gxFromByteString $ I.fromForeignPtr buf offset lTarget
+                    offset' = offset + lTarget + 1
                     pData = pBuf `plusPtr` offset'
                 lData <- fromIntegral <$> c_strlen pData
                 let dat = gxFromByteString $ I.fromForeignPtr buf offset' lData
                 doit (ProcessingInstruction target dat : acc) pBuf (roundUp32 (offset' + lData + 1))
             8 -> do
-                let pText = pBuf `plusPtr` (offset + 4)
+                let pText = pBuf `plusPtr` offset
                 lText <- fromIntegral <$> c_strlen pText
-                let text = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lText
-                doit (Comment text : acc) pBuf (roundUp32 (offset + 4 + lText + 1))
+                let text = gxFromByteString $ I.fromForeignPtr buf offset lText
+                doit (Comment text : acc) pBuf (roundUp32 (offset + lText + 1))
             _ -> error "hexpat: bad data from C land"
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
