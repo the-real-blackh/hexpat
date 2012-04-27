@@ -30,9 +30,6 @@ module Text.XML.Expat.SAX (
   -- * Variants that throw exceptions
   XMLParseException(..),
 
-  -- * Helpers
-  setEntityDecoder,
-
   -- * Abstraction of string types
   GenericXMLString(..)
   ) where
@@ -135,13 +132,6 @@ instance GenericXMLString T.Text where
     gxFromByteString = TE.decodeUtf8
     gxToByteString = TE.encodeUtf8
 
-peekByteStringLen :: CStringLen -> IO B.ByteString
-{-# INLINE peekByteStringLen #-}
-peekByteStringLen (cstr, len) =
-    I.create (fromIntegral len) $ \ptr ->
-        I.memcpy ptr (castPtr cstr) (fromIntegral len)
-
-
 data SAXEvent tag text =
     XMLDeclaration text (Maybe text) (Maybe Bool) |
     StartElement tag [(tag, text)] |
@@ -175,36 +165,6 @@ textFromCString cstr = do
 gxFromCStringLen :: GenericXMLString text => CStringLen -> IO text
 gxFromCStringLen cl = gxFromByteString <$> peekByteStringLen cl
 
--- | A helper for configuring the hexpat parser to use the specified entity
--- decoder.
-setEntityDecoder :: (GenericXMLString tag, GenericXMLString text)
-                 => Parser
-                 -> (tag -> Maybe text)   -- ^ Entity decoder
-                 -> (ParserPtr -> text -> IO ())       -- ^ Code to insert character data into the document
-                 -> IO ()
-setEntityDecoder parser decoder insertText = do
-    setUseForeignDTD parser True
-    setExternalEntityRefHandler parser eh
-    setSkippedEntityHandler parser skip
-
-  where
-    skip _  _ 1 = return False
-    skip pp entityName 0 = do
-        en <- textFromCString entityName
-        let mbt = decoder en
-        maybe (return False)
-              (\t -> do
-                   insertText pp t
-                   return True)
-              mbt
-    skip _ _ _ = undefined
-
-    eh pp ctx _ systemID publicID =
-        if systemID == nullPtr && publicID == nullPtr
-           then withCStringLen "" $ \c -> do
-               parseExternalEntityReference pp ctx Nothing c
-           else return False
-
 -- | Parse a generalized list of ByteStrings containing XML to SAX events.
 -- In the event of an error, FailDocument is the last element of the output list.
 parseG :: forall tag text l . (GenericXMLString tag, GenericXMLString text, List l) =>
@@ -212,15 +172,16 @@ parseG :: forall tag text l . (GenericXMLString tag, GenericXMLString text, List
        -> l ByteString          -- ^ Input text (a lazy ByteString)
        -> l (SAXEvent tag text)
 {-# NOINLINE parseG #-}
-parseG opts inputBlocks = runParser inputBlocks parser cacheRef
+parseG opts inputBlocks = runParser inputBlocks parse cacheRef
   where
-    (parser, cacheRef) = unsafePerformIO $ do
-        parser <- hexpatNewParser (overrideEncoding opts) -- (entityDecoder opts)
+    (parse, cacheRef) = unsafePerformIO $ do
+        parse <- hexpatNewParser (overrideEncoding opts) $
+            (\decode -> fmap gxToByteString . decode . gxFromByteString) <$> entityDecoder opts
 
         cacheRef <- newMVar Nothing
-        return (parser, cacheRef)
+        return (parse, cacheRef)
 
-    runParser iblks parser cacheRef = joinL $ do
+    runParser iblks parse cacheRef = joinL $ do
         li <- runList iblks
         return $ unsafePerformIO $ do
             mCached <- takeMVar cacheRef
@@ -231,14 +192,14 @@ parseG opts inputBlocks = runParser inputBlocks parser cacheRef
                 Nothing -> do
                     (saxen, rema) <- case li of
                         Nil         -> do
-                            (buf, len, mError) <- hexpatParse parser B.empty True
+                            (buf, len, mError) <- parse B.empty True
                             saxen <- parseBuf buf len
                             return (saxen, handleFailure mError mzero)
                         Cons blk t -> {-unsafeInterleaveIO $-} do
-                            (buf, len, mError) <- hexpatParse parser blk False
+                            (buf, len, mError) <- parse blk False
                             saxen <- parseBuf buf len
                             cacheRef' <- newMVar Nothing
-                            return (saxen, handleFailure mError (runParser t parser cacheRef'))
+                            return (saxen, handleFailure mError (runParser t parse cacheRef'))
                     let l = fromList saxen `mplus` rema
                     putMVar cacheRef (Just l)
                     return l
@@ -350,11 +311,13 @@ parseLocationsG opts inputBlocks = runParser inputBlocks parser queueRef cacheRe
         parser <- newParser enc
         queueRef <- newIORef []
 
+        {-
         case mEntityDecoder of
             Just deco -> setEntityDecoder parser deco $ \pp txt -> do
                 loc <- getParseLocation pp
                 modifyIORef queueRef ((CharacterData txt, loc):)
             Nothing -> return ()
+            -}
 
         setXMLDeclarationHandler parser $ \pp cVer cEnc cSd -> do
             ver <- textFromCString cVer

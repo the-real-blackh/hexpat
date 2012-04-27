@@ -138,8 +138,7 @@ import Text.XML.Expat.SAX ( ParseOptions(..)
                           , SAXEvent(..)
                           , defaultParseOptions
                           , textFromCString
-                          , GenericXMLString(..)
-                          , setEntityDecoder )
+                          , GenericXMLString(..) )
 import qualified Text.XML.Expat.SAX as SAX
 import Text.XML.Expat.Internal.Namespaced
 import Text.XML.Expat.Internal.NodeClass
@@ -289,10 +288,12 @@ parse' opts doc = unsafePerformIO $ runParse where
     let emptyString = gxFromString ""
     stack <- newIORef [Element emptyString [] []]
 
+    {-
     case mEntityDecoder of
         Just deco -> setEntityDecoder parser deco $ \_ txt -> do
             modifyIORef stack (text txt)
         Nothing -> return ()
+        -}
 
     setStartElementHandler parser $ \_ cName cAttrs -> do
         name <- textFromCString cName

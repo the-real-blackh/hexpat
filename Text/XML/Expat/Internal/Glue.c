@@ -7,6 +7,8 @@ typedef struct {
     size_t offset;
     size_t capacity;
     uint8_t* block;
+    XML_Parser parser;
+    XML_Char* (*decoder)(const XML_Char*);
 } Block;
 
 /*!
@@ -65,7 +67,7 @@ static void endElementHandler(void *userData, const XML_Char *name)
     blk->offset = ROUND_UP_32(blk->offset);
 }
 
-static void characterDataHandler(
+static void characterData(
     void *userData,
     const XML_Char *s,
     int len)
@@ -131,20 +133,73 @@ static void comment(void* userData, const XML_Char *text)
     blk->offset = ROUND_UP_32(blk->offset);
 }
 
-XML_Parser hexpatNewParser(const XML_Char* encoding)
+typedef struct {
+    XML_Parser p;
+    XML_Char* (*decoder)(const XML_Char*);
+} MyParser;
+
+MyParser* hexpatNewParser(const XML_Char* encoding)
 {
+    MyParser* mp = malloc(sizeof(MyParser));
     XML_Parser p = XML_ParserCreate(encoding);
     XML_SetStartElementHandler(p, startElementHandler);
     XML_SetEndElementHandler(p, endElementHandler);
-    XML_SetCharacterDataHandler(p, characterDataHandler);
+    XML_SetCharacterDataHandler(p, characterData);
     XML_SetXmlDeclHandler(p, xmlDeclHandler);
     XML_SetCdataSectionHandler(p, startCData, endCData);
     XML_SetProcessingInstructionHandler(p, processingInstruction);
     XML_SetCommentHandler(p, comment);
+    mp->p = p;
+    return mp;
+}
+
+void hexpatFreeParser(MyParser* mp)
+{
+    XML_ParserFree(mp->p);
+    free(mp);
+}
+
+static int externalEntityRef(XML_Parser parser,
+                                const XML_Char *context,
+                                const XML_Char *base,
+                                const XML_Char *systemId,
+                                const XML_Char *publicId)
+{
+    if (systemId == NULL && publicId == NULL) {
+        XML_Parser eep = XML_ExternalEntityParserCreate(parser, context, NULL);
+        enum XML_Status ret = XML_Parse(eep, "", 0, XML_TRUE);
+        if (ret == XML_STATUS_OK) {
+            XML_ParserFree(eep);
+        }
+        else {
+            XML_ParserFree(eep);
+            XML_StopParser(parser, 0);
+        }
+    }
+    else
+        XML_StopParser(parser, 0);
+}
+
+static void skippedEntity(void *userData,
+                           const XML_Char *entityName,
+                           int is_parameter_entity)
+{
+    Block* blk = userData;
+    if (is_parameter_entity)
+        XML_StopParser(blk->parser, 0);
+    else {
+        XML_Char* out = blk->decoder(entityName);
+        if (out != NULL) {
+            characterData(blk, out, strlen(out));
+            free(out);
+        }
+        else
+            XML_StopParser(blk->parser, 0);
+    }
 }
 
 enum XML_Status hexpatParse(
-    XML_Parser p,
+    MyParser* mp,
     const char* s,
     int len,
     int isFinal,
@@ -156,11 +211,27 @@ enum XML_Status hexpatParse(
     blk.offset = 0;
     blk.capacity = 256;
     blk.block = malloc(blk.capacity);
-    XML_SetUserData(p, &blk);
-    ret = XML_Parse(p, s, len, isFinal);
+    blk.parser = mp->p;
+    blk.decoder = mp->decoder;
+    XML_SetUserData(mp->p, &blk);
+    ret = XML_Parse(mp->p, s, len, isFinal);
     *(uint32_t*)alloc(&blk, 4) = 0;
     *buffer = blk.block;
     *length = (int)blk.offset;
     return ret;
 }
 
+void hexpatSetEntityHandler(
+    MyParser* mp,
+    XML_Char* (*decoder)(const XML_Char*))
+{
+    mp->decoder = decoder;
+    XML_UseForeignDTD(mp->p, XML_TRUE);
+    XML_SetExternalEntityRefHandler(mp->p, externalEntityRef);
+    XML_SetSkippedEntityHandler(mp->p, skippedEntity);
+}
+
+XML_Parser hexpatGetParser(MyParser* mp)
+{
+    return mp->p;
+}

@@ -28,7 +28,6 @@ module Text.XML.Expat.Internal.IO (
   XMLParseError(..),
   getParseLocation,
   XMLParseLocation(..),
-  hexpatParse,
 
   -- ** Parser Callbacks
   XMLDeclarationHandler,
@@ -54,11 +53,11 @@ module Text.XML.Expat.Internal.IO (
   setUseForeignDTD,
 
   -- ** Lower-level interface
-  parseExternalEntityReference,
   ExpatHandlers,
 
   -- ** Helpers
-  encodingToString
+  encodingToString,
+  peekByteStringLen
   ) where
 
 import Control.Applicative
@@ -66,8 +65,9 @@ import Control.Concurrent
 import Control.Exception (bracket)
 import Control.DeepSeq
 import Control.Monad
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Internal as I
+import qualified Data.ByteString.Lazy as L
 import Data.IORef
 import Foreign hiding (unsafePerformIO)
 import Foreign.C
@@ -94,6 +94,7 @@ data Parser = Parser
 instance Show Parser where
     showsPrec _ (Parser fp _ _ _ _ _ _ _ _ _ _) = showsPrec 0 fp
 
+
 -- |Encoding types available for the document encoding.
 data Encoding = ASCII | UTF8 | UTF16 | ISO88591
 encodingToString :: Encoding -> String
@@ -105,7 +106,6 @@ encodingToString ISO88591 = "ISO-8859-1"
 withOptEncoding :: Maybe Encoding -> (CString -> IO a) -> IO a
 withOptEncoding Nothing    f = f nullPtr
 withOptEncoding (Just enc) f = withCString (encodingToString enc) f
-
 
 parserCreate :: Maybe Encoding -> IO (ParserPtr)
 parserCreate a1 =
@@ -140,9 +140,9 @@ setUseForeignDTD p b = withParser p $ \p' -> xmlUseForeignDTD p' b'
 
 -- ByteString.useAsCStringLen is almost what we need, but C2HS wants a CInt
 -- instead of an Int.
-withBStringLen :: BS.ByteString -> ((CString, CInt) -> IO a) -> IO a
+withBStringLen :: B.ByteString -> ((CString, CInt) -> IO a) -> IO a
 withBStringLen bs f = do
-  BS.useAsCStringLen bs $ \(str, len) -> f (str, fromIntegral len)
+  B.useAsCStringLen bs $ \(str, len) -> f (str, fromIntegral len)
 
 unStatus :: CInt -> Bool
 unStatus 0 = False
@@ -150,47 +150,34 @@ unStatus _ = True
 
 -- |@parse data@ feeds /lazy/ ByteString data into a 'Parser'. It returns
 -- Nothing on success, or Just the parse error.
-parse :: Parser -> BSL.ByteString -> IO (Maybe XMLParseError)
+parse :: Parser -> L.ByteString -> IO (Maybe XMLParseError)
 parse parser bs = withParser parser $ \pp -> do
     let
-        doParseChunks [] = doParseChunk pp BS.empty True
+        doParseChunks [] = doParseChunk pp B.empty True
         doParseChunks (c:cs) = do
             ok <- doParseChunk pp c False
             if ok
                 then doParseChunks cs
                 else return False
-    ok <- doParseChunks (BSL.toChunks bs)
+    ok <- doParseChunks (L.toChunks bs)
     if ok
         then return Nothing
         else Just `fmap` getError pp
 
 -- |@parse data@ feeds /strict/ ByteString data into a 'Parser'. It returns
 -- Nothing on success, or Just the parse error.
-parse' :: Parser -> BS.ByteString -> IO (Maybe XMLParseError)
+parse' :: Parser -> B.ByteString -> IO (Maybe XMLParseError)
 parse' parser bs = withParser parser $ \pp -> do
     ok <- doParseChunk pp bs True
     if ok
         then return Nothing
         else Just `fmap` getError pp
 
-parseExternalEntityReference :: Parser
-                             -> CString         -- ^ context
-                             -> Maybe Encoding  -- ^ encoding
-                             -> CStringLen      -- ^ text
-                             -> IO Bool
-parseExternalEntityReference parser context encoding (text,sz) =
-    withParser parser $ \pp -> do
-        extp <- withOptEncoding encoding $
-                xmlExternalEntityParserCreate pp context
-        e <- doParseChunk'_ extp text (fromIntegral sz) 1
-        parserFree' extp
-        return $ e == 1
-
 -- |@parseChunk data False@ feeds /strict/ ByteString data into a
 -- 'Parser'.  The end of the data is indicated by passing @True@ for the
 -- final parameter.   It returns Nothing on success, or Just the parse error.
 parseChunk :: ParserPtr
-           -> BS.ByteString
+           -> B.ByteString
            -> Bool
            -> IO (Maybe XMLParseError)
 parseChunk pp xml final = do
@@ -289,7 +276,7 @@ withParser parser@(Parser fp _ _ _ _ _ _ _ _ _ _) code = withForeignPtr fp $ \pp
 cFromBool :: Num a => Bool -> a
 cFromBool  = fromBool
 
-doParseChunk :: ParserPtr -> BS.ByteString -> Bool -> IO (Bool)
+doParseChunk :: ParserPtr -> B.ByteString -> Bool -> IO (Bool)
 doParseChunk a1 a2 a3 =
   withBStringLen a2 $ \(a2'1, a2'2) ->
   let {a3' = cFromBool a3} in
@@ -623,7 +610,6 @@ foreign import ccall unsafe "XML_UseForeignDTD"
                    -> IO ()
 
 foreign import ccall "&XML_ParserFree" parserFree :: FunPtr (ParserPtr -> IO ())
-foreign import ccall "XML_ParserFree" parserFree' :: ParserPtr -> IO ()
 
 type CExternalEntityRefHandler = ParserPtr   -- parser
                               -> Ptr CChar   -- context
@@ -732,36 +718,92 @@ foreign import ccall unsafe "expat.h XML_ErrorString" xmlErrorString
 foreign import ccall unsafe "expat.h XML_StopParser" xmlStopParser
     :: ParserPtr -> CInt -> IO ()
 
-newtype HParser = HParser (ForeignPtr Parser_struct)
+type HParser = B.ByteString -> Bool -> IO (ForeignPtr Word8, CInt, Maybe XMLParseError)
 
 foreign import ccall unsafe "hexpatNewParser"
-  _hexpatNewParser :: Ptr CChar -> IO ParserPtr
+  _hexpatNewParser :: Ptr CChar -> IO MyParserPtr
 
-hexpatNewParser :: Maybe Encoding -> IO HParser
-hexpatNewParser enc =
-    withOptEncoding enc $ \cEnc ->
-        HParser <$> (newForeignPtr parserFree =<< _hexpatNewParser cEnc) 
+foreign import ccall unsafe "hexpatGetParser"
+  _hexpatGetParser :: MyParserPtr -> IO ParserPtr
+
+data MyParser_struct
+type MyParserPtr = Ptr MyParser_struct
+
+foreign import ccall "&hexpatFreeParser" hexpatFreeParser :: FunPtr (MyParserPtr -> IO ())
+
+hexpatNewParser :: Maybe Encoding -> Maybe (B.ByteString -> Maybe B.ByteString) -> IO HParser
+hexpatNewParser enc Nothing =
+    withOptEncoding enc $ \cEnc -> do
+        parser <- newForeignPtr hexpatFreeParser =<< _hexpatNewParser cEnc
+        return $ \text final ->
+            alloca $ \ppData ->
+            alloca $ \pLen ->
+            withBStringLen text $ \(textBuf, textLen) ->
+            withForeignPtr parser $ \pp -> do
+                ok <- unStatus <$> _hexpatParseUnsafe pp textBuf textLen (cFromBool final) ppData pLen
+                pData <- peek ppData
+                len <- peek pLen
+                err <- if ok
+                    then return Nothing
+                    else Just <$> (getError =<< _hexpatGetParser pp)
+                fpData <- newForeignPtr funPtrFree pData
+                return (fpData, len, err)
+hexpatNewParser enc (Just decoder) =
+    withOptEncoding enc $ \cEnc -> do
+        parser <- newForeignPtr hexpatFreeParser =<< _hexpatNewParser cEnc
+        return $ \text final ->
+            alloca $ \ppData ->
+            alloca $ \pLen ->
+            withBStringLen text $ \(textBuf, textLen) ->
+            withForeignPtr parser $ \pp -> do
+                eh <- mkCEntityHandler . wrapCEntityHandler $ decoder
+                _hexpatSetEntityHandler pp eh
+                ok <- unStatus <$> _hexpatParseSafe pp textBuf textLen (cFromBool final) ppData pLen
+                freeHaskellFunPtr eh
+                pData <- peek ppData
+                len <- peek pLen
+                err <- if ok
+                    then return Nothing
+                    else Just <$> (getError =<< _hexpatGetParser pp)
+                fpData <- newForeignPtr funPtrFree pData
+                return (fpData, len, err)
 
 foreign import ccall unsafe "hexpatParse"
-  _hexpatParseUnsafe :: ParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt
+  _hexpatParseUnsafe :: MyParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt
 
 foreign import ccall safe "hexpatParse"
-  _hexpatParseSafe :: ParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt
+  _hexpatParseSafe :: MyParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt
+
+type CEntityHandler = Ptr CChar -> IO (Ptr CChar)
+
+foreign import ccall safe "wrapper"
+  mkCEntityHandler :: CEntityHandler
+                   -> IO (FunPtr CEntityHandler)
+
+peekByteStringLen :: CStringLen -> IO B.ByteString
+{-# INLINE peekByteStringLen #-}
+peekByteStringLen (cstr, len) =
+    I.create (fromIntegral len) $ \ptr ->
+        I.memcpy ptr (castPtr cstr) (fromIntegral len)
+
+wrapCEntityHandler :: (B.ByteString -> Maybe B.ByteString) -> CEntityHandler
+wrapCEntityHandler handler = h
+  where
+    h cname = do
+        sz <- fromIntegral <$> I.c_strlen cname
+        name <- peekByteStringLen (cname, sz)
+        case handler name of
+            Just text -> do
+                let (fp, offset, len) = I.toForeignPtr text
+                withForeignPtr fp $ \ctextBS -> do
+                    ctext <- mallocBytes (len + 1) :: IO CString
+                    I.memcpy (castPtr ctext) (ctextBS `plusPtr` offset) (fromIntegral len)
+                    poke (ctext `plusPtr` len) (0 :: CChar)
+                    return ctext
+            Nothing -> return nullPtr
+
+foreign import ccall unsafe "hexpatSetEntityHandler"
+  _hexpatSetEntityHandler :: MyParserPtr -> FunPtr CEntityHandler -> IO ()
 
 foreign import ccall "&free" funPtrFree :: FunPtr (Ptr Word8 -> IO ())
-
-hexpatParse :: HParser -> BS.ByteString -> Bool -> IO (ForeignPtr Word8, CInt, Maybe XMLParseError)
-hexpatParse (HParser parser) text final =
-    alloca $ \ppData ->
-    alloca $ \pLen ->
-    withBStringLen text $ \(textBuf, textLen) ->
-    withForeignPtr parser $ \pp -> do
-        ok <- unStatus <$> _hexpatParseUnsafe pp textBuf textLen (cFromBool final) ppData pLen
-        pData <- peek ppData
-        len <- peek pLen
-        err <- if ok
-            then return Nothing
-            else Just <$> getError pp
-        fpData <- newForeignPtr funPtrFree pData
-        return (fpData, len, err)
 
