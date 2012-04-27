@@ -58,6 +58,7 @@ import Control.Monad
 import System.IO.Unsafe
 import Foreign.C
 import Foreign.ForeignPtr
+import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
 
@@ -172,16 +173,40 @@ parseG :: forall tag text l . (GenericXMLString tag, GenericXMLString text, List
        -> l ByteString          -- ^ Input text (a lazy ByteString)
        -> l (SAXEvent tag text)
 {-# NOINLINE parseG #-}
-parseG opts inputBlocks = runParser inputBlocks parse cacheRef
+parseG opts inputBlocks = mapL (return . fst) $ parseImpl opts inputBlocks False noExtra failureA
+  where noExtra _ offset = return ((), offset)
+        failureA _ = return ()
+
+-- | Parse a generalized list of ByteStrings containing XML to SAX events.
+-- In the event of an error, FailDocument is the last element of the output list.
+parseLocationsG :: forall tag text l . (GenericXMLString tag, GenericXMLString text, List l) =>
+                   ParseOptions tag text -- ^ Parse options
+                -> l ByteString          -- ^ Input text (a lazy ByteString)
+                -> l (SAXEvent tag text, XMLParseLocation)
+{-# NOINLINE parseLocationsG #-}
+parseLocationsG opts inputBlocks = parseImpl opts inputBlocks True fetchLocation id
   where
-    (parse, cacheRef) = unsafePerformIO $ do
-        parse <- hexpatNewParser
+    fetchLocation pBuf offset = do
+        [a, b, c, d] <- peekArray 4 (pBuf `plusPtr` offset :: Ptr Int64)
+        return (XMLParseLocation a b c d, offset + 32)
+
+parseImpl :: forall a tag text l . (GenericXMLString tag, GenericXMLString text, List l) =>
+             ParseOptions tag text -- ^ Parse options
+          -> l ByteString          -- ^ Input text (a lazy ByteString)
+          -> Bool                  -- ^ True to add locations to binary output
+          -> (Ptr Word8 -> Int -> IO (a, Int)) -- ^ Fetch extra data
+          -> (IO XMLParseLocation -> IO a)     -- ^ Fetch a value for failure case 
+          -> l (SAXEvent tag text, a)
+parseImpl opts inputBlocks addLocations extra failureA = runParser inputBlocks parse cacheRef
+  where
+    (parse, getLocation, cacheRef) = unsafePerformIO $ do
+        (parse, getLocation) <- hexpatNewParser
             (overrideEncoding opts)
             ((\decode -> fmap gxToByteString . decode . gxFromByteString) <$> entityDecoder opts)
-            False
+            addLocations
 
         cacheRef <- newMVar Nothing
-        return (parse, cacheRef)
+        return (parse, getLocation, cacheRef)
 
     runParser iblks parse cacheRef = joinL $ do
         li <- runList iblks
@@ -195,28 +220,31 @@ parseG opts inputBlocks = runParser inputBlocks parse cacheRef
                     (saxen, rema) <- case li of
                         Nil         -> do
                             (buf, len, mError) <- parse B.empty True
-                            saxen <- parseBuf buf len
-                            return (saxen, handleFailure mError mzero)
+                            saxen <- parseBuf buf len extra
+                            rema <- handleFailure mError mzero
+                            return (saxen, rema)
                         Cons blk t -> {-unsafeInterleaveIO $-} do
                             (buf, len, mError) <- parse blk False
-                            saxen <- parseBuf buf len
+                            saxen <- parseBuf buf len extra
                             cacheRef' <- newMVar Nothing
-                            return (saxen, handleFailure mError (runParser t parse cacheRef'))
+                            rema <- handleFailure mError (runParser t parse cacheRef')
+                            return (saxen, rema)
                     let l = fromList saxen `mplus` rema
                     putMVar cacheRef (Just l)
                     return l
       where
-        handleFailure (Just err) _ = FailDocument err `cons` mzero
-        handleFailure Nothing    l = l
+        handleFailure (Just err) _ = do a <- failureA getLocation
+                                        return $ (FailDocument err, a) `cons` mzero
+        handleFailure Nothing    l = return l
 
 parseBuf :: (GenericXMLString tag, GenericXMLString text) =>
-            ForeignPtr Word8 -> CInt -> IO [SAXEvent tag text]
-parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
+            ForeignPtr Word8 -> CInt -> (Ptr Word8 -> Int -> IO (a, Int)) -> IO [(SAXEvent tag text, a)]
+parseBuf buf _ processExtra = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
   where
     roundUp32 offset = (offset + 3) .&. complement 3
     doit acc pBuf offset0 = offset0 `seq` do
         typ <- peek (pBuf `plusPtr` offset0 :: Ptr Word32)
-        let offset = offset0 + 4
+        (a, offset) <- processExtra pBuf (offset0 + 4)
         case typ of
             0 -> return (reverse acc)
             1 -> do
@@ -234,18 +262,18 @@ parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
                         let value = gxFromByteString $ I.fromForeignPtr buf offset' lValue
                         return ((att, value):atts, offset' + lValue + 1)
                     ) ([], offset + 4 + lName + 1) [1,3..nAtts]
-                doit (StartElement name (reverse atts) : acc) pBuf (roundUp32 offset')
+                doit ((StartElement name (reverse atts), a) : acc) pBuf (roundUp32 offset')
             2 -> do
                 let pName = pBuf `plusPtr` offset
                 lName <- fromIntegral <$> c_strlen pName
                 let name = gxFromByteString $ I.fromForeignPtr buf offset lName
                     offset' = offset + lName + 1
-                doit (EndElement name : acc) pBuf (roundUp32 offset')
+                doit ((EndElement name, a) : acc) pBuf (roundUp32 offset')
             3 -> do
                 len <- fromIntegral <$> peek (pBuf `plusPtr` offset :: Ptr Word32)
                 let text = gxFromByteString $ I.fromForeignPtr buf (offset + 4) len
                     offset' = offset + 4 + len
-                doit (CharacterData text : acc) pBuf (roundUp32 offset')
+                doit ((CharacterData text, a) : acc) pBuf (roundUp32 offset')
             4 -> do
                 let pEnc = pBuf `plusPtr` offset
                 lEnc <- fromIntegral <$> c_strlen pEnc
@@ -263,9 +291,9 @@ parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
                 let sta = if cSta < 0  then Nothing else
                           if cSta == 0 then Just False else
                                             Just True
-                doit (XMLDeclaration enc mVer sta : acc) pBuf (roundUp32 (offset'' + 1))
-            5 -> doit (StartCData : acc) pBuf offset
-            6 -> doit (EndCData : acc) pBuf offset
+                doit ((XMLDeclaration enc mVer sta, a) : acc) pBuf (roundUp32 (offset'' + 1))
+            5 -> doit ((StartCData, a) : acc) pBuf offset
+            6 -> doit ((EndCData, a) : acc) pBuf offset
             7 -> do
                 let pTarget = pBuf `plusPtr` offset
                 lTarget <- fromIntegral <$> c_strlen pTarget
@@ -274,12 +302,12 @@ parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
                     pData = pBuf `plusPtr` offset'
                 lData <- fromIntegral <$> c_strlen pData
                 let dat = gxFromByteString $ I.fromForeignPtr buf offset' lData
-                doit (ProcessingInstruction target dat : acc) pBuf (roundUp32 (offset' + lData + 1))
+                doit ((ProcessingInstruction target dat, a) : acc) pBuf (roundUp32 (offset' + lData + 1))
             8 -> do
                 let pText = pBuf `plusPtr` offset
                 lText <- fromIntegral <$> c_strlen pText
                 let text = gxFromByteString $ I.fromForeignPtr buf offset lText
-                doit (Comment text : acc) pBuf (roundUp32 (offset + lText + 1))
+                doit ((Comment text, a) : acc) pBuf (roundUp32 (offset + lText + 1))
             _ -> error "hexpat: bad data from C land"
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
@@ -296,116 +324,6 @@ data XMLParseException = XMLParseException XMLParseError
     deriving (Eq, Show, Typeable)
 
 instance Exception XMLParseException where
-
-
--- | Parse a generalized list of ByteStrings containing XML to SAX events.
--- In the event of an error, FailDocument is the last element of the output list.
-parseLocationsG :: forall tag text l . (GenericXMLString tag, GenericXMLString text, List l) =>
-                   ParseOptions tag text -- ^ Parse options
-                -> l ByteString          -- ^ Input text (a lazy ByteString)
-                -> l (SAXEvent tag text, XMLParseLocation)
-{-# NOINLINE parseLocationsG #-}
-parseLocationsG opts inputBlocks = runParser inputBlocks parser queueRef cacheRef
-  where
-    (parser, queueRef, cacheRef) = unsafePerformIO $ do
-        let enc = overrideEncoding opts
-        let mEntityDecoder = entityDecoder opts
-
-        parser <- newParser enc
-        queueRef <- newIORef []
-
-        {-
-        case mEntityDecoder of
-            Just deco -> setEntityDecoder parser deco $ \pp txt -> do
-                loc <- getParseLocation pp
-                modifyIORef queueRef ((CharacterData txt, loc):)
-            Nothing -> return ()
-            -}
-
-        setXMLDeclarationHandler parser $ \pp cVer cEnc cSd -> do
-            ver <- textFromCString cVer
-            mEnc <- if cEnc == nullPtr
-                then return Nothing
-                else Just <$> textFromCString cEnc
-            let sd = if cSd < 0
-                    then Nothing
-                    else Just $ if cSd /= 0 then True else False
-            loc <- getParseLocation pp
-            modifyIORef queueRef ((XMLDeclaration ver mEnc sd, loc):)
-            return True
-
-        setStartElementHandler parser $ \pp cName cAttrs -> do
-            name <- textFromCString cName
-            attrs <- forM cAttrs $ \(cAttrName,cAttrValue) -> do
-                attrName <- textFromCString cAttrName
-                attrValue <- textFromCString cAttrValue
-                return (attrName, attrValue)
-            loc <- getParseLocation pp
-            modifyIORef queueRef ((StartElement name attrs,loc):)
-            return True
-
-        setEndElementHandler parser $ \pp cName -> do
-            name <- textFromCString cName
-            loc <- getParseLocation pp
-            modifyIORef queueRef ((EndElement name, loc):)
-            return True
-
-        setCharacterDataHandler parser $ \pp cText -> do
-            txt <- gxFromCStringLen cText
-            loc <- getParseLocation pp
-            modifyIORef queueRef ((CharacterData txt, loc):)
-            return True
-            
-        setStartCDataHandler parser $ \pp -> do
-            loc <- getParseLocation pp
-            modifyIORef queueRef ((StartCData, loc):)
-            return True
-            
-        setEndCDataHandler parser $ \pp -> do
-            loc <- getParseLocation pp
-            modifyIORef queueRef ((EndCData,loc):)
-            return True
-            
-        setProcessingInstructionHandler parser $ \pp cTarget cText -> do
-            target <- textFromCString cTarget
-            txt <- textFromCString cText
-            loc <- getParseLocation pp
-            modifyIORef queueRef ((ProcessingInstruction target txt, loc):)
-            return True
-            
-        setCommentHandler parser $ \pp cText -> do
-            txt <- textFromCString cText
-            loc <- getParseLocation pp
-            modifyIORef queueRef ((Comment txt, loc):)
-            return True
-
-        cacheRef <- newIORef Nothing
-        return (parser, queueRef, cacheRef)
-
-    runParser iblks parser queueRef cacheRef = joinL $ do
-        li <- runList iblks
-        return $ unsafePerformIO $ do
-            mCached <- readIORef cacheRef
-            case mCached of
-                Just l -> return l
-                Nothing -> do
-                    rema <- case li of
-                            Nil         -> do
-                                mError <- withParser parser $ \pp -> parseChunk pp B.empty True
-                                handleFailure mError mzero
-                            Cons blk t -> unsafeInterleaveIO $ do
-                                mError <- withParser parser $ \pp -> parseChunk pp blk False
-                                cacheRef' <- newIORef Nothing
-                                handleFailure mError (runParser t parser queueRef cacheRef')
-                    queue <- readIORef queueRef
-                    writeIORef queueRef []
-                    let l = fromList (reverse queue) `mplus` rema
-                    writeIORef cacheRef (Just l)
-                    return l
-      where
-        handleFailure (Just err) _ = do loc <- withParser parser getParseLocation
-                                        return $ (FailDocument err, loc) `cons` mzero
-        handleFailure Nothing    l = return l
 
 -- | A variant of parseSAX that gives a document location with each SAX event.
 parseLocations :: (GenericXMLString tag, GenericXMLString text) =>

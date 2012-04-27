@@ -718,7 +718,7 @@ foreign import ccall unsafe "hexpatNewParser"
   _hexpatNewParser :: Ptr CChar -> CInt -> IO MyParserPtr
 
 foreign import ccall unsafe "hexpatGetParser"
-  _hexpatGetParser :: MyParserPtr -> IO ParserPtr
+  _hexpatGetParser :: MyParserPtr -> ParserPtr
 
 data MyParser_struct
 type MyParserPtr = Ptr MyParser_struct
@@ -728,40 +728,42 @@ foreign import ccall "&hexpatFreeParser" hexpatFreeParser :: FunPtr (MyParserPtr
 hexpatNewParser :: Maybe Encoding
                 -> Maybe (B.ByteString -> Maybe B.ByteString)  -- ^ Entity decoder
                 -> Bool        -- ^ Whether to include input locations
-                -> IO HParser
+                -> IO (HParser, IO XMLParseLocation)
 hexpatNewParser enc mDecoder locations =
     withOptEncoding enc $ \cEnc -> do
         parser <- newForeignPtr hexpatFreeParser =<< _hexpatNewParser cEnc (cFromBool locations)
-        return $ case mDecoder of
-            Nothing -> \text final ->
-                alloca $ \ppData ->
-                alloca $ \pLen ->
-                withBStringLen text $ \(textBuf, textLen) ->
-                withForeignPtr parser $ \pp -> do
-                    ok <- unStatus <$> _hexpatParseUnsafe pp textBuf textLen (cFromBool final) ppData pLen
-                    pData <- peek ppData
-                    len <- peek pLen
-                    err <- if ok
-                        then return Nothing
-                        else Just <$> (getError =<< _hexpatGetParser pp)
-                    fpData <- newForeignPtr funPtrFree pData
-                    return (fpData, len, err)
-            Just decoder -> \text final ->
-                alloca $ \ppData ->
-                alloca $ \pLen ->
-                withBStringLen text $ \(textBuf, textLen) ->
-                withForeignPtr parser $ \pp -> do
-                    eh <- mkCEntityHandler . wrapCEntityHandler $ decoder
-                    _hexpatSetEntityHandler pp eh
-                    ok <- unStatus <$> _hexpatParseSafe pp textBuf textLen (cFromBool final) ppData pLen
-                    freeHaskellFunPtr eh
-                    pData <- peek ppData
-                    len <- peek pLen
-                    err <- if ok
-                        then return Nothing
-                        else Just <$> (getError =<< _hexpatGetParser pp)
-                    fpData <- newForeignPtr funPtrFree pData
-                    return (fpData, len, err)
+        return (parse parser, withForeignPtr parser $ \mp -> getParseLocation $ _hexpatGetParser mp)
+  where
+    parse parser = case mDecoder of
+        Nothing -> \text final ->
+            alloca $ \ppData ->
+            alloca $ \pLen ->
+            withBStringLen text $ \(textBuf, textLen) ->
+            withForeignPtr parser $ \pp -> do
+                ok <- unStatus <$> _hexpatParseUnsafe pp textBuf textLen (cFromBool final) ppData pLen
+                pData <- peek ppData
+                len <- peek pLen
+                err <- if ok
+                    then return Nothing
+                    else Just <$> getError (_hexpatGetParser pp)
+                fpData <- newForeignPtr funPtrFree pData
+                return (fpData, len, err)
+        Just decoder -> \text final ->
+            alloca $ \ppData ->
+            alloca $ \pLen ->
+            withBStringLen text $ \(textBuf, textLen) ->
+            withForeignPtr parser $ \pp -> do
+                eh <- mkCEntityHandler . wrapCEntityHandler $ decoder
+                _hexpatSetEntityHandler pp eh
+                ok <- unStatus <$> _hexpatParseSafe pp textBuf textLen (cFromBool final) ppData pLen
+                freeHaskellFunPtr eh
+                pData <- peek ppData
+                len <- peek pLen
+                err <- if ok
+                    then return Nothing
+                    else Just <$> getError (_hexpatGetParser pp)
+                fpData <- newForeignPtr funPtrFree pData
+                return (fpData, len, err)
 
 foreign import ccall unsafe "hexpatParse"
   _hexpatParseUnsafe :: MyParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt

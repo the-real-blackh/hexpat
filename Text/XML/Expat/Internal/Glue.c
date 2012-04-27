@@ -43,7 +43,7 @@ static void pushType(Block* blk, uint32_t type)
 {
     *(uint32_t*)alloc(blk, 4) = type;
     if (blk->mp->locations) {
-        int64_t* loc = alloc(blk, 16);
+        int64_t* loc = alloc(blk, 32);
         loc[0] = (int64_t)XML_GetCurrentLineNumber(blk->mp->parser);
         loc[1] = (int64_t)XML_GetCurrentColumnNumber(blk->mp->parser);
         loc[2] = (int64_t)XML_GetCurrentByteIndex(blk->mp->parser);
