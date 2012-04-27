@@ -79,8 +79,8 @@ import Data.Monoid
 -- that it has an extra piece of information of your choice attached to each
 -- Element.
 --
--- @c@ is the container type for the element's children, which is [] in the
--- @hexpat@ package, and a monadic list type for @hexpat-iteratee@.
+-- @c@ is the container type for the element's children, which would normally be [],
+-- but could potentially be a monadic list type to allow for chunked I/O.
 --
 -- @tag@ is the tag type, which can either be one of several string types,
 -- or a special type from the @Text.XML.Expat.Namespaced@ or
