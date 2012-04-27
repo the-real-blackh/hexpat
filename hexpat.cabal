@@ -96,6 +96,8 @@ Extra-Source-Files:
   test/hexpat-leak/Parse.hs,
   test/hexpat-leak/run.sh,
   test/hexpat-leak/build.sh
+  test/readRoads.hs,
+  test/ROADS.xml,
   cbits/amigaconfig.h,
   cbits/asciitab.h,
   cbits/expat.h,

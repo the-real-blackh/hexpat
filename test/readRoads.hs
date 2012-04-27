@@ -8,9 +8,10 @@ import qualified Data.ByteString.Lazy as L
 import Data.Maybe
 
 
+-- Reads the contents of ROADS.xml from stdin
 main :: IO ()
 main = do
-    bs <- L.readFile "ROADS.xml"
+    bs <- L.getContents
     let Element _ _ chs = parseThrowing defaultParseOptions bs :: UNode Text
     forM_ chs $ \ch -> do
         case ch of
