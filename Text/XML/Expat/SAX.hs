@@ -215,47 +215,7 @@ parseG :: forall tag text l . (GenericXMLString tag, GenericXMLString text, List
 parseG opts inputBlocks = runParser inputBlocks parser cacheRef
   where
     (parser, cacheRef) = unsafePerformIO $ do
-        parser <- hexpatNewParser (overrideEncoding opts)
-        {-
-        case entityDecoder opts of
-            Just deco -> setEntityDecoder parser deco $ \_ txt -> do
-                modifyIORef queueRef (CharacterData txt:)
-            Nothing -> return ()
-            -}
-
-        {-
-        setXMLDeclarationHandler parser $ \_ cVer cEnc cSd -> do
-            ver <- textFromCString cVer
-            mEnc <- if cEnc == nullPtr
-                then return Nothing
-                else Just <$> textFromCString cEnc
-            let sd = if cSd < 0
-                    then Nothing
-                    else Just $ if cSd /= 0 then True else False
-            modifyIORef queueRef (XMLDeclaration ver mEnc sd:)
-            return True
-            -}
-
-        {-            
-        setStartCDataHandler parser $ \_  -> do
-            modifyIORef queueRef (StartCData :)
-            return True
-
-        setEndCDataHandler parser $ \_  -> do
-            modifyIORef queueRef (EndCData :)
-            return True
-
-        setProcessingInstructionHandler parser $ \_ cTarget cText -> do
-            target <- textFromCString cTarget
-            txt <- textFromCString cText
-            modifyIORef queueRef (ProcessingInstruction target txt :)
-            return True
-            
-        setCommentHandler parser $ \_ cText -> do
-            txt <- textFromCString cText
-            modifyIORef queueRef (Comment txt :)
-            return True
-            -}
+        parser <- hexpatNewParser (overrideEncoding opts) -- (entityDecoder opts)
 
         cacheRef <- newMVar Nothing
         return (parser, cacheRef)
@@ -340,6 +300,22 @@ parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
                           if cSta == 0 then Just False else
                                             Just True
                 doit (XMLDeclaration enc mVer sta : acc) pBuf (roundUp32 (offset'' + 1))
+            5 -> doit (StartCData : acc) pBuf (offset + 4)
+            6 -> doit (EndCData : acc) pBuf (offset + 4)
+            7 -> do
+                let pTarget = pBuf `plusPtr` (offset + 4)
+                lTarget <- fromIntegral <$> c_strlen pTarget
+                let target = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lTarget
+                    offset' = offset + 4 + lTarget + 1
+                    pData = pBuf `plusPtr` offset'
+                lData <- fromIntegral <$> c_strlen pData
+                let dat = gxFromByteString $ I.fromForeignPtr buf offset' lData
+                doit (ProcessingInstruction target dat : acc) pBuf (roundUp32 (offset' + lData + 1))
+            8 -> do
+                let pText = pBuf `plusPtr` (offset + 4)
+                lText <- fromIntegral <$> c_strlen pText
+                let text = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lText
+                doit (Comment text : acc) pBuf (roundUp32 (offset + 4 + lText + 1))
             _ -> error "hexpat: bad data from C land"
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is

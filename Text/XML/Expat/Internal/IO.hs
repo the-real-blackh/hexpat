@@ -743,7 +743,10 @@ hexpatNewParser enc =
         HParser <$> (newForeignPtr parserFree =<< _hexpatNewParser cEnc) 
 
 foreign import ccall unsafe "hexpatParse"
-  _hexpatParse :: ParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt
+  _hexpatParseUnsafe :: ParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt
+
+foreign import ccall safe "hexpatParse"
+  _hexpatParseSafe :: ParserPtr -> Ptr CChar -> CInt -> CInt -> Ptr (Ptr Word8) -> Ptr CInt -> IO CInt
 
 foreign import ccall "&free" funPtrFree :: FunPtr (Ptr Word8 -> IO ())
 
@@ -753,7 +756,7 @@ hexpatParse (HParser parser) text final =
     alloca $ \pLen ->
     withBStringLen text $ \(textBuf, textLen) ->
     withForeignPtr parser $ \pp -> do
-        ok <- unStatus <$> _hexpatParse pp textBuf textLen (cFromBool final) ppData pLen
+        ok <- unStatus <$> _hexpatParseUnsafe pp textBuf textLen (cFromBool final) ppData pLen
         pData <- peek ppData
         len <- peek pLen
         err <- if ok

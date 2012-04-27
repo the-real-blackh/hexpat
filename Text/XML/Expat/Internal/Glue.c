@@ -99,6 +99,38 @@ static void xmlDeclHandler(void           *userData,
     blk->offset = ROUND_UP_32(blk->offset);
 }
 
+static void startCData(void* userData)
+{
+    Block* blk = userData;
+    *(uint32_t*)alloc(blk, 4) = 5;
+}
+
+static void endCData(void* userData)
+{
+    Block* blk = userData;
+    *(uint32_t*)alloc(blk, 4) = 6;
+}
+
+static void processingInstruction(void *userData, const XML_Char *target, const XML_Char *data)
+{
+    Block* blk = userData;
+    int targetLen = strlen(target) + 1;
+    int dataLen = strlen(data) + 1;
+    *(uint32_t*)alloc(blk, 4) = 7;
+    memcpy(alloc(blk, targetLen), target, targetLen);
+    memcpy(alloc(blk, dataLen), data, dataLen);
+    blk->offset = ROUND_UP_32(blk->offset);
+}
+
+static void comment(void* userData, const XML_Char *text)
+{
+    Block* blk = userData;
+    int textLen = strlen(text) + 1;
+    *(uint32_t*)alloc(blk, 4) = 8;
+    memcpy(alloc(blk, textLen), text, textLen);
+    blk->offset = ROUND_UP_32(blk->offset);
+}
+
 XML_Parser hexpatNewParser(const XML_Char* encoding)
 {
     XML_Parser p = XML_ParserCreate(encoding);
@@ -106,6 +138,9 @@ XML_Parser hexpatNewParser(const XML_Char* encoding)
     XML_SetEndElementHandler(p, endElementHandler);
     XML_SetCharacterDataHandler(p, characterDataHandler);
     XML_SetXmlDeclHandler(p, xmlDeclHandler);
+    XML_SetCdataSectionHandler(p, startCData, endCData);
+    XML_SetProcessingInstructionHandler(p, processingInstruction);
+    XML_SetCommentHandler(p, comment);
 }
 
 enum XML_Status hexpatParse(

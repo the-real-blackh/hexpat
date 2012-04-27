@@ -8,7 +8,10 @@ import Text.XML.Expat.Internal.IO hiding (parse)
 import qualified Text.XML.Expat.Internal.IO as IO
 import Text.XML.Expat.Cursor
 import Text.XML.Expat.Format
+import Text.XML.Expat.Extended (LDocument)
+import qualified Text.XML.Expat.Extended as Extended
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as T
@@ -17,8 +20,10 @@ import Foreign.C
 import Data.ByteString.Internal (c2w, w2c)
 import Data.Char
 import Data.Maybe
+import Data.Monoid
 import Data.IORef
 import Control.Applicative
+import Control.Arrow (first)
 import Control.Exception as E
 import Control.Monad
 import Control.DeepSeq
@@ -256,6 +261,48 @@ test_xmlDecl1 = do
     assertEqual "SA1enc" [XMLDeclaration "1.0" (Just "UTF-8") (Just True),StartElement "hello" [],EndElement "hello"]
         (SAX.parse defaultParseOptions (LC.pack "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><hello/>") :: [SAXEvent String String])
 
+test_various :: IO ()
+test_various =
+    assertEqual "var1" [
+            StartElement "test" [],
+            StartElement "sample" [("id","5")],
+            CharacterData "This \"text with quotations\" should be escaped.",
+            EndElement "sample",
+            StartElement "mytest" [],
+            CharacterData "//",
+            StartCData,
+            CharacterData "This \"text with quotations\" should not be escaped.//",
+            EndCData,
+            EndElement "mytest",
+            ProcessingInstruction "php" "somecode(); ",
+            Comment " this is a comment ",
+            EndElement "test"
+        ]
+        (SAX.parse defaultParseOptions (LC.pack variousText) :: [SAXEvent String String])
+
+variousText =
+    "<test>"++
+    "<sample id=\"5\">This \"text with quotations\" should be escaped.</sample>"++
+    "<mytest>"++
+    "//<![CDATA["++
+    "This \"text with quotations\" should not be escaped."++
+    "//]]>"++
+    "</mytest>"++
+    "<?php somecode(); ?>"++
+    "<!-- this is a comment -->"++
+    "</test>"
+
+quotationOut =
+    "<test><sample id=\"5\">This &quot;text with quotations&quot; should be escaped.</sample>"++
+    "<mytest>//<![CDATA[This \"text with quotations\" should not be escaped.//]]>"++
+    "</mytest><?php somecode(); ?><!-- this is a comment --></test>"
+
+test_quotation =
+    assertEqual "quotation"
+        (quotationOut, Nothing)
+        $ first (C.unpack . mconcat . LC.toChunks . formatDocument)
+        $ (Extended.parse defaultParseOptions (LC.pack variousText) :: (LDocument String String, Maybe XMLParseError))
+
 tests = hUnitTestToTests $
     TestList [
         t' ("String",
@@ -298,7 +345,9 @@ tests = hUnitTestToTests $
         TestLabel "textContent" $ TestCase $ test_textContent,
         TestLabel "indent" $ TestCase $ test_indent,
         TestLabel "setAttribute" $ TestCase $ test_setAttribute,
-        TestLabel "xmlDecl1" $ TestCase $ test_xmlDecl1
+        TestLabel "xmlDecl1" $ TestCase $ test_xmlDecl1,
+        TestLabel "various" $ TestCase $ test_various,
+        TestLabel "quotation" $ TestCase $ test_quotation
       ]
 
   where
