@@ -23,8 +23,9 @@ Description:
   If you want to do interactive I\/O, an obvious option is to use lazy parsing
   with one of the lazy I\/O functions such as hGetContents.  However, this can be
   problematic in some applications because it doesn't handle I\/O errors properly
-  and can give no guarantee of timely resource cleanup.  In these cases, chunked
-  I\/O is a better approach: Take a look at the /hexpat-enumerator/ package.
+  and can give no guarantee of timely resource cleanup. Because of the generalized
+  list, Hexpat is designed to allow for chunked I/O, but as of this writing I haven't
+  done a nice integration with enumerator and friends.
   .
   /IO/ is filed under /Internal/ because it's low-level and most users won't want
   it.  The other /Internal/ modules are re-exported by /Annotated/, /Tree/ and /Extended/,
@@ -32,14 +33,6 @@ Description:
   .
   Credits to Iavor Diatchki and the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
   Thanks to the many contributors.
-  .
-  BOUND VS. UNBOUND THREADS: GHC (at least versions 6.12.X) will spawn threads
-  if you call a safe FFI callback from an unbound thread.  This can get out of
-  control in a busy application.  To avoid this, from version 0.19.1 we now delegate
-  processing to a single worker thread if the calling thread is not bound.
-  This essentially means that hexpat currently won't exploit multicores very well.
-  It also means that hexpat may be more efficient on threads spawned with forkOS
-  (to give you a bound thread) rather than forkIO.
   .
   ChangeLog: 0.15 changes intended to fix a (rare) \"error: a C finalizer called back into Haskell.\"
     that seemed only to happen only on ghc6.12.X; 0.15.1 Fix broken Annotated parse;
@@ -53,7 +46,8 @@ Description:
     to < 0.12 and fix text-0.10.0.1 breakage; 0.19.6 dependency breakage with List;
     0.19.7 ghc-7.2.1 compatibility; 0.19.8 fix space leak on lazy parse under ghc-7.2.1;
     0.19.9 fix formatting of > character + improve performance; 0.19.10 ghc-7.4.x compatibility;
-    0.20.1 fix a crash when used in parallel processing and improve performance.
+    0.20.1 fix an unfortunate crash when used in parallel processing and greatly improve
+    performance.
 Category: XML
 License: BSD3
 License-File: LICENSE
