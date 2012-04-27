@@ -28,9 +28,6 @@ module Text.XML.Expat.Format (
         formatDocument,
         formatDocument',
         formatDocumentG,
-        -- * Deprecated names
-        formatTree,
-        formatTree',
         -- * Low level
         xmlHeader,
         treeToSAX,
@@ -58,12 +55,6 @@ import Data.Word
 import Data.Text (Text)
 import Text.XML.Expat.Tree (UNode)
 
--- | DEPRECATED: Renamed to 'format'.
-formatTree :: (NodeClass n [], GenericXMLString tag, GenericXMLString text) =>
-              n [] tag text
-           -> L.ByteString
-formatTree = format
-
 -- | Format document with <?xml.. header - lazy variant that returns lazy ByteString.
 format :: (NodeClass n [], GenericXMLString tag, GenericXMLString text) =>
           n [] tag text
@@ -77,12 +68,6 @@ formatG :: (NodeClass n c, GenericXMLString tag, GenericXMLString text) =>
           n c tag text
        -> c B.ByteString
 formatG node = cons xmlHeader $ formatNodeG node
-
--- | DEPRECATED: Renamed to 'format''.
-formatTree' :: (NodeClass n [], GenericXMLString tag, GenericXMLString text) =>
-               n [] tag text
-            -> B.ByteString
-formatTree' = B.concat . L.toChunks . formatTree
 
 -- | Format document with <?xml.. header - strict variant that returns strict ByteString.
 format' :: (NodeClass n [], GenericXMLString tag, GenericXMLString text) =>

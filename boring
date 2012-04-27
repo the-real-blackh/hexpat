@@ -1,6 +1,10 @@
-^Text/XML/Expat/IO_stub.c$
-^Text/XML/Expat/IO_stub.h$
-test/.hpc/.*
-test/.hpc
+^Text/XML/Expat/Internal/IO_stub.c$
+^Text/XML/Expat/Internal/IO_stub.h$
+test/[.]hpc/.*
+test/[.]hpc
 dist
 dist/.*
+.*~
+.*[.]hi$
+.*[.]o$
+

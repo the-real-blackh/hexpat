@@ -128,23 +128,7 @@ module Text.XML.Expat.Tree (
   saxToTreeG,
 
   -- * Abstraction of string types
-  GenericXMLString(..),
-
-  -- * Deprecated
-  eAttrs,
-  Nodes,
-  UNodes,
-  QNodes,
-  NNodes,
-  parseTree,
-  parseTree',
-  parseSAX,
-  parseSAXLocations,
-  parseTreeThrowing,
-  parseSAXThrowing,
-  parseSAXLocationsThrowing,
-  ParserOptions,
-  defaultParserOptions
+  GenericXMLString(..)
   ) where
 
 import Text.XML.Expat.Internal.IO hiding (parse,parse')
@@ -154,14 +138,8 @@ import Text.XML.Expat.SAX ( ParseOptions(..)
                           , SAXEvent(..)
                           , defaultParseOptions
                           , textFromCString
-                          , parseSAX
-                          , parseSAXLocations
-                          , parseSAXLocationsThrowing
-                          , parseSAXThrowing
                           , GenericXMLString(..)
-                          , setEntityDecoder
-                          , ParserOptions
-                          , defaultParserOptions )
+                          , setEntityDecoder )
 import qualified Text.XML.Expat.SAX as SAX
 import Text.XML.Expat.Internal.Namespaced
 import Text.XML.Expat.Internal.NodeClass
@@ -221,45 +199,16 @@ instance (Eq tag, Eq text) => Eq (NodeG [] tag text) where
 -- @ListOf (UNode Text)@.
 type Node tag text = NodeG [] tag text
 
-eAttrs :: Node tag text -> [(tag, text)]
-{-# DEPRECATED eAttrs "use eAttributes instead" #-}
-eAttrs = eAttributes
-
 instance (NFData tag, NFData text) => NFData (NodeG [] tag text) where
     rnf (Element nam att chi) = rnf (nam, att, chi)
     rnf (Text txt) = rnf txt
-
--- | DEPRECATED: Use [Node tag text] instead.
---
--- Type alias for nodes.
-type Nodes tag text = [Node tag text]
-{-# DEPRECATED Nodes "use [Node tag text] instead" #-}
-
--- | DEPRECATED: Use [UNode text] instead.
---
--- Type alias for nodes with unqualified tag names where tag and
--- text are the same string type. DEPRECATED.
-type UNodes text = Nodes text text
-{-# DEPRECATED UNodes "use [UNode text] instead" #-}
 
 -- | Type alias for a node with unqualified tag names where tag and
 -- text are the same string type.
 type UNode text = Node text text
 
--- | DEPRECATED: Use [QNode text] instead.
---
--- Type alias for nodes where qualified names are used for tags
-{-# DEPRECATED QNodes "use [QNode text] instead" #-}
-type QNodes text = [Node (QName text) text]
-
 -- | Type alias for a node where qualified names are used for tags
 type QNode text = Node (QName text) text
-
--- | DEPRECATED: Use [NNode text] instead.
---
--- Type alias for nodes where namespaced names are used for tags.
-{-# DEPRECATED NNodes "use [NNode text] instead" #-}
-type NNodes text = [Node (NName text) text]
 
 -- | Type alias for a node where namespaced names are used for tags
 type NNode text = Node (NName text) text
@@ -357,7 +306,7 @@ parse' opts doc = unsafePerformIO $ runParse where
         modifyIORef stack end
         return True
     setCharacterDataHandler parser $ \_ cText -> do
-        txt <- gxFromCStringLen cText
+        txt <- SAX.gxFromCStringLen cText
         modifyIORef stack (text txt)
         return True
     mError <- IO.parse' parser doc
@@ -375,18 +324,6 @@ parse' opts doc = unsafePerformIO $ runParse where
     modifyChildren (node:) parent : rest
   end _ = impossible
   impossible = error "parse' impossible"
-
-
--- | DEPRECATED: use 'parse' instead.
---
--- Strictly parse XML to tree. Returns error message or valid parsed tree.
-parseTree' :: (GenericXMLString tag, GenericXMLString text) =>
-              Maybe Encoding      -- ^ Optional encoding override
-           -> ByteString          -- ^ Input text (a strict ByteString)
-           -> Either XMLParseError (Node tag text)
-{-# DEPRECATED parseTree' "use Text.XML.Expat.parse' instead" #-}
-parseTree' enc = parse' (ParseOptions enc Nothing)
-
 
 -- | A lower level function that lazily converts a SAX stream into a tree structure.
 saxToTree :: GenericXMLString tag =>
@@ -460,19 +397,6 @@ parseG :: (GenericXMLString tag, GenericXMLString text, List l) =>
        -> ItemM l (NodeG l tag text)
 parseG opts = saxToTreeG . SAX.parseG opts
 
--- | DEPREACTED: Use 'parse' instead.
---
--- Lazily parse XML to tree. Note that forcing the XMLParseError return value
--- will force the entire parse.  Therefore, to ensure lazy operation, don't
--- check the error status until you have processed the tree.
-parseTree :: (GenericXMLString tag, GenericXMLString text) =>
-             Maybe Encoding      -- ^ Optional encoding override
-          -> L.ByteString        -- ^ Input text (a lazy ByteString)
-          -> (Node tag text, Maybe XMLParseError)
-{-# DEPRECATED parseTree "use Text.XML.Expat.Tree.parse instead" #-}
-parseTree mEnc = parse (ParseOptions mEnc Nothing)
-
-
 -- | Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
 --
 -- @parseThrowing@ can throw an exception from pure code, which is generally a bad
@@ -485,14 +409,3 @@ parseThrowing :: (GenericXMLString tag, GenericXMLString text) =>
       -> L.ByteString           -- ^ Input text (a lazy ByteString)
       -> Node tag text
 parseThrowing opts bs = fst $ saxToTree $ SAX.parseThrowing opts bs
-
-
--- | DEPRECATED: Use 'parseThrowing' instead.
---
--- Lazily parse XML to tree. In the event of an error, throw 'XMLParseException'.
-parseTreeThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-             Maybe Encoding      -- ^ Optional encoding override
-          -> L.ByteString        -- ^ Input text (a lazy ByteString)
-          -> Node tag text
-{-# DEPRECATED parseTreeThrowing "use Text.XML.Expat.Tree.parseThrowing instead" #-}
-parseTreeThrowing mEnc = parseThrowing (ParseOptions mEnc Nothing)

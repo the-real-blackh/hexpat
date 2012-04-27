@@ -17,7 +17,8 @@ module Text.XML.Expat.SAX (
   ParseOptions(..),
   SAXEvent(..),
 
-  textFromCString,
+  textFromCString,  -- ###
+  gxFromCStringLen,  -- ###
   parse,
   parseG,
   parseLocations,
@@ -33,15 +34,7 @@ module Text.XML.Expat.SAX (
   setEntityDecoder,
 
   -- * Abstraction of string types
-  GenericXMLString(..),
-
-  -- * Deprecated parse functions
-  parseSAX,
-  parseSAXLocations,
-  parseSAXLocationsThrowing,
-  parseSAXThrowing,
-  ParserOptions,
-  defaultParserOptions
+  GenericXMLString(..)
   ) where
 
 import Control.Concurrent.MVar
@@ -51,14 +44,15 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Internal as I
+import Data.Int
 import Data.IORef
 import Data.ByteString.Internal (c2w, w2c, c_strlen)
 import qualified Data.Monoid as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Codec.Binary.UTF8.String as U8
-import Data.Typeable
 import Data.List.Class hiding (tail)
+import Data.Typeable
 import Data.Word
 import Control.Exception.Extensible as Exc
 import Control.Applicative
@@ -80,16 +74,8 @@ data ParseOptions tag text = ParseOptions
           -- be decoded into text using the supplied lookup function
     }
 
-{-# DEPRECATED ParserOptions "renamed to ParseOptions" #-}
-type ParserOptions tag text = ParseOptions tag text
-
 defaultParseOptions :: ParseOptions tag text
 defaultParseOptions = ParseOptions Nothing Nothing
-
--- | DEPRECATED. Renamed to defaultParseOptions.
-defaultParserOptions :: ParseOptions tag text
-{-# DEPRECATED defaultParserOptions "renamed to defaultParseOptions" #-}
-defaultParserOptions = defaultParseOptions
 
 
 -- | An abstraction for any string type you want to use as xml text (that is,
@@ -104,7 +90,7 @@ class (M.Monoid s, Eq s) => GenericXMLString s where
     gxHead :: s -> Char
     gxTail :: s -> s
     gxBreakOn :: Char -> s -> (s, s)
-    gxFromCStringLen :: CStringLen -> IO s
+    gxFromByteString :: B.ByteString -> s
     gxToByteString :: s -> B.ByteString
 
 instance GenericXMLString String where
@@ -115,7 +101,7 @@ instance GenericXMLString String where
     gxHead = head
     gxTail = tail
     gxBreakOn c = break (==c)
-    gxFromCStringLen cstr = U8.decode . B.unpack <$> peekByteStringLen cstr
+    gxFromByteString = U8.decode . B.unpack
     gxToByteString = B.pack . map c2w . U8.encodeString
 
 instance GenericXMLString B.ByteString where
@@ -126,7 +112,7 @@ instance GenericXMLString B.ByteString where
     gxHead = w2c . B.head
     gxTail = B.tail
     gxBreakOn c = B.break (== c2w c)
-    gxFromCStringLen = peekByteStringLen
+    gxFromByteString = id
     gxToByteString = id
 
 instance GenericXMLString T.Text where
@@ -146,7 +132,7 @@ instance GenericXMLString T.Text where
 #else
     gxBreakOn c = T.breakBy (==c)
 #endif
-    gxFromCStringLen cstr = TE.decodeUtf8 <$> peekByteStringLen cstr
+    gxFromByteString = TE.decodeUtf8
     gxToByteString = TE.encodeUtf8
 
 peekByteStringLen :: CStringLen -> IO B.ByteString
@@ -184,7 +170,10 @@ textFromCString :: GenericXMLString text => CString -> IO text
 {-# INLINE textFromCString #-}
 textFromCString cstr = do
     len <- c_strlen cstr
-    gxFromCStringLen (cstr, fromIntegral len)
+    gxFromByteString <$> peekByteStringLen (cstr, fromIntegral len)
+
+gxFromCStringLen :: GenericXMLString text => CStringLen -> IO text
+gxFromCStringLen cl = gxFromByteString <$> peekByteStringLen cl
 
 -- | A helper for configuring the hexpat parser to use the specified entity
 -- decoder.
@@ -310,30 +299,47 @@ parseBuf buf _ = withForeignPtr buf $ \pBuf -> doit [] pBuf 0
                 nAtts <- peek (pBuf `plusPtr` (offset + 4) :: Ptr Word32)
                 let pName = pBuf `plusPtr` (offset + 8)
                 lName <- fromIntegral <$> c_strlen pName
-                name <- gxFromCStringLen (pName, lName)
+                let name = gxFromByteString $ I.fromForeignPtr buf (offset + 8) lName
                 (atts, offset') <- foldM (\(atts, offset) _ -> do
                         let pAtt = pBuf `plusPtr` offset
                         lAtt <- fromIntegral <$> c_strlen pAtt
-                        att <- gxFromCStringLen (pAtt, lAtt)
-                        let offset' = offset + lAtt + 1
+                        let att = gxFromByteString $ I.fromForeignPtr buf offset lAtt
+                            offset' = offset + lAtt + 1
                             pValue = pBuf `plusPtr` offset'
                         lValue <- fromIntegral <$> c_strlen pValue
-                        value <- gxFromCStringLen (pValue, lValue)
+                        let value = gxFromByteString $ I.fromForeignPtr buf offset' lValue
                         return ((att, value):atts, offset' + lValue + 1)
                     ) ([], offset + 8 + lName + 1) [1,3..nAtts]
                 doit (StartElement name (reverse atts) : acc) pBuf (roundUp32 offset')
             2 -> do
                 let pName = pBuf `plusPtr` (offset + 4)
                 lName <- fromIntegral <$> c_strlen pName
-                name <- gxFromCStringLen (pName, lName)
-                let offset' = offset + 4 + lName + 1
+                let name = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lName
+                    offset' = offset + 4 + lName + 1
                 doit (EndElement name : acc) pBuf (roundUp32 offset')
             3 -> do
                 len <- fromIntegral <$> peek (pBuf `plusPtr` (offset + 4) :: Ptr Word32)
-                let pText = pBuf `plusPtr` (offset + 8)
-                text <- gxFromCStringLen (pText, len)
-                let offset' = offset + 8 + len
+                let text = gxFromByteString $ I.fromForeignPtr buf (offset + 8) len
+                    offset' = offset + 8 + len
                 doit (CharacterData text : acc) pBuf (roundUp32 offset')
+            4 -> do
+                let pEnc = pBuf `plusPtr` (offset + 4)
+                lEnc <- fromIntegral <$> c_strlen pEnc
+                let enc = gxFromByteString $ I.fromForeignPtr buf (offset + 4) lEnc
+                    offset' = offset + 4 + lEnc + 1
+                    pVer = pBuf `plusPtr` offset'
+                pVerFirst <- peek (castPtr pVer :: Ptr Word8)
+                (mVer, offset'') <- case pVerFirst of
+                    0 -> return (Nothing, offset' + 1)
+                    1 -> do
+                        lVer <- fromIntegral <$> c_strlen (pVer `plusPtr` 1)
+                        return (Just $ gxFromByteString $ I.fromForeignPtr buf (offset' + 1) lVer, offset' + 1 + lVer + 1)
+                    _ -> error "hexpat: bad data from C land"
+                cSta <- peek (pBuf `plusPtr` offset'' :: Ptr Int8)
+                let sta = if cSta < 0  then Nothing else
+                          if cSta == 0 then Just False else
+                                            Just True
+                doit (XMLDeclaration enc mVer sta : acc) pBuf (roundUp32 (offset'' + 1))
             _ -> error "hexpat: bad data from C land"
 
 -- | Lazily parse XML to SAX events. In the event of an error, FailDocument is
@@ -343,19 +349,6 @@ parse :: (GenericXMLString tag, GenericXMLString text) =>
       -> L.ByteString           -- ^ Input text (a lazy ByteString)
       -> [SAXEvent tag text]
 parse opts input = parseG opts (L.toChunks input)
-
-
--- | DEPRECATED: Use 'parse' instead.
---
--- Lazily parse XML to SAX events. In the event of an error, FailDocument is
--- the last element of the output list. Deprecated in favour of new
--- 'Text.XML.Expat.SAX.parse'
-parseSAX :: (GenericXMLString tag, GenericXMLString text) =>
-            Maybe Encoding      -- ^ Optional encoding override
-         -> L.ByteString        -- ^ Input text (a lazy ByteString)
-         -> [SAXEvent tag text]
-{-# DEPRECATED parseSAX "use Text.XML.Expat.SAX.parse instead" #-}
-parseSAX enc = parse (ParseOptions enc Nothing)
 
 
 -- | An exception indicating an XML parse error, used by the /..Throwing/ variants.
@@ -479,16 +472,6 @@ parseLocations :: (GenericXMLString tag, GenericXMLString text) =>
                -> [(SAXEvent tag text, XMLParseLocation)]
 parseLocations opts input = parseLocationsG opts (L.toChunks input)
 
--- | DEPRECATED: Use 'parseLocations' instead.
---
--- A variant of parseSAX that gives a document location with each SAX event.
-parseSAXLocations :: (GenericXMLString tag, GenericXMLString text) =>
-            Maybe Encoding      -- ^ Optional encoding override
-         -> L.ByteString        -- ^ Input text (a lazy ByteString)
-         -> [(SAXEvent tag text, XMLParseLocation)]
-{-# DEPRECATED parseSAXLocations "use Text.XML.Expat.SAX.parseLocations instead" #-}
-parseSAXLocations enc = parseLocations (ParseOptions enc Nothing)
-
 
 -- | Lazily parse XML to SAX events. In the event of an error, throw
 -- 'XMLParseException'.
@@ -508,18 +491,6 @@ parseThrowing opts bs = map freakOut $ parse opts bs
     freakOut other = other
 
 
--- | DEPRECATED: Use 'parseThrowing' instead.
---
--- Lazily parse XML to SAX events. In the event of an error, throw
--- 'XMLParseException'.
-parseSAXThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                    Maybe Encoding      -- ^ Optional encoding override
-                 -> L.ByteString        -- ^ Input text (a lazy ByteString)
-                 -> [SAXEvent tag text]
-{-# DEPRECATED parseSAXThrowing "use Text.XML.Expat.SAX.parseThrowing instead" #-}
-parseSAXThrowing mEnc = parseThrowing (ParseOptions mEnc Nothing)
-
-
 -- | A variant of parseSAX that gives a document location with each SAX event.
 -- In the event of an error, throw 'XMLParseException'.
 --
@@ -536,16 +507,3 @@ parseLocationsThrowing opts bs = map freakOut $ parseLocations opts bs
   where
     freakOut (FailDocument err, _) = Exc.throw $ XMLParseException err
     freakOut other = other
-
-
--- | DEPRECATED: Used 'parseLocationsThrowing' instead.
---
--- A variant of parseSAX that gives a document location with each SAX event.
--- In the event of an error, throw 'XMLParseException'.
-parseSAXLocationsThrowing :: (GenericXMLString tag, GenericXMLString text) =>
-                             Maybe Encoding      -- ^ Optional encoding override
-                          -> L.ByteString        -- ^ Input text (a lazy ByteString)
-                          -> [(SAXEvent tag text, XMLParseLocation)]
-{-# DEPRECATED parseSAXLocationsThrowing "use Text.XML.Expat.SAX.parseLocationsThrowing instead" #-}
-parseSAXLocationsThrowing mEnc =
-    parseLocationsThrowing (ParseOptions mEnc Nothing)

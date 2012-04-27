@@ -173,7 +173,7 @@ mkTests pf = flip concatMap (pfImpls pf) $ \impl ->
                                 sbDoc = normalizeText $ fromElement (getRoot $ pfDoc pf)
                             assertEqual "parse match" sbDoc (root :: Tree.UNode Text)
                             let sb = fromMaybe (pfXML pf) (impl `lookup` pfOutXML pf)
-                                bs = formatTree' root
+                                bs = format' root
                             assertEqual "format match" sb bs
             ]
         Annotated -> [
@@ -185,7 +185,7 @@ mkTests pf = flip concatMap (pfImpls pf) $ \impl ->
                                 sbDoc = normalizeText $ fromElement (getRoot $ pfDoc pf)
                             assertEqual "parse match" sbDoc (root :: Annotated.UNode () Text)
                             let sb = fromMaybe (pfXML pf) (impl `lookup` pfOutXML pf)
-                                bs = formatTree' root
+                                bs = format' root
                             assertEqual "format match" sb bs
             ]
         Extended  -> [

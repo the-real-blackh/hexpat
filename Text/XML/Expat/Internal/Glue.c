@@ -39,7 +39,7 @@ static void startElementHandler(
     const XML_Char *name,
     const XML_Char **atts)
 {
-    Block* blk = (Block*)userData;
+    Block* blk = userData;
     size_t nameLen = strlen(name) + 1;
     size_t nAtts, i;
     for (nAtts = 0; atts[nAtts] != NULL; nAtts += 2) ;
@@ -58,7 +58,7 @@ static void startElementHandler(
 
 static void endElementHandler(void *userData, const XML_Char *name)
 {
-    Block* blk = (Block*)userData;
+    Block* blk = userData;
     size_t nameLen = strlen(name) + 1;
     *(uint32_t*)alloc(blk, 4) = 2;
     memcpy(alloc(blk, nameLen), name, nameLen);
@@ -70,11 +70,32 @@ static void characterDataHandler(
     const XML_Char *s,
     int len)
 {
-    Block* blk = (Block*)userData;
+    Block* blk = userData;
     uint32_t* hdr = alloc(blk, 8);
     hdr[0] = 3;
     hdr[1] = len;
     memcpy(alloc(blk, (size_t)len), s, (size_t)len);
+    blk->offset = ROUND_UP_32(blk->offset);
+}
+
+static void xmlDeclHandler(void           *userData,
+                            const XML_Char *version,
+                            const XML_Char *encoding,
+                            int             standalone)
+{
+    Block* blk = userData;
+    int verLen = strlen(version) + 1;
+    *(uint32_t*)alloc(blk, 4) = 4;
+    memcpy(alloc(blk, verLen), version, verLen);
+    if (encoding != NULL) {
+        int encLen = strlen(encoding)+1;
+        uint8_t* pEnc = alloc(blk, encLen+1);
+        pEnc[0] = 1;
+        memcpy(pEnc+1, encoding, encLen);
+    }
+    else
+        *(uint8_t*)alloc(blk, 1) = 0;
+    *(int8_t*)alloc(blk, 1) = (int8_t)standalone;
     blk->offset = ROUND_UP_32(blk->offset);
 }
 
@@ -84,6 +105,7 @@ XML_Parser hexpatNewParser(const XML_Char* encoding)
     XML_SetStartElementHandler(p, startElementHandler);
     XML_SetEndElementHandler(p, endElementHandler);
     XML_SetCharacterDataHandler(p, characterDataHandler);
+    XML_SetXmlDeclHandler(p, xmlDeclHandler);
 }
 
 enum XML_Status hexpatParse(

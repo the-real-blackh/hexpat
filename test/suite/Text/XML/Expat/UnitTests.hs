@@ -2,11 +2,12 @@ module Text.XML.Expat.UnitTests where
 
 import Text.XML.Expat.Tree hiding (parse)
 import qualified Text.XML.Expat.Tree as Tree
-import Text.XML.Expat.IO hiding (parse)
-import qualified Text.XML.Expat.IO as IO
+import Text.XML.Expat.SAX (SAXEvent(..))
+import qualified Text.XML.Expat.SAX as SAX
+import Text.XML.Expat.Internal.IO hiding (parse)
+import qualified Text.XML.Expat.Internal.IO as IO
 import Text.XML.Expat.Cursor
 import Text.XML.Expat.Format
-import Text.XML.Expat.Qualified
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Lazy as L
@@ -240,6 +241,21 @@ simpleDocs = [
 data ParseFormatTest = ParseFormatTest {
     }
 
+test_xmlDecl1 :: IO ()
+test_xmlDecl1 = do
+    assertEqual "plain" [XMLDeclaration "1.0" Nothing Nothing,StartElement "hello" [],EndElement "hello"]
+        (SAX.parse defaultParseOptions (LC.pack "<?xml version=\"1.0\"?><hello/>") :: [SAXEvent String String])
+    assertEqual "withEnc" [XMLDeclaration "1.0" (Just "UTF-8") Nothing,StartElement "hello" [],EndElement "hello"]
+        (SAX.parse defaultParseOptions (LC.pack "<?xml version=\"1.0\" encoding=\"UTF-8\"?><hello/>") :: [SAXEvent String String])
+    assertEqual "SA0" [XMLDeclaration "1.0" Nothing (Just False),StartElement "hello" [],EndElement "hello"]
+        (SAX.parse defaultParseOptions (LC.pack "<?xml version=\"1.0\" standalone=\"no\"?><hello/>") :: [SAXEvent String String])
+    assertEqual "SA1" [XMLDeclaration "1.0" Nothing (Just True),StartElement "hello" [],EndElement "hello"]
+        (SAX.parse defaultParseOptions (LC.pack "<?xml version=\"1.0\" standalone=\"yes\"?><hello/>") :: [SAXEvent String String])
+    assertEqual "SA0enc" [XMLDeclaration "1.0" (Just "UTF-8") (Just False),StartElement "hello" [],EndElement "hello"]
+        (SAX.parse defaultParseOptions (LC.pack "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?><hello/>") :: [SAXEvent String String])
+    assertEqual "SA1enc" [XMLDeclaration "1.0" (Just "UTF-8") (Just True),StartElement "hello" [],EndElement "hello"]
+        (SAX.parse defaultParseOptions (LC.pack "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><hello/>") :: [SAXEvent String String])
+
 tests = hUnitTestToTests $
     TestList [
         t' ("String",
@@ -281,7 +297,8 @@ tests = hUnitTestToTests $
         TestLabel "entities2" $ TestCase $ test_entities2,
         TestLabel "textContent" $ TestCase $ test_textContent,
         TestLabel "indent" $ TestCase $ test_indent,
-        TestLabel "setAttribute" $ TestCase $ test_setAttribute
+        TestLabel "setAttribute" $ TestCase $ test_setAttribute,
+        TestLabel "xmlDecl1" $ TestCase $ test_xmlDecl1
       ]
 
   where
