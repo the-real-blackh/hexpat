@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.20.1
+Version: 0.20.2
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -47,7 +47,7 @@ Description:
     0.19.7 ghc-7.2.1 compatibility; 0.19.8 fix space leak on lazy parse under ghc-7.2.1;
     0.19.9 fix formatting of > character + improve performance; 0.19.10 ghc-7.4.x compatibility;
     0.20.1 fix an unfortunate crash when used in parallel processing and greatly improve
-    performance.
+    performance; 0.20.2 make parseSaxG lazier.
 Category: XML
 License: BSD3
 License-File: LICENSE

@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances, FlexibleInstances,
-        MultiParamTypeClasses, TypeFamilies #-}
+        MultiParamTypeClasses, TypeFamilies, ScopedTypeVariables #-}
 
 -- hexpat, a Haskell wrapper for expat
 -- Copyright (C) 2008 Evan Martin <martine@danga.com>
@@ -304,33 +304,41 @@ saxToTree events =
 
 -- | A lower level function that converts a generalized SAX stream into a tree structure.
 -- Ignores parse errors.
-saxToTreeG :: (GenericXMLString tag, List l) =>
+saxToTreeG :: forall tag text l . (GenericXMLString tag, List l) =>
               l (SAXEvent tag text)
            -> ItemM l (NodeG l tag text)
 saxToTreeG events = do
-    (elts, _) <- process events
-    findRoot elts
+    li <- runList (process events)
+    case li of
+        Cons elt@(Element _ _ _ ) _ -> return elt
+        _                           -> return $ Element (gxFromString "") mzero mzero
   where
-    findRoot elts = do
-        li <- runList elts
-        case li of
-            Cons elt@(Element _ _ _ ) _ -> return elt
-            Cons _ rema -> findRoot rema
-            Nil -> return $ Element (gxFromString "") mzero mzero
-    process events = do
-        li <- runList events
-        case li of
-            Nil -> return (mzero, mzero)
-            Cons (StartElement name attrs) rema -> do
-                (children, rema') <- process rema
-                (out, rema'') <- process rema'
-                return (Element name attrs children `cons` out, rema'')
-            Cons (EndElement _) rema -> return (mzero, rema)
-            Cons (CharacterData txt) rema -> do
-                (out, rema') <- process rema
-                return (Text txt `cons` out, rema')
-            --Cons (FailDocument err) rema = (mzero, mzero)
-            Cons _ rema -> process rema
+    process :: l (SAXEvent tag text) -> l (NodeG l tag text)
+    process events = joinL $ process_ events
+      where
+        process_ :: l (SAXEvent tag text) -> ItemM l (l (NodeG l tag text))
+        process_ events = do
+            li <- runList events
+            case li of
+                Nil -> return mzero
+                Cons (StartElement name attrs) rema -> do
+                    return $ Element name attrs (process rema) `cons` process (stripElement rema)
+                Cons (EndElement _) _ -> return mzero
+                Cons (CharacterData txt) rema -> return $ Text txt `cons` process rema
+                Cons _ rema -> process_ rema
+
+    stripElement :: l (SAXEvent tag text) -> l (SAXEvent tag text)
+    stripElement events = joinL $ stripElement_ 0 events
+      where
+        stripElement_ :: Int -> l (SAXEvent tag text) -> ItemM l (l (SAXEvent tag text))
+        stripElement_ level events = level `seq` do
+            li <- runList events
+            case li of
+                Nil -> return mzero
+                Cons (StartElement _ _) rema -> stripElement_ (level+1) rema
+                Cons (EndElement _) rema -> if level == 0 then return rema 
+                                                          else stripElement_ (level-1) rema
+                Cons _ rema -> stripElement_ level rema
 
 -- | Lazily parse XML to tree. Note that forcing the XMLParseError return value
 -- will force the entire parse.  Therefore, to ensure lazy operation, don't
