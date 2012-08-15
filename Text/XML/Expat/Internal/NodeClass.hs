@@ -7,7 +7,7 @@ module Text.XML.Expat.Internal.NodeClass where
 
 import Control.Monad (mzero, liftM)
 import Data.Functor.Identity
-import Data.List.Class
+import Data.List.Class (List(..), ListItem(..), cons, fromList, mapL, toList)
 import Data.Monoid (Monoid)
 import Text.XML.Expat.SAX (GenericXMLString)
 

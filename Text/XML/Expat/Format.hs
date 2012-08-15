@@ -49,7 +49,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Internal (c2w, w2c)
 import Data.Char (isSpace)
-import Data.List.Class
+import Data.List.Class (List(..), ListItem(..), fromList)
 import Data.Monoid
 import Data.Word
 import Data.Text (Text)

@@ -97,7 +97,7 @@ import Control.Monad (mzero, mplus)
 import Data.Maybe(isNothing)
 import Data.Monoid
 import Data.Functor.Identity
-import Data.List.Class
+import Data.List.Class (List(..), ListItem(..), cons, foldlL, lengthL)
 
 data Tag tag text = Tag { tagName    :: tag
                         , tagAttribs :: Attributes tag text

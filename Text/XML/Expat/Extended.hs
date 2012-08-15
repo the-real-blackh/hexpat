@@ -80,7 +80,7 @@ import Control.Monad (mplus, mzero)
 import Control.DeepSeq
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
-import Data.List.Class
+import Data.List.Class (List, foldlL, joinM)
 import Data.Maybe
 import Data.Monoid
 

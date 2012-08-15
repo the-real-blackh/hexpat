@@ -6,7 +6,7 @@ import Text.XML.Expat.Internal.NodeClass
 import Text.XML.Expat.SAX
 
 import Control.Monad
-import Data.List.Class
+import Data.List.Class (filter)
 import Data.Maybe(listToMaybe)
 import Data.Monoid
 import Prelude hiding (filter)

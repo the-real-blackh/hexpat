@@ -6,7 +6,7 @@ module Text.XML.Expat.Internal.DocumentClass where
 import Text.XML.Expat.Internal.NodeClass (NodeClass)
 import Control.DeepSeq
 import Control.Monad (mzero)
-import Data.List.Class
+import Data.List.Class (List)
 
 
 -- | XML declaration, consisting of version, encoding and standalone.

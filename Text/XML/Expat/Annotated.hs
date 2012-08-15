@@ -71,7 +71,7 @@ import Control.DeepSeq
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
-import Data.List.Class
+import Data.List.Class (List(..), ListItem(..), cons, foldlL, joinM)
 import Data.Monoid
 
 

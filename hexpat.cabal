@@ -123,7 +123,7 @@ Library
     deepseq >= 1.1.0.0 && < 1.4.0.0,
     containers,
     extensible-exceptions == 0.1.*,
-    List >= 0.4.2 && < 0.5
+    List >= 0.4.2 && < 0.6
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,

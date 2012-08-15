@@ -45,7 +45,7 @@ import qualified Data.Monoid as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Codec.Binary.UTF8.String as U8
-import Data.List.Class hiding (tail)
+import Data.List.Class (List(..), ListItem(..), cons, fromList, mapL)
 import Data.Typeable
 import Data.Word
 import Control.Exception.Extensible as Exc
