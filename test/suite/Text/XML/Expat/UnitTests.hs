@@ -235,6 +235,11 @@ test_xmlDecl1 = do
     assertEqual "SA1enc" [XMLDeclaration "1.0" (Just "UTF-8") (Just True),StartElement "hello" [],EndElement "hello"]
         (SAX.parse defaultParseOptions (LC.pack "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><hello/>") :: [SAXEvent String String])
 
+normalizeSAXText :: Monoid t => [SAXEvent s t] -> [SAXEvent s t]
+normalizeSAXText (CharacterData a:CharacterData b:xs) = normalizeSAXText (CharacterData (a `mappend` b):xs)
+normalizeSAXText (x:xs) = x:normalizeSAXText xs
+normalizeSAXText [] = []
+
 test_various :: IO ()
 test_various =
     assertEqual "var1" [
@@ -252,7 +257,7 @@ test_various =
             Comment " this is a comment ",
             EndElement "test"
         ]
-        (SAX.parse defaultParseOptions (LC.pack variousText) :: [SAXEvent String String])
+        (normalizeSAXText $ SAX.parse defaultParseOptions (LC.pack variousText) :: [SAXEvent String String])
 
 variousText =
     "<test>"++
