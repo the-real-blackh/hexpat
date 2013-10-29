@@ -33,6 +33,7 @@ module Text.XML.Expat.SAX (
   ) where
 
 import Control.Concurrent.MVar
+import Control.Exception as Exc
 import Text.XML.Expat.Internal.IO
 import Data.Bits
 import Data.ByteString (ByteString)
@@ -48,7 +49,6 @@ import qualified Codec.Binary.UTF8.String as U8
 import Data.List.Class (List(..), ListItem(..), cons, fromList, mapL)
 import Data.Typeable
 import Data.Word
-import Control.Exception.Extensible as Exc
 import Control.Applicative
 import Control.DeepSeq
 import Control.Monad
