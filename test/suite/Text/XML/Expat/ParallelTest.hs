@@ -17,6 +17,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import Test.QuickCheck
 import Test.QuickCheck.Gen
+import Test.QuickCheck.Random
 import Test.HUnit hiding (Node)
 import System.IO
 import System.Random
@@ -47,19 +48,16 @@ testParallel :: (IO () -> IO ThreadId) -> IO ()
 testParallel fork = do
     resultMVs <- replicateM nthreads $ do
         resultMV <- newEmptyMVar
-        fork $ do
-            g <- newStdGen
-            flip evalStateT g $ do
-                replicateM_ nloops $ do
-                    (g, g2) <- gets split
-                    put g
-                    let treeIn = normalizeText $ unGen (arbitrary :: Gen TNode) g 0
-                        xml = breakUp $ format' treeIn
-                        treeOut = normalizeText $ parseThrowing defaultParseOptions xml
-                    lift $ assertEqual "tree match" treeIn treeOut
-                      `catch` \exc -> do
-                          putStrLn $ "failing XML: "++concat (map B.unpack $ L.toChunks xml)
-                          throwIO (exc :: SomeException)
+        do
+            replicateM_ nloops $ do
+                g <- newQCGen
+                let treeIn = normalizeText $ unGen (arbitrary :: Gen TNode) g 30
+                    xml = breakUp $ format' treeIn
+                    treeOut = normalizeText $ parseThrowing defaultParseOptions xml
+                assertEqual "tree match" treeIn treeOut
+                  `catch` \exc -> do
+                      putStrLn $ "failing XML: "++concat (map B.unpack $ L.toChunks xml)
+                      throwIO (exc :: SomeException)
             putMVar resultMV Nothing
           `catch` \exc -> do
             putMVar resultMV $ Just (exc :: SomeException)
