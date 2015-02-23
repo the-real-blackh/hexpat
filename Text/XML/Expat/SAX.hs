@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances, CPP, ScopedTypeVariables, FlexibleInstances #-}
+{-# LANGUAGE DeriveDataTypeable, TypeSynonymInstances, CPP, ScopedTypeVariables, FlexibleInstances, GADTs #-}
 {-# OPTIONS_GHC -fno-cse -fno-full-laziness #-}
 
 -- hexpat, a Haskell wrapper for expat

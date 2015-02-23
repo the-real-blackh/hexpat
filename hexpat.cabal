@@ -50,7 +50,7 @@ Description:
     performance; 0.20.2 make parseSaxG lazier; 0.20.3 minor build issues; 0.20.4 remove
     dependency on extensible-exceptions; 0.20.5 bump text upper bound; 0.20.6 bump text again
     to include 1.1.x.x; 0.20.7 bump text again for 1.2.x.x; 0.20.8 bump utf8-string dep;
-    0.20.9 bump deepseq dep.
+    0.20.9 bump deepseq dep/ghc-7.10 compatibility.
 Category: XML
 License: BSD3
 License-File: LICENSE

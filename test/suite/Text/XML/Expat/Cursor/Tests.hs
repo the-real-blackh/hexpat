@@ -1,5 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
 
 module Text.XML.Expat.Cursor.Tests (tests) where
 
@@ -159,6 +158,7 @@ prop_leftRight = forAll gen p
 
         return (n', ch1, chN)
 
+    p :: (TNode, TNode, TNode) -> Bool
     p (node, ch1, chN) = p1 && p2
       where
         cursor = fromTree node
