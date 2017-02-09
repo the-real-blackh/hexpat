@@ -125,7 +125,7 @@ Library
     utf8-string >= 0.3 && < 1.1,
     deepseq >= 1.1.0.0 && < 1.5.0.0,
     containers,
-    List >= 0.4.2 && < 0.6
+    List >= 0.4.2 && < 0.7
   Exposed-Modules:
     Text.XML.Expat.Annotated,
     Text.XML.Expat.Cursor,
