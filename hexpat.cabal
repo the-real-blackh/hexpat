@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.20.10
+Version: 0.20.11
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -50,7 +50,8 @@ Description:
     performance; 0.20.2 make parseSaxG lazier; 0.20.3 minor build issues; 0.20.4 remove
     dependency on extensible-exceptions; 0.20.5 bump text upper bound; 0.20.6 bump text again
     to include 1.1.x.x; 0.20.7 bump text again for 1.2.x.x; 0.20.8 bump utf8-string dep;
-    0.20.9 bump deepseq dep/ghc-7.10 compatibility.; 0.20.10 increase dependency upper bounds
+    0.20.9 bump deepseq dep/ghc-7.10 compatibility.; 0.20.10 increase dependency upper bounds;
+    0.20.11 update to libexpat-2.2.1 which includes several security fixes.
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -95,21 +96,29 @@ Extra-Source-Files:
   test/hexpat-leak/build.sh
   test/readRoads.hs,
   test/ROADS.xml,
-  cbits/amigaconfig.h,
-  cbits/asciitab.h,
-  cbits/expat.h,
-  cbits/internal.h,
-  cbits/macconfig.h,
-  cbits/utf8tab.h,
-  cbits/xmlrole.h,
-  cbits/xmltok_impl.h,
-  cbits/ascii.h,
-  cbits/expat_external.h,
-  cbits/iasciitab.h,
-  cbits/latin1tab.h,
-  cbits/nametab.h,
   cbits/winconfig.h,
   cbits/xmltok.h
+  cbits/winconfig.h
+  cbits/xmltok_ns.c
+  cbits/internal.h
+  cbits/utf8tab.h
+  cbits/siphash.h
+  cbits/latin1tab.h
+  cbits/xmltok.h
+  cbits/expat.h
+  cbits/xmltok.c
+  cbits/iasciitab.h
+  cbits/asciitab.h
+  cbits/README
+  cbits/xmlparse.c
+  cbits/xmltok_impl.h
+  cbits/xmltok_impl.c
+  cbits/xmlrole.c
+  cbits/xmlrole.h
+  cbits/expat_external.h
+  cbits/ascii.h
+  cbits/nametab.h
+
 Build-Type: Simple
 Stability: beta
 source-repository head
