@@ -32,7 +32,7 @@ Description:
   so you won't need to import them directly.
   .
   If you have trouble building on Windows, you can try the bundle flag. This will
-  make it build from the source of libexpat builded inside the hexpat package:
+  make it build from the source of libexpat bundled inside the hexpat package:
   cabal install -f bundle hexpat
   .
   Credits to Iavor Diatchki and the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
