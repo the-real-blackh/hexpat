@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.20.11
+Version: 0.20.12
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -31,6 +31,10 @@ Description:
   it.  The other /Internal/ modules are re-exported by /Annotated/, /Tree/ and /Extended/,
   so you won't need to import them directly.
   .
+  If you have trouble building on Windows, you can try the bundle flag. This will
+  make it build from the source of libexpat builded inside the hexpat package:
+  cabal install -f bundle hexpat
+  .
   Credits to Iavor Diatchki and the @xml@ (XML.Light) package for /Proc/ and /Cursor/.
   Thanks to the many contributors.
   .
@@ -51,7 +55,9 @@ Description:
     dependency on extensible-exceptions; 0.20.5 bump text upper bound; 0.20.6 bump text again
     to include 1.1.x.x; 0.20.7 bump text again for 1.2.x.x; 0.20.8 bump utf8-string dep;
     0.20.9 bump deepseq dep/ghc-7.10 compatibility.; 0.20.10 increase dependency upper bounds;
-    0.20.11 update to libexpat-2.2.1 which includes several security fixes.
+    0.20.11 update to libexpat-2.2.1 which includes several security fixes;
+    0.20.12 add flag so cabal install -f-bundle hexpat will use the system expat instead
+    of the bundled one.
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -125,6 +131,11 @@ source-repository head
     type:     git
     location: https://github.com/the-real-blackh/hexpat
 
+Flag bundle {
+  Description: Use bundled libexpat
+  Default:     False
+}
+
 Library
   Build-Depends:
     base >= 3 && < 5,
@@ -160,3 +171,16 @@ Library
     Text/XML/Expat/Internal/Glue.c
   cc-options: -DHAVE_MEMMOVE -DXML_NS -DXML_DTD
 
+  if flag(bundle) {
+    include-dirs: cbits
+    c-sources:
+      cbits/xmlparse.c,
+      cbits/xmlrole.c,
+      cbits/xmltok.c,
+      cbits/xmltok_impl.c,
+      cbits/xmltok_ns.c,
+      Text/XML/Expat/Internal/Glue.c
+    cc-options: -DHAVE_MEMMOVE -DXML_NS -DXML_DTD
+  }
+  else
+    extra-libraries: expat
