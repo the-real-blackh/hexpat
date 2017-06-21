@@ -1,6 +1,6 @@
 Cabal-Version: >= 1.6
 Name: hexpat
-Version: 0.20.12
+Version: 0.20.13
 Synopsis: XML parser/formatter based on expat
 Description:
   This package provides a general purpose Haskell XML library using Expat to
@@ -56,8 +56,9 @@ Description:
     to include 1.1.x.x; 0.20.7 bump text again for 1.2.x.x; 0.20.8 bump utf8-string dep;
     0.20.9 bump deepseq dep/ghc-7.10 compatibility.; 0.20.10 increase dependency upper bounds;
     0.20.11 update to libexpat-2.2.1 which includes several security fixes;
-    0.20.12 add flag so cabal install -f-bundle hexpat will use the system expat instead
-    of the bundled one.
+    0.20.12 use the system libexpat by default, but provide a bundle flag to allow a bundled
+    copy of expat to be used, which might make life easier on Windows: cabal install -f bundle
+    hexpat; 0.20.13 Fix some mistakes made in 0.20.12 cabal file.
 Category: XML
 License: BSD3
 License-File: LICENSE
@@ -161,16 +162,6 @@ Library
     Text.XML.Expat.Internal.Qualified
   ghc-options: -Wall -fno-warn-name-shadowing
 
-  include-dirs: cbits
-  c-sources:
-    cbits/xmlparse.c,
-    cbits/xmlrole.c,
-    cbits/xmltok.c,
-    cbits/xmltok_impl.c,
-    cbits/xmltok_ns.c,
-    Text/XML/Expat/Internal/Glue.c
-  cc-options: -DHAVE_MEMMOVE -DXML_NS -DXML_DTD
-
   if flag(bundle) {
     include-dirs: cbits
     c-sources:
@@ -182,5 +173,8 @@ Library
       Text/XML/Expat/Internal/Glue.c
     cc-options: -DHAVE_MEMMOVE -DXML_NS -DXML_DTD
   }
-  else
+  else {
+    c-sources:
+      Text/XML/Expat/Internal/Glue.c
     extra-libraries: expat
+  }
