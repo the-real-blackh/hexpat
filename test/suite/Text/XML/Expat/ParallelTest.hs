@@ -10,6 +10,7 @@ import Text.XML.Expat.ParseFormat (normalizeText)
 import Text.XML.Expat.Tree
 import Text.XML.Expat.Format
 
+import Control.Monad
 import Control.Concurrent
 import Control.Exception
 import Control.Monad.State.Strict

@@ -8,7 +8,7 @@ Executable testsuite
   main-is:         TestSuite.hs
 
   build-depends:
-    HUnit < 1.3,
+    HUnit < 1.7,
     QuickCheck >= 2.7.0.0,
     base >= 3 && < 5,
     bytestring,
